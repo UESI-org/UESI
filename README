@@ -10,3 +10,5 @@ https://github.com/rileyCloud & https://github.com/0x16000/
 UESI aims to be portable and secure, while also trying to replicate original UNIX behaviour and functionality.
 
 A monolithic kernel is also known as a monolithic operating system, which UESI targets.
+
+Compile UESI by running make.
