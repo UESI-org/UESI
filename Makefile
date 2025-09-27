@@ -1,7 +1,5 @@
 ROOTFS := src
-
 .PHONY: all clean
-
 all:
 	mkdir -p $(ROOTFS)/bin
 	mkdir -p $(ROOTFS)/sbin
@@ -14,11 +12,16 @@ all:
 	mkdir -p $(ROOTFS)/usr/lib
 	mkdir -p $(ROOTFS)/var/log
 	mkdir -p $(ROOTFS)/lib/modules/UESI/kernel/drivers
-	# Create Makefile in src/
-	echo "# Auto-generated Makefile in src/" > $(ROOTFS)/Makefile
-	echo "all:" >> $(ROOTFS)/Makefile
-	echo "\techo \"..."" >> $(ROOTFS)/Makefile
-    @printf
-
+	@echo "# Generated Makefile for ROOTFS" > $(ROOTFS)/Makefile
+	@echo ".PHONY: info clean-logs" >> $(ROOTFS)/Makefile
+	@echo "" >> $(ROOTFS)/Makefile
+	@echo "info:" >> $(ROOTFS)/Makefile
+	@echo "	@echo \"POSIX filesystem layout created\"" >> $(ROOTFS)/Makefile
+	@echo "	@echo \"Root directory: \$$(pwd)\"" >> $(ROOTFS)/Makefile
+	@echo "	@find . -type d | head -20" >> $(ROOTFS)/Makefile
+	@echo "" >> $(ROOTFS)/Makefile
+	@echo "clean-logs:" >> $(ROOTFS)/Makefile
+	@echo "	rm -f var/log/*" >> $(ROOTFS)/Makefile
+	@echo "	@echo \"Log files cleared\"" >> $(ROOTFS)/Makefile
 clean:
 	rm -rf $(ROOTFS)
