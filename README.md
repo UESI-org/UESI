@@ -1,2 +1,11 @@
-# UESI
-This is a hobby operating system developed by me and (https://github.com/0x16000)
+Official UESI src repository.
+
+UESI, all rights reserved.
+UESI Development Team, 2025.
+
+
+
+The UESI (Unified Executable System Interface) is a fully Open-Source POSIX operating system developed by riley and https://github.com/0x16000/
+UESI aims to be portable and secure, while also trying to replicate original UNIX behaviour and functionality.
+
+A monolithic kernel is also known as a monolithic operating system, which UESI targets.
