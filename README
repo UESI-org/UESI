@@ -5,7 +5,7 @@ UESI Development Team, 2025.
 
 
 
-The UESI (Unified Executable System Interface) is a fully Open-Source POSIX operating system developed by riley and https://github.com/0x16000/
+The UESI (Unified Executable System Interface) is a fully Open-Source POSIX operating system developed by https://github.com/rileyCloud and https://github.com/0x16000/
 UESI aims to be portable and secure, while also trying to replicate original UNIX behaviour and functionality.
 
 A monolithic kernel is also known as a monolithic operating system, which UESI targets.
