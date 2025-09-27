@@ -18,6 +18,7 @@ all:
 	echo "# Auto-generated Makefile in src/" > $(ROOTFS)/Makefile
 	echo "all:" >> $(ROOTFS)/Makefile
 	echo "\techo \"..."" >> $(ROOTFS)/Makefile
+    @printf
 
 clean:
 	rm -rf $(ROOTFS)
