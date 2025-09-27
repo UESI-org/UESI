@@ -14,7 +14,7 @@ all:
 	mkdir -p $(ROOTFS)/usr/lib
 	mkdir -p $(ROOTFS)/var/log
 	mkdir -p $(ROOTFS)/lib/modules/UESI/kernel/drivers
-	# Makefile in src/
+	# Create Makefile in src/
 	echo "# Auto-generated Makefile in src/" > $(ROOTFS)/Makefile
 	echo "all:" >> $(ROOTFS)/Makefile
 	echo "\techo \"..."" >> $(ROOTFS)/Makefile
