@@ -1,0 +1,73 @@
+CC := gcc
+AR := ar
+CFLAGS := -Wall -Wextra -std=c11 -ffreestanding -nostdlib -fno-stack-protector \
+          -fno-pic -mno-red-zone -mcmodel=kernel -O2
+ARFLAGS := rcs
+
+INCDIR := include
+OBJDIR := obj
+LIBDIR := lib
+
+TARGET := $(LIBDIR)/libchar.a
+
+SRCS := tty_init.c \
+        tty_write.c \
+        tty_cursor.c \
+        tty_color.c \
+        tty_screen.c \
+        tty_font.c \
+        tty_printf.c \
+        tty_pixel.c
+
+OBJS := $(SRCS:%.c=$(OBJDIR)/%.o)
+
+INCLUDES := -I$(INCDIR)
+
+.PHONY: all
+all: $(TARGET)
+
+$(OBJDIR):
+	@mkdir -p $(OBJDIR)
+
+$(LIBDIR):
+	@mkdir -p $(LIBDIR)
+
+$(TARGET): $(OBJDIR) $(LIBDIR) $(OBJS)
+	$(AR) $(ARFLAGS) $@ $(OBJS)
+	@echo "Built $@"
+
+$(OBJDIR)/%.o: %.c
+	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+
+.PHONY: clean
+clean:
+	rm -rf $(OBJDIR) $(LIBDIR)
+	@echo "Cleaned build artifacts"
+
+.PHONY: rebuild
+rebuild: clean all
+
+.PHONY: install
+install: $(TARGET)
+	@echo "Installing libchar.a..."
+	@mkdir -p ../../lib
+	cp $(TARGET) ../../lib/
+	@mkdir -p ../../include
+	cp $(INCDIR)/tty.h ../../include/
+	@echo "Installation complete"
+
+.PHONY: help
+help:
+	@echo "Makefile for libchar.a"
+	@echo ""
+	@echo "Targets:"
+	@echo "  all      - Build libchar.a (default)"
+	@echo "  clean    - Remove all build artifacts"
+	@echo "  rebuild  - Clean and rebuild"
+	@echo "  install  - Install library to ../../lib and headers to ../../include"
+	@echo "  help     - Show this help message"
+
+-include $(OBJS:.o=.d)
+
+$(OBJDIR)/%.d: %.c | $(OBJDIR)
+	@$(CC) $(CFLAGS) $(INCLUDES) -MM -MT $(OBJDIR)/$*.o $< > $@
