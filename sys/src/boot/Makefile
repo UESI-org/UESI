@@ -1,5 +1,5 @@
-CC := gcc
-LD := ld
+CC ?= x86_64-elf-gcc
+LD ?= x86_64-elf-ld
 
 CFLAGS := -Wall -Wextra -std=c11 -ffreestanding -nostdlib \
            -fno-stack-protector -fno-pic -mno-red-zone -mcmodel=kernel -O2 \
@@ -23,3 +23,10 @@ $(TARGET): $(OBJS) $(LIBCHAR)
 	@echo "Kernel built: $(TARGET)"
 
 .PHONY: all
+
+.PHONY: clean
+clean:
+	@echo "[*] Cleaning boot build..."
+	@rm -rf obj kernel.elf
+	@echo "[+] Boot build cleaned."
+

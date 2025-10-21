@@ -1,3 +1,6 @@
+CC := x86_64-elf-gcc
+LD := x86_64-elf-ld
+AR = ar
 SYS_DIR := sys/src
 BOOT_DIR := $(SYS_DIR)/boot
 LIBCHAR_DIR := $(SYS_DIR)/libchar
@@ -11,11 +14,11 @@ all: $(BUILD_DIR)/kernel.elf
 .PHONY: libchar boot
 libchar:
 	@echo "[*] Building libchar..."
-	@$(MAKE) -C $(LIBCHAR_DIR)
+	@$(MAKE) -C $(LIBCHAR_DIR) CC=$(CC) AR=$(AR)
 
 boot:
 	@echo "[*] Building kernel..."
-	@$(MAKE) -C $(BOOT_DIR)
+	@$(MAKE) -C $(BOOT_DIR) CC=$(CC) LD=$(LD)
 
 $(BUILD_DIR)/kernel.elf: libchar boot
 	@mkdir -p $(BUILD_DIR)

@@ -1,4 +1,4 @@
-CC := gcc
+CC ?= x86_6e-elf-gcc
 AR := ar
 CFLAGS := -Wall -Wextra -std=c11 -ffreestanding -nostdlib -fno-stack-protector \
           -fno-pic -mno-red-zone -mcmodel=kernel -O2
@@ -21,7 +21,7 @@ SRCS := tty_init.c \
 
 OBJS := $(SRCS:%.c=$(OBJDIR)/%.o)
 
-INCLUDES := -I$(INCDIR)
+INCLUDES := -I$(INCDIR) -I../boot
 
 .PHONY: all
 all: $(TARGET)
