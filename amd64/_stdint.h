@@ -1,3 +1,6 @@
+#ifndef ARCH_STDINT_H
+#define ARCH_STDINT_H
+
 typedef int32_t int_fast16_t;
 typedef int32_t int_fast32_t;
 typedef uint32_t uint_fast16_t;
@@ -26,4 +29,6 @@ typedef uint32_t uint_fast32_t;
 #define PTRDIFF_MIN     INT64_MIN
 #define PTRDIFF_MAX     INT64_MAX
 #define SIZE_MAX        UINT64_MAX
+#endif
+
 #endif

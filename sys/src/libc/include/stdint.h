@@ -17,7 +17,7 @@
 #define __NEED_intmax_t
 #define __NEED_uintmax_t
 
-#include <types.h>
+#include <_types.h>
 
 typedef int8_t int_fast8_t;
 typedef int64_t int_fast64_t;
@@ -92,7 +92,7 @@ typedef uint64_t uint_least64_t;
 #define SIG_ATOMIC_MIN  INT32_MIN
 #define SIG_ATOMIC_MAX  INT32_MAX
 
-#include <stdint.h>
+#include <_stdint.h>
 
 #define INT8_C(c)  c
 #define INT16_C(c) c
