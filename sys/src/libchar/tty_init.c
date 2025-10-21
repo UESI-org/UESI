@@ -11,7 +11,7 @@ void tty_init(struct limine_framebuffer *framebuffer) {
     tty.bpp = framebuffer->bpp;
     
     tty.char_width = 8;
-    tty.char_height = 8;
+    tty.char_height = 16;
     tty.cols = tty.width / tty.char_width;
     tty.rows = tty.height / tty.char_height;
     
