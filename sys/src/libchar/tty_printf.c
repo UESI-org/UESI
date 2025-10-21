@@ -65,6 +65,21 @@ static void uitoa(uint64_t value, char *str, int base) {
     }
 }
 
+static void pad_hex(char *buffer, int width) {
+    int len = 0;
+    while (buffer[len]) len++;
+    
+    if (len >= width) return;
+    
+    for (int i = len; i >= 0; i--) {
+        buffer[i + (width - len)] = buffer[i];
+    }
+    
+    for (int i = 0; i < width - len; i++) {
+        buffer[i] = '0';
+    }
+}
+
 void tty_printf(const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
@@ -74,29 +89,73 @@ void tty_printf(const char *fmt, ...) {
     while (*fmt) {
         if (*fmt == '%') {
             fmt++;
+            
+            bool is_long_long = false;
+            if (*fmt == 'l' && *(fmt + 1) == 'l') {
+                is_long_long = true;
+                fmt += 2;
+            }
+            
+            bool zero_pad = false;
+            int width = 0;
+            if (*fmt == '0') {
+                zero_pad = true;
+                fmt++;
+                while (*fmt >= '0' && *fmt <= '9') {
+                    width = width * 10 + (*fmt - '0');
+                    fmt++;
+                }
+            }
+            
             switch (*fmt) {
                 case 'd':
                 case 'i': {
-                    int value = va_arg(args, int);
-                    itoa(value, buffer, 10);
+                    if (is_long_long) {
+                        int64_t value = va_arg(args, int64_t);
+                        itoa(value, buffer, 10);
+                    } else {
+                        int value = va_arg(args, int);
+                        itoa(value, buffer, 10);
+                    }
                     tty_writestring(buffer);
                     break;
                 }
                 case 'u': {
-                    unsigned int value = va_arg(args, unsigned int);
-                    uitoa(value, buffer, 10);
+                    if (is_long_long) {
+                        uint64_t value = va_arg(args, uint64_t);
+                        uitoa(value, buffer, 10);
+                    } else {
+                        unsigned int value = va_arg(args, unsigned int);
+                        uitoa(value, buffer, 10);
+                    }
                     tty_writestring(buffer);
                     break;
                 }
                 case 'x': {
-                    unsigned int value = va_arg(args, unsigned int);
-                    uitoa(value, buffer, 16);
+                    if (is_long_long) {
+                        uint64_t value = va_arg(args, uint64_t);
+                        uitoa(value, buffer, 16);
+                    } else {
+                        unsigned int value = va_arg(args, unsigned int);
+                        uitoa(value, buffer, 16);
+                    }
+                    if (zero_pad && width > 0) {
+                        pad_hex(buffer, width);
+                    }
                     tty_writestring(buffer);
                     break;
                 }
                 case 'X': {
-                    unsigned int value = va_arg(args, unsigned int);
-                    uitoa(value, buffer, 16);
+                    if (is_long_long) {
+                        uint64_t value = va_arg(args, uint64_t);
+                        uitoa(value, buffer, 16);
+                    } else {
+                        unsigned int value = va_arg(args, unsigned int);
+                        uitoa(value, buffer, 16);
+                    }
+                    if (zero_pad && width > 0) {
+                        pad_hex(buffer, width);
+                    }
                     for (char *p = buffer; *p; p++) {
                         if (*p >= 'a' && *p <= 'f')
                             *p = *p - 'a' + 'A';
@@ -108,6 +167,7 @@ void tty_printf(const char *fmt, ...) {
                     void *ptr = va_arg(args, void*);
                     tty_writestring("0x");
                     uitoa((uint64_t)ptr, buffer, 16);
+                    pad_hex(buffer, 16);  // Always pad pointers to 16 hex digits
                     tty_writestring(buffer);
                     break;
                 }
@@ -131,6 +191,9 @@ void tty_printf(const char *fmt, ...) {
                 }
                 default:
                     tty_putchar('%');
+                    if (is_long_long) {
+                        tty_writestring("ll");
+                    }
                     tty_putchar(*fmt);
                     break;
             }

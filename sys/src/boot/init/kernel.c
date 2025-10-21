@@ -4,8 +4,10 @@
 #include "limine.h"
 #include "tty.h"
 #include "gdt.h"
+#include "isr.h"
+#include "idt.h"
 
-__attribute__((used, section(".limine_requests"))) 
+__attribute__((used, section(".limine_requests")))
 static volatile LIMINE_BASE_REVISION(3);
 
 __attribute__((used, section(".limine_requests")))
@@ -14,10 +16,10 @@ static volatile struct limine_framebuffer_request framebuffer_request = {
     .revision = 0
 };
 
-__attribute__((used, section(".limine_requests_start"))) 
+__attribute__((used, section(".limine_requests_start")))
 static volatile LIMINE_REQUESTS_START_MARKER;
 
-__attribute__((used, section(".limine_requests_end"))) 
+__attribute__((used, section(".limine_requests_end")))
 static volatile LIMINE_REQUESTS_END_MARKER;
 
 void *memcpy(void *dest, const void *src, size_t n) {
@@ -61,21 +63,25 @@ void kmain(void) {
     if (limine_base_revision[2] != 0) {
         hcf();
     }
-
+    
     if (framebuffer_request.response == NULL ||
         framebuffer_request.response->framebuffer_count < 1) {
         hcf();
     }
-
+    
     struct limine_framebuffer *framebuffer = framebuffer_request.response->framebuffers[0];
+    
     tty_init(framebuffer);
-
     tty_set_color(TTY_COLOR_WHITE, TTY_COLOR_BLACK);
     tty_writestring("UESI - V1\n");
-
     tty_set_color(TTY_COLOR_WHITE, TTY_COLOR_BLUE);
+    
     gdt_init();
     tty_writestring("GDT initialized\n");
-
+    
+    idt_init();
+    isr_install();
+    tty_writestring("IDT initialized\n");
+    
     hcf();
 }

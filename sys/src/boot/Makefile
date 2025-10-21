@@ -39,6 +39,10 @@ obj/cpu/%_asm.o: ../../../amd64/cpu/%.S
 $(TARGET): $(OBJS) $(LIBCHAR)
 	$(LD) $(LDFLAGS) -o $@ $(OBJS) $(LIBCHAR)
 	@echo "Kernel built: $(TARGET)"
+	@echo "Objects compiled:"
+	@echo "  Init objects: $(INIT_OBJS)"
+	@echo "  CPU C objects: $(CPU_C_OBJS)"
+	@echo "  CPU ASM objects: $(CPU_ASM_OBJS)"
 
 .PHONY: all clean
 
