@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include "limine.h"
 #include "tty.h"
+#include "gdt.h"
 
 __attribute__((used, section(".limine_requests"))) 
 static volatile LIMINE_BASE_REVISION(3);
@@ -70,8 +71,11 @@ void kmain(void) {
     tty_init(framebuffer);
 
     tty_set_color(TTY_COLOR_WHITE, TTY_COLOR_BLACK);
+    tty_writestring("UESI - V1\n");
 
-    tty_writestring("Hello, Limine!\n");
+    tty_set_color(TTY_COLOR_WHITE, TTY_COLOR_BLUE);
+    gdt_init();
+    tty_writestring("GDT initialized\n");
 
     hcf();
 }

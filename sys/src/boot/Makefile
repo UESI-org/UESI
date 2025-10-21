@@ -4,30 +4,45 @@ LD ?= x86_64-elf-ld
 CFLAGS := -Wall -Wextra -std=gnu11 -ffreestanding -fno-stack-protector \
            -fno-stack-check -fno-lto -fno-PIC -ffunction-sections -fdata-sections \
            -m64 -march=x86-64 -mabi=sysv -mno-80387 -mno-mmx -mno-sse -mno-sse2 \
-           -mno-red-zone -mcmodel=kernel -O2 -I. -I../libchar/include -nostdlib -fno-builtin -s
+           -mno-red-zone -mcmodel=kernel -O2 -I. -I../libchar/include -I../../../amd64/cpu \
+           -I../../../amd64 -nostdlib -fno-builtin -s
+
 LDFLAGS := -nostdlib -static -T linker.lds -z max-page-size=0x1000
 
-SRC := $(wildcard init/*.c)
-OBJS := $(patsubst %.c,obj/%.o,$(SRC))
+INIT_C_SRC := $(wildcard init/*.c)
+CPU_C_SRC := $(wildcard ../../../amd64/cpu/*.c)
+CPU_ASM_SRC := $(wildcard ../../../amd64/cpu/*.S)
+
+INIT_OBJS := $(patsubst init/%.c,obj/init/%.o,$(INIT_C_SRC))
+CPU_C_OBJS := $(patsubst ../../../amd64/cpu/%.c,obj/cpu/%_c.o,$(CPU_C_SRC))
+CPU_ASM_OBJS := $(patsubst ../../../amd64/cpu/%.S,obj/cpu/%_asm.o,$(CPU_ASM_SRC))
+
+OBJS := $(INIT_OBJS) $(CPU_C_OBJS) $(CPU_ASM_OBJS)
+
 LIBCHAR := ../libchar/lib/libchar.a
 TARGET := kernel.elf
 
 all: $(TARGET)
 
-obj/%.o: %.c
-	mkdir -p $(dir $@)
-	@mkdir -p obj
+obj/init/%.o: init/%.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+obj/cpu/%_c.o: ../../../amd64/cpu/%.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+obj/cpu/%_asm.o: ../../../amd64/cpu/%.S
+	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(TARGET): $(OBJS) $(LIBCHAR)
 	$(LD) $(LDFLAGS) -o $@ $(OBJS) $(LIBCHAR)
 	@echo "Kernel built: $(TARGET)"
 
-.PHONY: all
+.PHONY: all clean
 
-.PHONY: clean
 clean:
 	@echo "[*] Cleaning boot build..."
 	@rm -rf obj kernel.elf
 	@echo "[+] Boot build cleaned."
-
