@@ -6,6 +6,7 @@
 #include "gdt.h"
 #include "isr.h"
 #include "idt.h"
+#include "serial.h"
 
 __attribute__((used, section(".limine_requests")))
 static volatile LIMINE_BASE_REVISION(3);
@@ -60,28 +61,66 @@ static void hcf(void) {
 }
 
 void kmain(void) {
+    bool serial_ok = serial_init(SERIAL_COM1);
+    
+    if (serial_ok) {
+        serial_write_string(SERIAL_COM1, "\n=== UESI Kernel Boot ===\n");
+        serial_write_string(SERIAL_COM1, "Serial port initialized (COM1, 115200 baud)\n");
+    }
+    
     if (limine_base_revision[2] != 0) {
+        if (serial_ok) {
+            serial_write_string(SERIAL_COM1, "ERROR: Limine base revision mismatch\n");
+        }
         hcf();
+    }
+    
+    if (serial_ok) {
+        serial_write_string(SERIAL_COM1, "Limine protocol verified\n");
     }
     
     if (framebuffer_request.response == NULL ||
         framebuffer_request.response->framebuffer_count < 1) {
+        if (serial_ok) {
+            serial_write_string(SERIAL_COM1, "ERROR: No framebuffer available\n");
+        }
         hcf();
     }
     
     struct limine_framebuffer *framebuffer = framebuffer_request.response->framebuffers[0];
     
+    if (serial_ok) {
+        serial_printf(SERIAL_COM1, "Framebuffer: %ux%u, pitch=%u, bpp=%u\n",
+                     framebuffer->width, framebuffer->height,
+                     framebuffer->pitch, framebuffer->bpp);
+    }
+    
     tty_init(framebuffer);
     tty_set_color(TTY_COLOR_WHITE, TTY_COLOR_BLACK);
     tty_writestring("UESI - V1\n");
+    
+    if (serial_ok) {
+        serial_write_string(SERIAL_COM1, "TTY initialized\n");
+    }
+    
     tty_set_color(TTY_COLOR_WHITE, TTY_COLOR_BLUE);
     
     gdt_init();
     tty_writestring("GDT initialized\n");
     
+    if (serial_ok) {
+        serial_write_string(SERIAL_COM1, "GDT initialized\n");
+    }
+    
     idt_init();
     isr_install();
     tty_writestring("IDT initialized\n");
+    
+    if (serial_ok) {
+        serial_write_string(SERIAL_COM1, "IDT initialized\n");
+        serial_write_string(SERIAL_COM1, "Kernel initialization complete\n");
+        serial_write_string(SERIAL_COM1, "=== System halted ===\n");
+    }
     
     hcf();
 }
