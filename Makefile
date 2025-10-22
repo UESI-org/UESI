@@ -1,26 +1,28 @@
 CC := x86_64-elf-gcc
 LD := x86_64-elf-ld
 AR = ar
+
 SYS_DIR := sys/src
 BOOT_DIR := $(SYS_DIR)/boot
 LIBCHAR_DIR := $(SYS_DIR)/libchar
+LIBC_DIR := $(SYS_DIR)/libc
 BUILD_DIR := build
 ISODIR := $(BUILD_DIR)/iso_root
 ISO := $(BUILD_DIR)/uesi.iso
 
 .PHONY: all
 all: $(BUILD_DIR)/kernel.elf
-
-.PHONY: libchar boot
+.PHONY: libc libchar boot
+libc:
+	@echo "[*] Building libc..."
+	@$(MAKE) -C $(LIBC_DIR) CC=$(CC) AR=$(AR)
 libchar:
 	@echo "[*] Building libchar..."
 	@$(MAKE) -C $(LIBCHAR_DIR) CC=$(CC) AR=$(AR)
-
 boot:
 	@echo "[*] Building kernel..."
 	@$(MAKE) -C $(BOOT_DIR) CC=$(CC) LD=$(LD)
-
-$(BUILD_DIR)/kernel.elf: libchar boot
+$(BUILD_DIR)/kernel.elf: libc libchar boot
 	@mkdir -p $(BUILD_DIR)
 	@cp $(BOOT_DIR)/kernel.elf $(BUILD_DIR)/kernel.elf
 	@echo "[+] Kernel built and copied to $(BUILD_DIR)/kernel.elf"
@@ -62,26 +64,25 @@ iso: all
 .PHONY: run run-kvm debug
 run: iso
 	qemu-system-x86_64 -cdrom $(ISO) -m 256M -serial stdio
-
 run-kvm: iso
 	qemu-system-x86_64 -enable-kvm -cdrom $(ISO) -m 256M -serial stdio
-
 debug: iso
 	qemu-system-x86_64 -cdrom $(ISO) -m 256M -serial stdio -s -S
 
 .PHONY: clean
 clean:
 	@echo "[*] Cleaning all components..."
+	@$(MAKE) -C $(LIBC_DIR) clean || true
 	@$(MAKE) -C $(LIBCHAR_DIR) clean || true
 	@$(MAKE) -C $(BOOT_DIR) clean || true
 	@rm -rf $(BUILD_DIR)
 	@echo "[+] Cleanup complete."
-
 .PHONY: rebuild
 rebuild: clean all
 
 .PHONY: info
 info:
+	@echo "libc dir:    $(LIBC_DIR)"
 	@echo "libchar dir: $(LIBCHAR_DIR)"
 	@echo "boot dir:    $(BOOT_DIR)"
 	@echo "build dir:   $(BUILD_DIR)"

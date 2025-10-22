@@ -5,7 +5,7 @@ CFLAGS := -Wall -Wextra -std=gnu11 -ffreestanding -fno-stack-protector \
            -fno-stack-check -fno-lto -fno-PIC -ffunction-sections -fdata-sections \
            -m64 -march=x86-64 -mabi=sysv -mno-80387 -mno-mmx -mno-sse -mno-sse2 \
            -mno-red-zone -mcmodel=kernel -O2 -I. -I../libchar/include -I../../../amd64/cpu \
-           -I../../../amd64 -nostdlib -fno-builtin -s
+           -I../../../amd64 -I../libc/include -nostdlib -fno-builtin -s
 
 LDFLAGS := -nostdlib -static -T linker.lds -z max-page-size=0x1000
 
