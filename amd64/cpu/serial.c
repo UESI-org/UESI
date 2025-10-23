@@ -1,16 +1,8 @@
-#include "serial.h"
 #include <stdarg.h>
 #include <stddef.h>
-
-static inline void outb(uint16_t port, uint8_t val) {
-    __asm__ volatile ("outb %0, %1" : : "a"(val), "Nd"(port));
-}
-
-static inline uint8_t inb(uint16_t port) {
-    uint8_t ret;
-    __asm__ volatile ("inb %1, %0" : "=a"(ret) : "Nd"(port));
-    return ret;
-}
+#include <stdbool.h>
+#include "serial.h"
+#include "io.h"
 
 bool serial_init(uint16_t port) {
     // Default: 115200 baud, 8 data bits, 1 stop bit, no parity

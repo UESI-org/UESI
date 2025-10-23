@@ -1,5 +1,6 @@
-#include "isr.h"
 #include <stddef.h>
+#include "isr.h"
+#include "io.h"
 
 extern void tty_printf(const char *fmt, ...);
 extern void idt_set_gate(uint8_t num, uint64_t base, uint16_t sel, uint8_t flags);
@@ -9,10 +10,6 @@ extern void idt_set_gate(uint8_t num, uint64_t base, uint16_t sel, uint8_t flags
 #define PIC2_COMMAND 0xA0
 #define PIC2_DATA    0xA1
 #define PIC_EOI      0x20
-
-static inline void outb(uint16_t port, uint8_t val) {
-    asm volatile("outb %0, %1" : : "a"(val), "Nd"(port));
-}
 
 static const char *exception_messages[] = {
     "Division By Zero",

@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
+#include "io.h"
 
 #define SERIAL_COM1 0x3F8
 #define SERIAL_COM2 0x2F8
