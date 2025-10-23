@@ -60,9 +60,15 @@ void tty_draw_cursor(void);
 
 void tty_set_color(uint32_t fg, uint32_t bg);
 void tty_get_color(uint32_t *fg, uint32_t *bg);
+void tty_set_color_256(uint8_t fg, uint8_t bg);
+uint32_t tty_get_palette_color(uint8_t index);
+void tty_set_palette_color(uint8_t index, uint32_t rgb);
+uint8_t tty_rgb_to_palette(uint8_t r, uint8_t g, uint8_t b);
 
 void tty_clear(void);
 void tty_scroll(void);
+void tty_clear_to_end(void);
+void tty_clear_to_cursor(void);
 
 void tty_putpixel(uint64_t x, uint64_t y, uint32_t color);
 uint32_t tty_getpixel(uint64_t x, uint64_t y);

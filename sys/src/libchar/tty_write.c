@@ -3,6 +3,8 @@
 void tty_putchar(char c) {
     tty_t *tty = tty_get();
     
+    if (!tty->buffer) return;
+    
     switch (c) {
         case '\n':
             tty->cursor_x = 0;
@@ -13,13 +15,23 @@ void tty_putchar(char c) {
             tty->cursor_x = 0;
             break;
             
-        case '\t':
-            tty->cursor_x = (tty->cursor_x + 8) & ~7;
+        case '\t': {
+            uint64_t next_tab = ((tty->cursor_x / 8) + 1) * 8;
+            if (next_tab >= tty->cols) {
+                tty->cursor_x = 0;
+                tty->cursor_y++;
+            } else {
+                tty->cursor_x = next_tab;
+            }
             break;
+        }
             
         case '\b':
             if (tty->cursor_x > 0) {
                 tty->cursor_x--;
+                uint64_t px = tty->cursor_x * tty->char_width;
+                uint64_t py = tty->cursor_y * tty->char_height;
+                tty_fill_rect(px, py, tty->char_width, tty->char_height, tty->bg_color);
             }
             break;
             
@@ -28,17 +40,22 @@ void tty_putchar(char c) {
                 uint64_t px = tty->cursor_x * tty->char_width;
                 uint64_t py = tty->cursor_y * tty->char_height;
                 
-                tty_draw_char(c, px, py, tty->fg_color, tty->bg_color);
+                // Bounds check before drawing
+                if (px < tty->width && py < tty->height) {
+                    tty_draw_char(c, px, py, tty->fg_color, tty->bg_color);
+                }
                 tty->cursor_x++;
             }
             break;
     }
     
+    // Handle line wrap
     if (tty->cursor_x >= tty->cols) {
         tty->cursor_x = 0;
         tty->cursor_y++;
     }
     
+    // Handle scrolling
     if (tty->cursor_y >= tty->rows) {
         tty_scroll();
         tty->cursor_y = tty->rows - 1;
@@ -50,12 +67,16 @@ void tty_putchar(char c) {
 }
 
 void tty_write(const char *str, size_t len) {
-    for (size_t i = 0; i < len; i++) {
+    if (!str || len == 0) return;
+    
+    for (size_t i = 0; i < len && str[i] != '\0'; i++) {
         tty_putchar(str[i]);
     }
 }
 
 void tty_writestring(const char *str) {
+    if (!str) return;
+    
     while (*str) {
         tty_putchar(*str++);
     }
