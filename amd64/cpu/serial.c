@@ -2,7 +2,6 @@
 #include <stdarg.h>
 #include <stddef.h>
 
-// Port I/O functions - these need to be implemented or included from your kernel
 static inline void outb(uint16_t port, uint8_t val) {
     __asm__ volatile ("outb %0, %1" : : "a"(val), "Nd"(port));
 }
