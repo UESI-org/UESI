@@ -28,7 +28,9 @@ __attribute__((used, section(".limine_requests_end")))
 static volatile LIMINE_REQUESTS_END_MARKER;
 
 static void hcf(void) {
-    for (;;) __asm__ volatile ("hlt");
+    for (;;) {
+        __asm__ volatile ("hlt");
+    }
 }
 
 static void keyboard_handler(char c) {
@@ -37,23 +39,23 @@ static void keyboard_handler(char c) {
 
 void kmain(void) {
     debug_init();
-
+    
     if (limine_base_revision[2] != 0) {
         debug_error("Limine base revision mismatch");
         hcf();
     }
     debug_success("Limine protocol verified");
-
+    
     if (framebuffer_request.response == NULL ||
         framebuffer_request.response->framebuffer_count < 1) {
         debug_error("No framebuffer available");
         hcf();
     }
-
+    
     struct limine_framebuffer *framebuffer = framebuffer_request.response->framebuffers[0];
     debug_framebuffer_info(framebuffer->width, framebuffer->height,
                           framebuffer->pitch, framebuffer->bpp);
-
+    
     debug_section("Initializing TTY");
     tty_init(framebuffer);
     tty_set_color(TTY_COLOR_WHITE, TTY_COLOR_BLACK);
@@ -63,40 +65,44 @@ void kmain(void) {
     gdt_init();
     tty_set_color(TTY_COLOR_WHITE, TTY_COLOR_BLACK);
     tty_writestring("GDT initialized\n");
-    debug_success("GDT initialized");
+    tty_writestring(" - Null descriptor (entry 0)\n");
+    tty_writestring(" - Kernel code/data segments (Ring 0)\n");
+    tty_writestring(" - User code/data segments (Ring 3)\n");
+    tty_writestring(" - TSS descriptor (privilege switching)\n");
+    debug_success("GDT initialized with 5 segments + TSS");
 
     debug_section("Initializing IDT");
     idt_init();
     isr_install();
     tty_set_color(TTY_COLOR_WHITE, TTY_COLOR_BLACK);
     tty_writestring("IDT initialized\n");
+    tty_writestring(" - Exception handlers (INT 0-31)\n");
+    tty_writestring(" - IRQ handlers (INT 32-47)\n");
     debug_success("IDT initialized");
 
     debug_section("Initializing PIC");
     pic_init();
-    
     uint16_t mask = pic_get_mask();
     tty_set_color(TTY_COLOR_WHITE, TTY_COLOR_BLACK);
     tty_printf("PIC initialized and remapped\n");
-    tty_printf("  Master PIC: IRQ 0-7  -> INT 32-39\n");
-    tty_printf("  Slave PIC:  IRQ 8-15 -> INT 40-47\n");
-    tty_printf("  Initial mask: 0x%x\n", mask);
-    
+    tty_printf(" Master PIC: IRQ 0-7 -> INT 32-39\n");
+    tty_printf(" Slave PIC: IRQ 8-15 -> INT 40-47\n");
+    tty_printf(" Initial mask: 0x%x\n", mask);
     debug_success("PIC initialized and remapped");
     
     pic_clear_mask(IRQ_KEYBOARD);
-    debug_success("Keyboard IRQ enabled");
-
+    debug_success("Keyboard IRQ enabled (IRQ1)");
+    
     debug_section("Initializing Keyboard");
     keyboard_init();
     keyboard_set_callback(keyboard_handler);
     tty_set_color(TTY_COLOR_WHITE, TTY_COLOR_BLACK);
     tty_writestring("Keyboard initialized (QWERTZ layout)\n");
     debug_success("Keyboard initialized");
-
-    debug_banner("Kernel Initialization Complete");
     
+    debug_banner("Kernel Initialization Complete");
     tty_writestring("\n");
+    
     tty_set_color(TTY_COLOR_CYAN, TTY_COLOR_BLACK);
     tty_writestring("=== System Status ===\n");
     tty_set_color(TTY_COLOR_WHITE, TTY_COLOR_BLACK);
@@ -121,10 +127,14 @@ void kmain(void) {
     tty_writestring("System ready. Type something!\n");
     tty_set_color(TTY_COLOR_WHITE, TTY_COLOR_BLACK);
     tty_writestring("> ");
-
+    
     if (debug_is_enabled()) {
         serial_printf(DEBUG_PORT, "\n=== System Ready ===\n");
+        serial_printf(DEBUG_PORT, "GDT loaded into GDTR\n");
+        serial_printf(DEBUG_PORT, "IDT loaded into IDTR\n");
+        serial_printf(DEBUG_PORT, "TSS loaded into TR\n");
         serial_printf(DEBUG_PORT, "IRQ mask: 0x%x\n", mask);
+        serial_printf(DEBUG_PORT, "Interrupts enabled (STI)\n");
         serial_printf(DEBUG_PORT, "Awaiting keyboard input...\n");
     }
 
