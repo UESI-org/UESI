@@ -74,10 +74,18 @@ void kmain(void) {
 
     debug_section("Initializing PIC");
     pic_init();
-    pic_clear_mask(1);
+    
+    uint16_t mask = pic_get_mask();
     tty_set_color(TTY_COLOR_WHITE, TTY_COLOR_BLACK);
-    tty_writestring("PIC initialized and remapped\n");
-    debug_success("PIC initialized");
+    tty_printf("PIC initialized and remapped\n");
+    tty_printf("  Master PIC: IRQ 0-7  -> INT 32-39\n");
+    tty_printf("  Slave PIC:  IRQ 8-15 -> INT 40-47\n");
+    tty_printf("  Initial mask: 0x%x\n", mask);
+    
+    debug_success("PIC initialized and remapped");
+    
+    pic_clear_mask(IRQ_KEYBOARD);
+    debug_success("Keyboard IRQ enabled");
 
     debug_section("Initializing Keyboard");
     keyboard_init();
@@ -87,15 +95,37 @@ void kmain(void) {
     debug_success("Keyboard initialized");
 
     debug_banner("Kernel Initialization Complete");
-    tty_writestring("\n");
     
+    tty_writestring("\n");
+    tty_set_color(TTY_COLOR_CYAN, TTY_COLOR_BLACK);
+    tty_writestring("=== System Status ===\n");
+    tty_set_color(TTY_COLOR_WHITE, TTY_COLOR_BLACK);
+    
+    mask = pic_get_mask();
+    tty_printf("Active IRQ mask: 0x%x\n", mask);
+    tty_printf("Enabled IRQs: ");
+    
+    bool first = true;
+    for (int i = 0; i < 16; i++) {
+        if (!(mask & (1 << i))) {
+            if (!first) tty_writestring(", ");
+            tty_printf("%d", i);
+            first = false;
+        }
+    }
+    tty_writestring("\n\n");
+
     __asm__ volatile("sti");
     
+    tty_set_color(TTY_COLOR_GREEN, TTY_COLOR_BLACK);
     tty_writestring("System ready. Type something!\n");
+    tty_set_color(TTY_COLOR_WHITE, TTY_COLOR_BLACK);
     tty_writestring("> ");
 
     if (debug_is_enabled()) {
-        serial_printf(DEBUG_PORT, "System ready for keyboard input\n");
+        serial_printf(DEBUG_PORT, "\n=== System Ready ===\n");
+        serial_printf(DEBUG_PORT, "IRQ mask: 0x%x\n", mask);
+        serial_printf(DEBUG_PORT, "Awaiting keyboard input...\n");
     }
 
     for (;;) {
