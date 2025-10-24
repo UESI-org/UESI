@@ -3,7 +3,6 @@
 .global tss_load
 
 gdt_load:
-    # Load GDT pointer into GDTR register
     lgdt (%rdi)
    
     pushq $0x08              # Push kernel code segment selector (entry 1)
@@ -12,7 +11,6 @@ gdt_load:
     lretq                    # Far return to reload CS
     
 .reload_cs:
-    # Reload all data segment registers with kernel data selector
     movw $0x10, %ax          # Kernel data segment selector (entry 2)
     movw %ax, %ds            # Data Segment
     movw %ax, %es            # Extra Segment
