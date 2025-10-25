@@ -11,6 +11,7 @@
 #include "serial.h"
 #include "serial_debug.h"
 #include "keyboard.h"
+#include "cpuid.h"  // Add this
 
 __attribute__((used, section(".limine_requests")))
 static volatile LIMINE_BASE_REVISION(3);
@@ -61,6 +62,108 @@ void kmain(void) {
     tty_set_color(TTY_COLOR_WHITE, TTY_COLOR_BLACK);
     debug_success("TTY initialized");
 
+    // Initialize CPUID early (before GDT, as it doesn't require interrupts)
+    debug_section("Detecting CPU");
+    cpu_info_t cpu;
+    cpuid_init(&cpu);
+    
+    if (!cpu.cpuid_supported) {
+        debug_error("CPUID not supported!");
+        tty_set_color(TTY_COLOR_RED, TTY_COLOR_BLACK);
+        tty_writestring("ERROR: CPUID instruction not supported\n");
+        tty_writestring("This kernel requires a CPU with CPUID support\n");
+        hcf();
+    }
+    
+    tty_set_color(TTY_COLOR_WHITE, TTY_COLOR_BLACK);
+    tty_printf("CPU Vendor: %s\n", cpu.vendor);
+    
+    // Trim leading spaces from brand string
+    char *brand = cpu.brand;
+    while (*brand == ' ') brand++;
+    if (brand[0] != '\0') {
+        tty_printf("CPU Brand: %s\n", brand);
+    }
+    
+    tty_printf("CPU Family: %u, Model: %u, Stepping: %u\n", 
+               cpu.family, cpu.model, cpu.stepping);
+    
+    // Check critical features for x86-64
+    tty_writestring("Checking required features:\n");
+    
+    if (cpuid_has_long_mode()) {
+        tty_set_color(TTY_COLOR_GREEN, TTY_COLOR_BLACK);
+        tty_writestring(" [OK] ");
+        tty_set_color(TTY_COLOR_WHITE, TTY_COLOR_BLACK);
+        tty_writestring("64-bit Long Mode\n");
+    } else {
+        tty_set_color(TTY_COLOR_RED, TTY_COLOR_BLACK);
+        tty_writestring(" [FAIL] ");
+        tty_set_color(TTY_COLOR_WHITE, TTY_COLOR_BLACK);
+        tty_writestring("64-bit Long Mode not supported!\n");
+    }
+    
+    if (cpuid_has_pae()) {
+        tty_set_color(TTY_COLOR_GREEN, TTY_COLOR_BLACK);
+        tty_writestring(" [OK] ");
+        tty_set_color(TTY_COLOR_WHITE, TTY_COLOR_BLACK);
+        tty_writestring("PAE (Physical Address Extension)\n");
+    }
+    
+    if (cpuid_has_nx()) {
+        tty_set_color(TTY_COLOR_GREEN, TTY_COLOR_BLACK);
+        tty_writestring(" [OK] ");
+        tty_set_color(TTY_COLOR_WHITE, TTY_COLOR_BLACK);
+        tty_writestring("NX (No-Execute bit)\n");
+    }
+    
+    if (cpuid_has_apic()) {
+        tty_set_color(TTY_COLOR_GREEN, TTY_COLOR_BLACK);
+        tty_writestring(" [OK] ");
+        tty_set_color(TTY_COLOR_WHITE, TTY_COLOR_BLACK);
+        tty_writestring("APIC (Advanced PIC)\n");
+    }
+    
+    if (cpuid_has_msr()) {
+        tty_set_color(TTY_COLOR_GREEN, TTY_COLOR_BLACK);
+        tty_writestring(" [OK] ");
+        tty_set_color(TTY_COLOR_WHITE, TTY_COLOR_BLACK);
+        tty_writestring("MSR (Model Specific Registers)\n");
+    }
+    
+    // Optional features
+    tty_writestring("Optional features:\n");
+    
+    if (cpuid_has_sse2()) {
+        tty_set_color(TTY_COLOR_CYAN, TTY_COLOR_BLACK);
+        tty_writestring(" [+] ");
+        tty_set_color(TTY_COLOR_WHITE, TTY_COLOR_BLACK);
+        tty_writestring("SSE2\n");
+    }
+    
+    if (cpuid_has_sse3()) {
+        tty_set_color(TTY_COLOR_CYAN, TTY_COLOR_BLACK);
+        tty_writestring(" [+] ");
+        tty_set_color(TTY_COLOR_WHITE, TTY_COLOR_BLACK);
+        tty_writestring("SSE3\n");
+    }
+    
+    if (cpuid_has_avx()) {
+        tty_set_color(TTY_COLOR_CYAN, TTY_COLOR_BLACK);
+        tty_writestring(" [+] ");
+        tty_set_color(TTY_COLOR_WHITE, TTY_COLOR_BLACK);
+        tty_writestring("AVX\n");
+    }
+    
+    if (cpuid_has_1gb_pages()) {
+        tty_set_color(TTY_COLOR_CYAN, TTY_COLOR_BLACK);
+        tty_writestring(" [+] ");
+        tty_set_color(TTY_COLOR_WHITE, TTY_COLOR_BLACK);
+        tty_writestring("1GB Pages\n");
+    }
+    
+    debug_success("CPU detection complete");
+
     debug_section("Initializing GDT");
     gdt_init();
     tty_set_color(TTY_COLOR_WHITE, TTY_COLOR_BLACK);
@@ -107,6 +210,12 @@ void kmain(void) {
     tty_writestring("=== System Status ===\n");
     tty_set_color(TTY_COLOR_WHITE, TTY_COLOR_BLACK);
     
+    tty_printf("CPU: %s", cpu.vendor);
+    if (brand[0] != '\0') {
+        tty_printf(" (%s)", brand);
+    }
+    tty_writestring("\n");
+    
     mask = pic_get_mask();
     tty_printf("Active IRQ mask: 0x%x\n", mask);
     tty_printf("Enabled IRQs: ");
@@ -130,6 +239,7 @@ void kmain(void) {
     
     if (debug_is_enabled()) {
         serial_printf(DEBUG_PORT, "\n=== System Ready ===\n");
+        serial_printf(DEBUG_PORT, "CPU: %s (%s)\n", cpu.vendor, brand);
         serial_printf(DEBUG_PORT, "GDT loaded into GDTR\n");
         serial_printf(DEBUG_PORT, "IDT loaded into IDTR\n");
         serial_printf(DEBUG_PORT, "TSS loaded into TR\n");
