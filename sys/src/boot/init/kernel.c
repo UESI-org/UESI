@@ -11,7 +11,8 @@
 #include "serial.h"
 #include "serial_debug.h"
 #include "keyboard.h"
-#include "cpuid.h"  // Add this
+#include "cpuid.h"
+#include "pit.h"
 
 __attribute__((used, section(".limine_requests")))
 static volatile LIMINE_BASE_REVISION(3);
@@ -192,6 +193,17 @@ void kmain(void) {
     tty_printf(" Slave PIC: IRQ 8-15 -> INT 40-47\n");
     tty_printf(" Initial mask: 0x%x\n", mask);
     debug_success("PIC initialized and remapped");
+
+    debug_section("Initializing PIT");
+    uint32_t actual_freq = pit_init(100);
+    tty_set_color(TTY_COLOR_WHITE, TTY_COLOR_BLACK);
+    tty_printf("PIT initialized\n");
+    tty_printf(" Target frequency: 100 Hz\n");
+    tty_printf(" Actual frequency: %u Hz (%u ms tick)\n", actual_freq, 1000/actual_freq);
+    tty_printf(" PIT connected to IRQ0 (INT 32)\n");
+    debug_success("PIT initialized and enabled");
+    isr_register_handler(32, (isr_handler_t)pit_handler);
+    debug_success("PIT initialized and handler registered");
     
     pic_clear_mask(IRQ_KEYBOARD);
     debug_success("Keyboard IRQ enabled (IRQ1)");

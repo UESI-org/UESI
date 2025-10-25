@@ -1,6 +1,7 @@
 #include <stddef.h>
 #include "isr.h"
 #include "io.h"
+#include "pit.h"
 
 extern void tty_printf(const char *fmt, ...);
 extern void idt_set_gate(uint8_t num, uint64_t base, uint16_t sel, uint8_t flags);
@@ -71,15 +72,15 @@ void isr_handler(registers_t *regs) {
 }
 
 void irq_handler(registers_t *regs) {
-    if (regs->int_no >= 40) {
-        outb(PIC2_COMMAND, PIC_EOI); // Send to slave
-    }
-    outb(PIC1_COMMAND, PIC_EOI); // Send to master
-    
     if (interrupt_handlers[regs->int_no] != NULL) {
         isr_handler_t handler = interrupt_handlers[regs->int_no];
         handler(regs);
     }
+    
+    if (regs->int_no >= 40) {
+        outb(PIC2_COMMAND, PIC_EOI);
+    }
+    outb(PIC1_COMMAND, PIC_EOI);
 }
 
 void isr_register_handler(uint8_t n, isr_handler_t handler) {
