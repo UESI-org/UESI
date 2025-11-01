@@ -7,13 +7,14 @@ BOOT_DIR := $(SYS_DIR)/boot
 LIBCHAR_DIR := $(SYS_DIR)/libchar
 LIBC_DIR := $(SYS_DIR)/libc
 LIBKB_DIR := $(SYS_DIR)/libkb
+LIBMEM_DIR := $(SYS_DIR)/libmem
 BUILD_DIR := build
 ISODIR := $(BUILD_DIR)/iso_root
 ISO := $(BUILD_DIR)/uesi.iso
 
 .PHONY: all
 all: $(BUILD_DIR)/kernel.elf
-.PHONY: libc libchar libkb boot
+.PHONY: libc libchar libkb libmem boot
 
 libc:
 	@echo "[*] Building libc..."
@@ -24,10 +25,13 @@ libchar:
 libkb:
 	@echo "[*] Building libkb..."
 	@$(MAKE) -C $(LIBKB_DIR) CC=$(CC) AR=$(AR)
+libmem:
+	@echo "[*] Building libmem..."
+	@$(MAKE) -C $(LIBMEM_DIR) CC=$(CC) AR=$(AR)
 boot:
 	@echo "[*] Building kernel..."
 	@$(MAKE) -C $(BOOT_DIR) CC=$(CC) LD=$(LD)
-$(BUILD_DIR)/kernel.elf: libc libchar libkb boot
+$(BUILD_DIR)/kernel.elf: libc libchar libkb libmem boot
 	@mkdir -p $(BUILD_DIR)
 	@cp $(BOOT_DIR)/kernel.elf $(BUILD_DIR)/kernel.elf
 	@echo "[+] Kernel built and copied to $(BUILD_DIR)/kernel.elf"
@@ -80,6 +84,7 @@ clean:
 	@$(MAKE) -C $(LIBC_DIR) clean || true
 	@$(MAKE) -C $(LIBCHAR_DIR) clean || true
 	@$(MAKE) -C $(LIBKB_DIR) clean || true
+	@$(MAKE) -C $(LIBMEM_DIR) clean || true
 	@$(MAKE) -C $(BOOT_DIR) clean || true
 	@rm -rf $(BUILD_DIR)
 	@echo "[+] Cleanup complete."
@@ -90,6 +95,8 @@ rebuild: clean all
 info:
 	@echo "libc dir:    $(LIBC_DIR)"
 	@echo "libchar dir: $(LIBCHAR_DIR)"
+	@echo "libkb dir:   $(LIBKB_DIR)"
+	@echo "libmem dir:  $(LIBMEM_DIR)"
 	@echo "boot dir:    $(BOOT_DIR)"
 	@echo "build dir:   $(BUILD_DIR)"
 	@echo "ISO path:    $(ISO)"

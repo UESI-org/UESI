@@ -125,21 +125,49 @@ void serial_printf(uint16_t port, const char *fmt, ...) {
     while (*fmt) {
         if (*fmt == '%' && *(fmt + 1)) {
             fmt++;
+            
+            bool is_long_long = false;
+            if (*fmt == 'l' && *(fmt + 1) == 'l') {
+                is_long_long = true;
+                fmt += 2;
+            } else if (*fmt == 'l') {
+                fmt++;
+            }
+            
             switch (*fmt) {
                 case 'd':
                 case 'i': {
-                    int val = va_arg(args, int);
-                    print_signed(port, val);
+                    if (is_long_long) {
+                        long long val = va_arg(args, long long);
+                        if (val < 0) {
+                            serial_write_byte(port, '-');
+                            val = -val;
+                        }
+                        print_num(port, (unsigned long long)val, 10);
+                    } else {
+                        int val = va_arg(args, int);
+                        print_signed(port, val);
+                    }
                     break;
                 }
                 case 'u': {
-                    unsigned int val = va_arg(args, unsigned int);
-                    print_num(port, val, 10);
+                    if (is_long_long) {
+                        unsigned long long val = va_arg(args, unsigned long long);
+                        print_num(port, val, 10);
+                    } else {
+                        unsigned int val = va_arg(args, unsigned int);
+                        print_num(port, val, 10);
+                    }
                     break;
                 }
                 case 'x': {
-                    unsigned int val = va_arg(args, unsigned int);
-                    print_num(port, val, 16);
+                    if (is_long_long) {
+                        unsigned long long val = va_arg(args, unsigned long long);
+                        print_num(port, val, 16);
+                    } else {
+                        unsigned int val = va_arg(args, unsigned int);
+                        print_num(port, val, 16);
+                    }
                     break;
                 }
                 case 'p': {

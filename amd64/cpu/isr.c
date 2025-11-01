@@ -2,6 +2,7 @@
 #include "isr.h"
 #include "io.h"
 #include "pit.h"
+#include "mmu.h"
 
 extern void tty_printf(const char *fmt, ...);
 extern void idt_set_gate(uint8_t num, uint64_t base, uint16_t sel, uint8_t flags);
@@ -50,6 +51,13 @@ void isr_handler(registers_t *regs) {
         handler(regs);
     } else {
         if (regs->int_no < 32) {
+            // Special handling for page faults
+            if (regs->int_no == 14) {
+                uint64_t faulting_address;
+                asm volatile("mov %%cr2, %0" : "=r"(faulting_address));
+                mmu_handle_page_fault(faulting_address, regs->err_code);
+            }
+            
             tty_printf("\n=== EXCEPTION: %s ===\n", exception_messages[regs->int_no]);
             tty_printf("INT: %d, ERR: 0x%p\n", regs->int_no, (void*)regs->err_code);
             tty_printf("RAX: 0x%p  RBX: 0x%p\n", (void*)regs->rax, (void*)regs->rbx);
@@ -59,10 +67,17 @@ void isr_handler(registers_t *regs) {
             tty_printf("RIP: 0x%p  RFLAGS: 0x%p\n", (void*)regs->rip, (void*)regs->rflags);
             tty_printf("CS: 0x%x  SS: 0x%x\n", (unsigned int)regs->cs, (unsigned int)regs->ss);
             
-            if (regs->int_no == 14) { // Page fault
+            if (regs->int_no == 14) {
                 uint64_t faulting_address;
                 asm volatile("mov %%cr2, %0" : "=r"(faulting_address));
                 tty_printf("Page fault at: 0x%p\n", (void*)faulting_address);
+                tty_printf("Error code: ");
+                if (regs->err_code & 0x1) tty_printf("PRESENT ");
+                if (regs->err_code & 0x2) tty_printf("WRITE ");
+                if (regs->err_code & 0x4) tty_printf("USER ");
+                if (regs->err_code & 0x8) tty_printf("RESERVED ");
+                if (regs->err_code & 0x10) tty_printf("INSTRUCTION_FETCH ");
+                tty_printf("\n");
             }
      
             asm volatile("cli; hlt");
