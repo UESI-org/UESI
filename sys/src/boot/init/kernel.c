@@ -17,6 +17,7 @@
 #include "vmm.h"
 #include "mmu.h"
 #include "paging.h"
+#include "printf.h"
 
 __attribute__((used, section(".limine_requests")))
 static volatile LIMINE_BASE_REVISION(3);
@@ -53,6 +54,11 @@ static void hcf(void) {
 
 static void keyboard_handler(char c) {
     tty_putchar(c);
+}
+
+// Implement _putchar for printf library
+void _putchar(char character) {
+    tty_putchar(character);
 }
 
 void kmain(void) {
@@ -99,12 +105,12 @@ void kmain(void) {
     debug_success("TTY initialized");
 
     tty_set_color(TTY_COLOR_CYAN, TTY_COLOR_BLACK);
-    tty_writestring("Physical Memory Manager\n");
+    printf("Physical Memory Manager\n");
     tty_set_color(TTY_COLOR_WHITE, TTY_COLOR_BLACK);
-    tty_printf(" Total: %llu MB\n", total_mem / (1024 * 1024));
-    tty_printf(" Free: %llu MB\n", free_mem / (1024 * 1024));
-    tty_printf(" Used: %llu MB\n", used_mem / (1024 * 1024));
-    tty_writestring("\n");
+    printf(" Total: %llu MB\n", total_mem / (1024 * 1024));
+    printf(" Free: %llu MB\n", free_mem / (1024 * 1024));
+    printf(" Used: %llu MB\n", used_mem / (1024 * 1024));
+    printf("\n");
 
     debug_section("Initializing MMU");
     mmu_init(hhdm_request.response);
@@ -121,93 +127,93 @@ void kmain(void) {
     if (!cpu.cpuid_supported) {
         debug_error("CPUID not supported!");
         tty_set_color(TTY_COLOR_RED, TTY_COLOR_BLACK);
-        tty_writestring("ERROR: CPUID instruction not supported\n");
-        tty_writestring("This kernel requires a CPU with CPUID support\n");
+        printf("ERROR: CPUID instruction not supported\n");
+        printf("This kernel requires a CPU with CPUID support\n");
         hcf();
     }
 
     tty_set_color(TTY_COLOR_WHITE, TTY_COLOR_BLACK);
-    tty_printf("CPU Vendor: %s\n", cpu.vendor);
+    printf("CPU Vendor: %s\n", cpu.vendor);
 
     char *brand = cpu.brand;
     while (*brand == ' ') brand++;
     if (brand[0] != '\0') {
-        tty_printf("CPU Brand: %s\n", brand);
+        printf("CPU Brand: %s\n", brand);
     }
 
-    tty_printf("CPU Family: %u, Model: %u, Stepping: %u\n",
-               cpu.family, cpu.model, cpu.stepping);
+    printf("CPU Family: %u, Model: %u, Stepping: %u\n",
+           cpu.family, cpu.model, cpu.stepping);
 
-    tty_writestring("Checking required features:\n");
+    printf("Checking required features:\n");
 
     if (cpuid_has_long_mode()) {
         tty_set_color(TTY_COLOR_GREEN, TTY_COLOR_BLACK);
-        tty_writestring(" [OK] ");
+        printf(" [OK] ");
         tty_set_color(TTY_COLOR_WHITE, TTY_COLOR_BLACK);
-        tty_writestring("64-bit Long Mode\n");
+        printf("64-bit Long Mode\n");
     } else {
         tty_set_color(TTY_COLOR_RED, TTY_COLOR_BLACK);
-        tty_writestring(" [FAIL] ");
+        printf(" [FAIL] ");
         tty_set_color(TTY_COLOR_WHITE, TTY_COLOR_BLACK);
-        tty_writestring("64-bit Long Mode not supported!\n");
+        printf("64-bit Long Mode not supported!\n");
     }
 
     if (cpuid_has_pae()) {
         tty_set_color(TTY_COLOR_GREEN, TTY_COLOR_BLACK);
-        tty_writestring(" [OK] ");
+        printf(" [OK] ");
         tty_set_color(TTY_COLOR_WHITE, TTY_COLOR_BLACK);
-        tty_writestring("PAE (Physical Address Extension)\n");
+        printf("PAE (Physical Address Extension)\n");
     }
 
     if (cpuid_has_nx()) {
         tty_set_color(TTY_COLOR_GREEN, TTY_COLOR_BLACK);
-        tty_writestring(" [OK] ");
+        printf(" [OK] ");
         tty_set_color(TTY_COLOR_WHITE, TTY_COLOR_BLACK);
-        tty_writestring("NX (No-Execute bit)\n");
+        printf("NX (No-Execute bit)\n");
     }
 
     if (cpuid_has_apic()) {
         tty_set_color(TTY_COLOR_GREEN, TTY_COLOR_BLACK);
-        tty_writestring(" [OK] ");
+        printf(" [OK] ");
         tty_set_color(TTY_COLOR_WHITE, TTY_COLOR_BLACK);
-        tty_writestring("APIC (Advanced PIC)\n");
+        printf("APIC (Advanced PIC)\n");
     }
 
     if (cpuid_has_msr()) {
         tty_set_color(TTY_COLOR_GREEN, TTY_COLOR_BLACK);
-        tty_writestring(" [OK] ");
+        printf(" [OK] ");
         tty_set_color(TTY_COLOR_WHITE, TTY_COLOR_BLACK);
-        tty_writestring("MSR (Model Specific Registers)\n");
+        printf("MSR (Model Specific Registers)\n");
     }
 
-    tty_writestring("Optional features:\n");
+    printf("Optional features:\n");
 
     if (cpuid_has_sse2()) {
         tty_set_color(TTY_COLOR_CYAN, TTY_COLOR_BLACK);
-        tty_writestring(" [+] ");
+        printf(" [+] ");
         tty_set_color(TTY_COLOR_WHITE, TTY_COLOR_BLACK);
-        tty_writestring("SSE2\n");
+        printf("SSE2\n");
     }
 
     if (cpuid_has_sse3()) {
         tty_set_color(TTY_COLOR_CYAN, TTY_COLOR_BLACK);
-        tty_writestring(" [+] ");
+        printf(" [+] ");
         tty_set_color(TTY_COLOR_WHITE, TTY_COLOR_BLACK);
-        tty_writestring("SSE3\n");
+        printf("SSE3\n");
     }
 
     if (cpuid_has_avx()) {
         tty_set_color(TTY_COLOR_CYAN, TTY_COLOR_BLACK);
-        tty_writestring(" [+] ");
+        printf(" [+] ");
         tty_set_color(TTY_COLOR_WHITE, TTY_COLOR_BLACK);
-        tty_writestring("AVX\n");
+        printf("AVX\n");
     }
 
     if (cpuid_has_1gb_pages()) {
         tty_set_color(TTY_COLOR_CYAN, TTY_COLOR_BLACK);
-        tty_writestring(" [+] ");
+        printf(" [+] ");
         tty_set_color(TTY_COLOR_WHITE, TTY_COLOR_BLACK);
-        tty_writestring("1GB Pages\n");
+        printf("1GB Pages\n");
     }
 
     debug_success("CPU detection complete");
@@ -215,39 +221,39 @@ void kmain(void) {
     debug_section("Initializing GDT");
     gdt_init();
     tty_set_color(TTY_COLOR_WHITE, TTY_COLOR_BLACK);
-    tty_writestring("GDT initialized\n");
-    tty_writestring(" - Null descriptor (entry 0)\n");
-    tty_writestring(" - Kernel code/data segments (Ring 0)\n");
-    tty_writestring(" - User code/data segments (Ring 3)\n");
-    tty_writestring(" - TSS descriptor (privilege switching)\n");
+    printf("GDT initialized\n");
+    printf(" - Null descriptor (entry 0)\n");
+    printf(" - Kernel code/data segments (Ring 0)\n");
+    printf(" - User code/data segments (Ring 3)\n");
+    printf(" - TSS descriptor (privilege switching)\n");
     debug_success("GDT initialized with 5 segments + TSS");
 
     debug_section("Initializing IDT");
     idt_init();
     isr_install();
     tty_set_color(TTY_COLOR_WHITE, TTY_COLOR_BLACK);
-    tty_writestring("IDT initialized\n");
-    tty_writestring(" - Exception handlers (INT 0-31)\n");
-    tty_writestring(" - IRQ handlers (INT 32-47)\n");
+    printf("IDT initialized\n");
+    printf(" - Exception handlers (INT 0-31)\n");
+    printf(" - IRQ handlers (INT 32-47)\n");
     debug_success("IDT initialized");
 
     debug_section("Initializing PIC");
     pic_init();
     uint16_t mask = pic_get_mask();
     tty_set_color(TTY_COLOR_WHITE, TTY_COLOR_BLACK);
-    tty_printf("PIC initialized and remapped\n");
-    tty_printf(" Master PIC: IRQ 0-7 -> INT 32-39\n");
-    tty_printf(" Slave PIC: IRQ 8-15 -> INT 40-47\n");
-    tty_printf(" Initial mask: 0x%x\n", mask);
+    printf("PIC initialized and remapped\n");
+    printf(" Master PIC: IRQ 0-7 -> INT 32-39\n");
+    printf(" Slave PIC: IRQ 8-15 -> INT 40-47\n");
+    printf(" Initial mask: 0x%x\n", mask);
     debug_success("PIC initialized and remapped");
 
     debug_section("Initializing PIT");
     uint32_t actual_freq = pit_init(100);
     tty_set_color(TTY_COLOR_WHITE, TTY_COLOR_BLACK);
-    tty_printf("PIT initialized\n");
-    tty_printf(" Target frequency: 100 Hz\n");
-    tty_printf(" Actual frequency: %u Hz (%u ms tick)\n", actual_freq, 1000/actual_freq);
-    tty_printf(" PIT connected to IRQ0 (INT 32)\n");
+    printf("PIT initialized\n");
+    printf(" Target frequency: 100 Hz\n");
+    printf(" Actual frequency: %u Hz (%u ms tick)\n", actual_freq, 1000/actual_freq);
+    printf(" PIT connected to IRQ0 (INT 32)\n");
     debug_success("PIT initialized and enabled");
     isr_register_handler(32, (isr_handler_t)pit_handler);
     debug_success("PIT initialized and handler registered");
@@ -259,42 +265,42 @@ void kmain(void) {
     keyboard_init();
     keyboard_set_callback(keyboard_handler);
     tty_set_color(TTY_COLOR_WHITE, TTY_COLOR_BLACK);
-    tty_writestring("Keyboard initialized (QWERTZ layout)\n");
+    printf("Keyboard initialized (QWERTZ layout)\n");
     debug_success("Keyboard initialized");
 
     debug_banner("Kernel Initialization Complete");
-    tty_writestring("\n");
+    printf("\n");
 
     tty_set_color(TTY_COLOR_CYAN, TTY_COLOR_BLACK);
-    tty_writestring("=== System Status ===\n");
+    printf("=== System Status ===\n");
     tty_set_color(TTY_COLOR_WHITE, TTY_COLOR_BLACK);
 
-    tty_printf("CPU: %s", cpu.vendor);
+    printf("CPU: %s", cpu.vendor);
     if (brand[0] != '\0') {
-        tty_printf(" (%s)", brand);
+        printf(" (%s)", brand);
     }
-    tty_writestring("\n");
+    printf("\n");
 
     mask = pic_get_mask();
-    tty_printf("Active IRQ mask: 0x%x\n", mask);
-    tty_printf("Enabled IRQs: ");
+    printf("Active IRQ mask: 0x%x\n", mask);
+    printf("Enabled IRQs: ");
 
     bool first = true;
     for (int i = 0; i < 16; i++) {
         if (!(mask & (1 << i))) {
-            if (!first) tty_writestring(", ");
-            tty_printf("%d", i);
+            if (!first) printf(", ");
+            printf("%d", i);
             first = false;
         }
     }
-    tty_writestring("\n\n");
+    printf("\n\n");
 
     __asm__ volatile("sti");
 
     tty_set_color(TTY_COLOR_GREEN, TTY_COLOR_BLACK);
-    tty_writestring("System ready. Type something!\n");
+    printf("System ready. Type something!\n");
     tty_set_color(TTY_COLOR_WHITE, TTY_COLOR_BLACK);
-    tty_writestring("> ");
+    printf("> ");
 
     if (debug_is_enabled()) {
         serial_printf(DEBUG_PORT, "\n=== System Ready ===\n");

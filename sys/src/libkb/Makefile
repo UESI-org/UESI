@@ -3,7 +3,8 @@ AR := ar
 CFLAGS := -Wall -Wextra -std=gnu11 -ffreestanding -fno-stack-protector \
           -fno-stack-check -fno-lto -fno-PIC -ffunction-sections -fdata-sections \
           -m64 -march=x86-64 -mabi=sysv -mno-80387 -mno-mmx -mno-sse -mno-sse2 \
-          -mno-red-zone -mcmodel=kernel -O2 -I$(INCDIR) -I../boot -I../../../amd64/cpu -nostdlib -fno-builtin -s
+          -mno-red-zone -mcmodel=kernel -O2 -I$(INCDIR) -I../boot -I../../../amd64/cpu -nostdlib -fno-builtin -s \
+		  -I../libprintf/include
 ARFLAGS := rcs
 INCDIR := include
 OBJDIR := obj

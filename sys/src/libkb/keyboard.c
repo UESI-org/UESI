@@ -1,10 +1,10 @@
 #include "include/keyboard.h"
 #include "include/mapping.h"
 #include "isr.h"
+#include "printf.h"
 #include <stddef.h>
 
 extern void tty_putchar(char c);
-extern void tty_printf(const char *fmt, ...);
 
 #define KEYBOARD_DATA_PORT    0x60
 #define KEYBOARD_STATUS_PORT  0x64
@@ -68,7 +68,6 @@ static char translate_scancode(uint8_t scancode) {
         return 0;
     }
     
-    // Get base character
     char c;
     if (kbd_state.shift) {
         c = scancode_to_ascii_shift[scancode];
@@ -138,7 +137,6 @@ static void keyboard_irq_handler(registers_t *regs) {
     char c = translate_scancode(scancode);
     
     if (c != 0) {
-        // Handle Ctrl combinations
         if (kbd_state.ctrl) {
             if (c >= 'a' && c <= 'z') {
                 c = c - 'a' + 1;
@@ -156,7 +154,6 @@ static void keyboard_irq_handler(registers_t *regs) {
 }
 
 void keyboard_init(void) {
-    // Reset state
     kbd_state.shift = false;
     kbd_state.ctrl = false;
     kbd_state.alt = false;
@@ -170,7 +167,7 @@ void keyboard_init(void) {
     
     isr_register_handler(33, keyboard_irq_handler);
     
-    tty_printf("Keyboard driver initialized (QWERTZ layout)\n");
+    printf("Keyboard driver initialized (QWERTZ layout)\n");
 }
 
 keyboard_state_t keyboard_get_state(void) {
