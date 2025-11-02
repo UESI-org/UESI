@@ -1,10 +1,10 @@
 CC ?= x86_64-elf-gcc
 AR := ar
 CFLAGS := -Wall -Wextra -std=gnu11 -ffreestanding -fno-stack-protector \
-          -fno-stack-check -fno-lto -fno-PIC -ffunction-sections -fdata-sections \
-          -m64 -march=x86-64 -mabi=sysv -mno-80387 -mno-mmx -mno-sse -mno-sse2 \
-          -mno-red-zone -mcmodel=kernel -O2 -I$(INCDIR) -I../boot -I../../../amd64/cpu -nostdlib -fno-builtin -s \
-		  -I../libprintf/include
+        -fno-stack-check -fno-lto -fno-PIC -ffunction-sections -fdata-sections \
+		-m64 -march=x86-64 -mabi=sysv -mno-80387 -mno-mmx -mno-sse -mno-sse2 \
+		-mno-red-zone -mcmodel=kernel -O2 -nostdlib -fno-builtin -s \
+		-DPRINTF_INCLUDE_CONFIG_H
 ARFLAGS := rcs
 INCDIR := include
 OBJDIR := obj
@@ -12,7 +12,7 @@ LIBDIR := lib
 TARGET := $(LIBDIR)/libkb.a
 SRCS := keyboard.c
 OBJS := $(SRCS:%.c=$(OBJDIR)/%.o)
-INCLUDES := -I$(INCDIR) -I../boot
+INCLUDES := -I$(INCDIR) -I../boot -I../../../amd64/cpu -I../libprintf/include
 
 .PHONY: all
 all: $(TARGET)
@@ -21,6 +21,7 @@ $(OBJDIR):
 	@mkdir -p $(OBJDIR)
 
 $(LIBDIR):
+
 	@mkdir -p $(LIBDIR)
 
 $(TARGET): $(OBJDIR) $(LIBDIR) $(OBJS)

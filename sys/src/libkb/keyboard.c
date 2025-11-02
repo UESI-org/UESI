@@ -11,6 +11,7 @@ extern void tty_putchar(char c);
 #define KEYBOARD_COMMAND_PORT 0x64
 
 #define KEYBOARD_BUFFER_SIZE 256
+
 static char keyboard_buffer[KEYBOARD_BUFFER_SIZE];
 static volatile uint32_t buffer_read_pos = 0;
 static volatile uint32_t buffer_write_pos = 0;
