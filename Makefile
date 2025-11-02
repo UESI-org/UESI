@@ -8,30 +8,41 @@ LIBCHAR_DIR := $(SYS_DIR)/libchar
 LIBC_DIR := $(SYS_DIR)/libc
 LIBKB_DIR := $(SYS_DIR)/libkb
 LIBMEM_DIR := $(SYS_DIR)/libmem
+LIBPRINTF_DIR := $(SYS_DIR)/libprintf
 BUILD_DIR := build
 ISODIR := $(BUILD_DIR)/iso_root
 ISO := $(BUILD_DIR)/uesi.iso
 
 .PHONY: all
 all: $(BUILD_DIR)/kernel.elf
-.PHONY: libc libchar libkb libmem boot
+
+.PHONY: libc libchar libkb libmem libprintf boot
 
 libc:
 	@echo "[*] Building libc..."
 	@$(MAKE) -C $(LIBC_DIR) CC=$(CC) AR=$(AR)
+
 libchar:
 	@echo "[*] Building libchar..."
 	@$(MAKE) -C $(LIBCHAR_DIR) CC=$(CC) AR=$(AR)
+
 libkb:
 	@echo "[*] Building libkb..."
 	@$(MAKE) -C $(LIBKB_DIR) CC=$(CC) AR=$(AR)
+
 libmem:
 	@echo "[*] Building libmem..."
 	@$(MAKE) -C $(LIBMEM_DIR) CC=$(CC) AR=$(AR)
+
+libprintf:
+	@echo "[*] Building libprintf..."
+	@$(MAKE) -C $(LIBPRINTF_DIR) CC=$(CC) AR=$(AR)
+
 boot:
 	@echo "[*] Building kernel..."
 	@$(MAKE) -C $(BOOT_DIR) CC=$(CC) LD=$(LD)
-$(BUILD_DIR)/kernel.elf: libc libchar libkb libmem boot
+
+$(BUILD_DIR)/kernel.elf: libc libchar libkb libmem libprintf boot
 	@mkdir -p $(BUILD_DIR)
 	@cp $(BOOT_DIR)/kernel.elf $(BUILD_DIR)/kernel.elf
 	@echo "[+] Kernel built and copied to $(BUILD_DIR)/kernel.elf"
@@ -73,8 +84,10 @@ iso: all
 .PHONY: run run-kvm debug
 run: iso
 	qemu-system-x86_64 -cdrom $(ISO) -m 256M -serial stdio
+
 run-kvm: iso
 	qemu-system-x86_64 -enable-kvm -cdrom $(ISO) -m 256M -serial stdio
+
 debug: iso
 	qemu-system-x86_64 -cdrom $(ISO) -m 256M -serial stdio -s -S
 
@@ -85,9 +98,11 @@ clean:
 	@$(MAKE) -C $(LIBCHAR_DIR) clean || true
 	@$(MAKE) -C $(LIBKB_DIR) clean || true
 	@$(MAKE) -C $(LIBMEM_DIR) clean || true
+	@$(MAKE) -C $(LIBPRINTF_DIR) clean || true
 	@$(MAKE) -C $(BOOT_DIR) clean || true
 	@rm -rf $(BUILD_DIR)
 	@echo "[+] Cleanup complete."
+
 .PHONY: rebuild
 rebuild: clean all
 
@@ -97,6 +112,7 @@ info:
 	@echo "libchar dir: $(LIBCHAR_DIR)"
 	@echo "libkb dir:   $(LIBKB_DIR)"
 	@echo "libmem dir:  $(LIBMEM_DIR)"
+	@echo "libprintf dir: $(LIBPRINTF_DIR)"
 	@echo "boot dir:    $(BOOT_DIR)"
 	@echo "build dir:   $(BUILD_DIR)"
 	@echo "ISO path:    $(ISO)"

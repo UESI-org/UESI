@@ -5,8 +5,8 @@ CFLAGS := -Wall -Wextra -std=gnu11 -ffreestanding -fno-stack-protector \
            -fno-stack-check -fno-lto -fno-PIC -ffunction-sections -fdata-sections \
            -m64 -march=x86-64 -mabi=sysv -mno-80387 -mno-mmx -mno-sse -mno-sse2 \
            -mno-red-zone -mcmodel=kernel -O2 -I. -I../libchar/include -I../../../amd64/cpu \
-           -I../../../amd64 -I../libc/include -I../libkb/include -nostdlib -fno-builtin -s \
-		   -I../libmem/include
+           -I../../../amd64 -I../libc/include -I../libkb/include -I../libmem/include \
+           -I../libprintf/include -nostdlib -fno-builtin -s
 
 LDFLAGS := -nostdlib -static -T linker.lds -z max-page-size=0x1000
 
@@ -24,6 +24,7 @@ LIBCHAR := ../libchar/lib/libchar.a
 LIBC := ../libc/lib/libc.a 
 LIBKB := ../libkb/lib/libkb.a
 LIBMEM := ../libmem/lib/libmem.a
+LIBPRINTF := ../libprintf/lib/libprintf.a
 TARGET := kernel.elf
 
 all: $(TARGET)
@@ -40,8 +41,8 @@ obj/cpu/%_asm.o: ../../../amd64/cpu/%.S
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(TARGET): $(OBJS) $(LIBCHAR) $(LIBC) $(LIBKB) $(LIBMEM)
-	$(LD) $(LDFLAGS) -o $@ $(OBJS) $(LIBCHAR) $(LIBC) $(LIBKB) $(LIBMEM) $(LIBC)
+$(TARGET): $(OBJS) $(LIBCHAR) $(LIBC) $(LIBKB) $(LIBMEM) $(LIBPRINTF)
+	$(LD) $(LDFLAGS) -o $@ $(OBJS) $(LIBCHAR) $(LIBC) $(LIBKB) $(LIBMEM) $(LIBPRINTF) $(LIBC)
 	@echo "Kernel built: $(TARGET)"
 	@echo "Objects compiled:"
 	@echo "  Init objects: $(INIT_OBJS)"
