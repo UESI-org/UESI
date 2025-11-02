@@ -10,7 +10,7 @@ INCDIR := include
 OBJDIR := obj
 LIBDIR := lib
 TARGET := $(LIBDIR)/libprintf.a
-SRCS := printf.c
+SRCS := printf.c puts.c
 OBJS := $(SRCS:%.c=$(OBJDIR)/%.o)
 INCLUDES := -I$(INCDIR) -I../boot
 
