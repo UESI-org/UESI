@@ -9,3 +9,6 @@ https://github.com/rileyCloud & https://github.com/0x16000/
 UESI aims to be portable and secure, while also trying to replicate original UNIX behaviour and functionality.
 
 For more information, please read the wiki @ https://github.com/UESI-org/UESI/wiki
+
+Credits:
+eyalroz/printf - standalone printf library
