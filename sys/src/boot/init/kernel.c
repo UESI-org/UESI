@@ -107,9 +107,9 @@ void kmain(void) {
     tty_set_color(TTY_COLOR_CYAN, TTY_COLOR_BLACK);
     printf("Physical Memory Manager\n");
     tty_set_color(TTY_COLOR_WHITE, TTY_COLOR_BLACK);
-    printf(" Total: %llu MB\n", total_mem / (1024 * 1024));
-    printf(" Free: %llu MB\n", free_mem / (1024 * 1024));
-    printf(" Used: %llu MB\n", used_mem / (1024 * 1024));
+    printf(" Total: %llu MB\n", (unsigned long long)(total_mem / (1024 * 1024)));
+    printf(" Free: %llu MB\n",  (unsigned long long)(free_mem / (1024 * 1024)));
+    printf(" Used: %llu MB\n",  (unsigned long long)(used_mem / (1024 * 1024)));
     printf("\n");
 
     debug_section("Initializing MMU");
