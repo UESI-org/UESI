@@ -11,4 +11,4 @@ UESI aims to be portable and secure, while also trying to replicate original UNI
 For more information, please read the wiki @ https://github.com/UESI-org/UESI/wiki
 
 Credits:
-eyalroz/printf - standalone printf library
+eyalroz - standalone printf library
