@@ -10,6 +10,7 @@
 #include "pic.h"
 #include "serial.h"
 #include "serial_debug.h"
+#include "scheduler.h"
 #include "keyboard.h"
 #include "cpuid.h"
 #include "pit.h"
@@ -54,11 +55,6 @@ static void hcf(void) {
 
 static void keyboard_handler(char c) {
     tty_putchar(c);
-}
-
-// Implement _putchar for printf library
-void _putchar(char character) {
-    tty_putchar(character);
 }
 
 void kmain(void) {
@@ -257,6 +253,17 @@ void kmain(void) {
     debug_success("PIT initialized and enabled");
     isr_register_handler(32, (isr_handler_t)pit_handler);
     debug_success("PIT initialized and handler registered");
+
+    pic_clear_mask(IRQ_KEYBOARD);
+    debug_success("Keyboard IRQ enabled (IRQ1)");
+
+    debug_section("Initializing Scheduler");
+    scheduler_init(100);
+    tty_set_color(TTY_COLOR_WHITE, TTY_COLOR_BLACK);
+    printf("Scheduler initialized\n");
+    printf(" Time slice: 20 ms\n");
+    printf(" Scheduler frequency: 100 Hz\n");
+    debug_success("Scheduler initialized");
 
     pic_clear_mask(IRQ_KEYBOARD);
     debug_success("Keyboard IRQ enabled (IRQ1)");
