@@ -2,11 +2,11 @@ CC ?= x86_64-elf-gcc
 LD ?= x86_64-elf-ld
 
 CFLAGS := -Wall -Wextra -std=gnu11 -ffreestanding -fno-stack-protector \
-           -fno-stack-check -fno-lto -fno-PIC -ffunction-sections -fdata-sections \
-           -m64 -march=x86-64 -mabi=sysv -mno-80387 -mno-mmx -mno-sse -mno-sse2 \
-           -mno-red-zone -mcmodel=kernel -O2 -I. -I../libchar/include -I../../../amd64/cpu \
-           -I../../../amd64 -I../libc/include -I../libkb/include -I../libmem/include \
-           -I../libprintf/include -nostdlib -fno-builtin -s -DPRINTF_INCLUDE_CONFIG_H
+          -fno-stack-check -fno-lto -fno-PIC -ffunction-sections -fdata-sections \
+          -m64 -march=x86-64 -mabi=sysv -mno-80387 -mno-mmx -mno-sse -mno-sse2 \
+          -mno-red-zone -mcmodel=kernel -O2 \
+          $(INCLUDES) \
+          -nostdlib -fno-builtin -s -DPRINTF_INCLUDE_CONFIG_H
 
 LDFLAGS := -nostdlib -static -T linker.lds -z max-page-size=0x1000
 
