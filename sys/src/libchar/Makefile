@@ -1,16 +1,20 @@
-CC ?= x86_6e-elf-gcc
+CC ?= x86_64-elf-gcc
 AR := ar
-CFLAGS := -Wall -Wextra -std=gnu11 -ffreestanding -fno-stack-protector \
-          -fno-stack-check -fno-lto -fno-PIC -ffunction-sections -fdata-sections \
-          -m64 -march=x86-64 -mabi=sysv -mno-80387 -mno-mmx -mno-sse -mno-sse2 \
-          -mno-red-zone -mcmodel=kernel -O2 -I$(INCDIR) -I../boot -nostdlib -fno-builtin -s
-ARFLAGS := rcs
 
 INCDIR := include
 OBJDIR := obj
 LIBDIR := lib
 
 TARGET := $(LIBDIR)/libchar.a
+
+INCLUDES := -I$(INCDIR) -I../boot/include
+
+CFLAGS := -Wall -Wextra -std=gnu11 -ffreestanding -fno-stack-protector \
+          -fno-stack-check -fno-lto -fno-PIC -ffunction-sections -fdata-sections \
+          -m64 -march=x86-64 -mabi=sysv -mno-80387 -mno-mmx -mno-sse -mno-sse2 \
+          -mno-red-zone -mcmodel=kernel -O2 -nostdlib -fno-builtin -s \
+          $(INCLUDES)
+ARFLAGS := rcs
 
 SRCS := tty_init.c \
         tty_write.c \
@@ -22,8 +26,6 @@ SRCS := tty_init.c \
         tty_pixel.c
 
 OBJS := $(SRCS:%.c=$(OBJDIR)/%.o)
-
-INCLUDES := -I$(INCDIR) -I../boot
 
 .PHONY: all
 all: $(TARGET)

@@ -3,7 +3,7 @@ AR := ar
 CFLAGS := -Wall -Wextra -std=gnu11 -ffreestanding -fno-stack-protector \
           -fno-stack-check -fno-lto -fno-PIC -ffunction-sections -fdata-sections \
           -m64 -march=x86-64 -mabi=sysv -mno-80387 -mno-mmx -mno-sse -mno-sse2 \
-          -mno-red-zone -mcmodel=kernel -O2 -I$(INCDIR) -I../boot -nostdlib -fno-builtin -s \
+          -mno-red-zone -mcmodel=kernel -O2 -I$(INCDIR) -I../boot/include -nostdlib -fno-builtin -s \
           -DPRINTF_INCLUDE_CONFIG_H -DPRINTF_DISABLE_SUPPORT_FLOAT -DPRINTF_DISABLE_SUPPORT_EXPONENTIAL
 ARFLAGS := rcs
 INCDIR := include
@@ -12,7 +12,7 @@ LIBDIR := lib
 TARGET := $(LIBDIR)/libprintf.a
 SRCS := printf.c puts.c putchar.c
 OBJS := $(SRCS:%.c=$(OBJDIR)/%.o)
-INCLUDES := -I$(INCDIR) -I../boot
+INCLUDES := -I$(INCDIR) -I../boot/include
 
 .PHONY: all
 all: $(TARGET)

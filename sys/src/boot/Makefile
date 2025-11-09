@@ -1,9 +1,9 @@
 CC ?= x86_64-elf-gcc
 LD ?= x86_64-elf-ld
 
-INCLUDES := -I. -I../libc/include -I../libchar/include -I../libkb/include \
+INCLUDES := -I. -Iinclude -I../libc/include -I../libchar/include -I../libkb/include \
             -I../libmem/include -I../libprintf/include -I../../../amd64/include \
-			-I../../../sys/sys -I../../../sys
+            -I../../../sys/sys -I../../../sys
 
 CFLAGS := -Wall -Wextra -std=gnu11 -ffreestanding -fno-stack-protector \
           -fno-stack-check -fno-lto -fno-PIC -ffunction-sections -fdata-sections \
@@ -53,7 +53,15 @@ $(TARGET): $(OBJS) $(LIBCHAR) $(LIBC) $(LIBKB) $(LIBMEM) $(LIBPRINTF)
 	@echo "  CPU C objects: $(CPU_C_OBJS)"
 	@echo "  CPU ASM objects: $(CPU_ASM_OBJS)"
 
-.PHONY: all clean
+.PHONY: all clean list-sources
+
+list-sources:
+	@echo "Init C sources:"
+	@echo "  $(INIT_C_SRC)"
+	@echo "CPU C sources:"
+	@echo "  $(CPU_C_SRC)"
+	@echo "CPU ASM sources:"
+	@echo "  $(CPU_ASM_SRC)"
 
 clean:
 	@echo "[*] Cleaning boot build..."
