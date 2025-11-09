@@ -10,7 +10,7 @@ INCDIR := include
 OBJDIR := obj
 LIBDIR := lib
 TARGET := $(LIBDIR)/libmem.a
-SRCS := pmm.c vmm.c mmu.c paging.c
+SRCS := pmm.c vmm.c mmu.c paging.c kmalloc.c kfree.c
 OBJS := $(SRCS:%.c=$(OBJDIR)/%.o)
 INCLUDES := -I$(INCDIR) -I../boot
 

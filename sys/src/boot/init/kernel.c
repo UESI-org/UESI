@@ -19,6 +19,8 @@
 #include "mmu.h"
 #include "paging.h"
 #include "printf.h"
+#include "kmalloc.h"
+#include "kfree.h"
 
 __attribute__((used, section(".limine_requests")))
 static volatile LIMINE_BASE_REVISION(3);
@@ -200,6 +202,71 @@ static void cpuid_serial_print_features(const cpu_info_t *info) {
     serial_printf(DEBUG_PORT, "\n");
 }
 
+static void test_kmalloc(void) {
+    debug_section("Testing kmalloc/kfree");
+    
+    void *ptr1 = kmalloc(128);
+    if (ptr1) {
+        debug_success("Allocated 128 bytes");
+        strcpy((char *)ptr1, "Hello from kmalloc!");
+        serial_printf(DEBUG_PORT, "String: %s\n", (char *)ptr1);
+        kfree(ptr1);
+        debug_success("Freed 128 bytes");
+    } else {
+        debug_error("Failed to allocate 128 bytes");
+    }
+    
+    void *ptrs[10];
+    for (int i = 0; i < 10; i++) {
+        ptrs[i] = kmalloc(64);
+        if (ptrs[i]) {
+            memset(ptrs[i], i, 64);
+        }
+    }
+    debug_success("Allocated 10x64 bytes");
+    
+    for (int i = 0; i < 10; i += 2) {
+        kfree(ptrs[i]);
+    }
+    debug_success("Freed 5 allocations");
+    
+    for (int i = 1; i < 10; i += 2) {
+        kfree(ptrs[i]);
+    }
+    debug_success("Freed remaining allocations");
+    
+    void *small = kmalloc(16);
+    void *medium = kmalloc(256);
+    void *large = kmalloc(4096);
+    debug_success("Allocated various sizes (16, 256, 4096)");
+    
+    kfree(small);
+    kfree(medium);
+    kfree(large);
+    debug_success("Freed all sizes");
+    
+    void *zeroed = kmalloc_flags(512, KMALLOC_ZERO);
+    if (zeroed) {
+        bool all_zero = true;
+        for (int i = 0; i < 512; i++) {
+            if (((uint8_t *)zeroed)[i] != 0) {
+                all_zero = false;
+                break;
+            }
+        }
+        if (all_zero) {
+            debug_success("KMALLOC_ZERO works correctly");
+        } else {
+            debug_error("KMALLOC_ZERO failed to zero memory");
+        }
+        kfree(zeroed);
+    }
+    
+    if (debug_is_enabled()) {
+        kmalloc_stats();
+    }
+}
+
 void kmain(void) {
     debug_init();
 
@@ -217,6 +284,9 @@ void kmain(void) {
 
     pmm_init(memmap_request.response, hhdm_request.response);
     debug_success("PMM initialized");
+
+    kmalloc_init();
+    debug_success("kmalloc initialized");
 
     if (framebuffer_request.response == NULL ||
         framebuffer_request.response->framebuffer_count < 1) {
@@ -237,6 +307,8 @@ void kmain(void) {
 
     vmm_init();
     debug_success("VMM initialized");
+
+    test_kmalloc();
 
     debug_section("Detecting CPU");
     cpu_info_t cpu;
