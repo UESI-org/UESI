@@ -2,7 +2,8 @@ CC ?= x86_64-elf-gcc
 LD ?= x86_64-elf-ld
 
 INCLUDES := -I. -I../libc/include -I../libchar/include -I../libkb/include \
-            -I../libmem/include -I../libprintf/include -I../../../amd64/include
+            -I../libmem/include -I../libprintf/include -I../../../amd64/include \
+			-I../../../sys/sys
 
 CFLAGS := -Wall -Wextra -std=gnu11 -ffreestanding -fno-stack-protector \
           -fno-stack-check -fno-lto -fno-PIC -ffunction-sections -fdata-sections \
