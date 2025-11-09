@@ -2,65 +2,55 @@
 #define GDT_H
 
 #include <stdint.h>
+#include "segments.h"
 
-struct gdt_entry {
-    uint16_t limit_low;      // Lower 16 bits of segment limit
-    uint16_t base_low;
-    uint8_t base_mid;
-    uint8_t access;
-    uint8_t granularity;     // Upper 4 bits of limit + flags (G, D/B, L, AVL)
-    uint8_t base_high;
-} __attribute__((packed));
+/* 
+ * GDT Entry indices (not selectors - use GSEL macro for selectors)
+ */
+#define GDT_NULL_ENTRY      0
+#define GDT_KCODE_ENTRY     1
+#define GDT_KDATA_ENTRY     2
+#define GDT_UCODE_ENTRY     3
+#define GDT_UDATA_ENTRY     4
+#define GDT_TSS_ENTRY       5
 
-struct gdt_ptr {
-    uint16_t limit;          // Size of GDT in bytes minus 1
-    uint64_t base;           // Linear address of the GDT
-} __attribute__((packed));
+/* Total GDT entries: 5 mem descriptors + 2 for TSS (TSS is 16 bytes) */
+#define GDT_ENTRIES         7
 
+/*
+ * Segment selectors using OpenBSD-style GSEL macro
+ * Format: GSEL(index, privilege_level)
+ */
+#define GDT_SELECTOR_KERNEL_CODE    GSEL(GDT_KCODE_ENTRY, SEL_KPL)  // 0x08
+#define GDT_SELECTOR_KERNEL_DATA    GSEL(GDT_KDATA_ENTRY, SEL_KPL)  // 0x10
+#define GDT_SELECTOR_USER_CODE      GSEL(GDT_UCODE_ENTRY, SEL_UPL)  // 0x1B
+#define GDT_SELECTOR_USER_DATA      GSEL(GDT_UDATA_ENTRY, SEL_UPL)  // 0x23
+#define GDT_SELECTOR_TSS            GSEL(GDT_TSS_ENTRY, SEL_KPL)    // 0x28
+
+/*
+ * TSS structure for AMD64 long mode
+ */
 struct tss_entry {
     uint32_t reserved0;
-    uint64_t rsp0;
-    uint64_t rsp1;
-    uint64_t rsp2;
+    uint64_t rsp0;          // Stack pointer for privilege level 0
+    uint64_t rsp1;          // Stack pointer for privilege level 1
+    uint64_t rsp2;          // Stack pointer for privilege level 2
     uint64_t reserved1;
-    uint64_t ist1;
-    uint64_t ist2;
-    uint64_t ist3;
-    uint64_t ist4;
-    uint64_t ist5;
-    uint64_t ist6;
-    uint64_t ist7;
+    uint64_t ist1;          // Interrupt Stack Table 1
+    uint64_t ist2;          // Interrupt Stack Table 2
+    uint64_t ist3;          // Interrupt Stack Table 3
+    uint64_t ist4;          // Interrupt Stack Table 4
+    uint64_t ist5;          // Interrupt Stack Table 5
+    uint64_t ist6;          // Interrupt Stack Table 6
+    uint64_t ist7;          // Interrupt Stack Table 7
     uint64_t reserved2;
     uint16_t reserved3;
-    uint16_t iomap_base;
+    uint16_t iomap_base;    // I/O Map Base Address
 } __attribute__((packed));
 
-#define GDT_ACCESS_PRESENT    (1 << 7)
-#define GDT_ACCESS_RING0      (0 << 5)
-#define GDT_ACCESS_RING3      (3 << 5)
-#define GDT_ACCESS_SYSTEM     (1 << 4)  // System segment (1 = code/data, 0 = TSS/LDT)
-#define GDT_ACCESS_EXEC       (1 << 3)  // Executable segment (1 = code, 0 = data)
-#define GDT_ACCESS_DC         (1 << 2)  // Direction/Conforming bit
-#define GDT_ACCESS_RW         (1 << 1)
-#define GDT_ACCESS_ACCESSED   (1 << 0)
-
-#define GDT_GRAN_4K           (1 << 7)  // Granularity (1 = 4KB blocks, 0 = 1B blocks)
-#define GDT_GRAN_32BIT        (1 << 6)  // Size flag (1 = 32-bit protected mode)
-#define GDT_GRAN_LONG_MODE    (1 << 5)  // Long mode flag (1 = 64-bit mode)
-
-#define GDT_SELECTOR_KERNEL_CODE  0x08  // Offset 8 bytes (entry 1)
-#define GDT_SELECTOR_KERNEL_DATA  0x10  // Offset 16 bytes (entry 2)
-#define GDT_SELECTOR_USER_CODE    0x18  // Offset 24 bytes (entry 3)
-#define GDT_SELECTOR_USER_DATA    0x20  // Offset 32 bytes (entry 4)
-#define GDT_SELECTOR_TSS          0x28  // Offset 40 bytes (entry 5)
-
 void gdt_init(void);
-
-
-void gdt_load(struct gdt_ptr *gdt_ptr);
-
+void gdt_load(struct region_descriptor *gdt_ptr);
 void tss_load(uint16_t selector);
-
 void tss_set_rsp0(uint64_t rsp0);
 
 #endif

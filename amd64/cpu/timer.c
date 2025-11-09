@@ -1,5 +1,6 @@
 #include "timer.h"
 #include "idt.h"
+#include "gdt.h"
 #include "io.h"
 #include <stddef.h>
 
@@ -72,7 +73,8 @@ void timer_init(uint32_t frequency_hz) {
     
     timer_set_frequency(frequency_hz);
     
-    idt_set_gate(32 + TIMER_IRQ, (uint64_t)timer_interrupt_handler, 0x08, IDT_GATE_INTERRUPT);
+    idt_set_gate(32 + TIMER_IRQ, (uint64_t)timer_interrupt_handler, 
+                 GDT_SELECTOR_KERNEL_CODE, IDT_GATE_INTERRUPT, 0);
 }
 
 uint64_t timer_get_ticks(void) {

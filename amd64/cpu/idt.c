@@ -1,35 +1,41 @@
 #include "idt.h"
+#include "segments.h"
 #include "gdt.h"
 #include <stddef.h>
+#include <string.h>
 
-static idt_entry_t idt[IDT_ENTRIES];
+static struct gate_descriptor idt[IDT_ENTRIES];
 
-static idt_ptr_t idtp;
+static struct region_descriptor idtp;
 
-void idt_set_gate(uint8_t num, uint64_t base, uint16_t sel, uint8_t flags) {
-    idt[num].offset_low = base & 0xFFFF;
-    idt[num].offset_mid = (base >> 16) & 0xFFFF;
-    idt[num].offset_high = (base >> 32) & 0xFFFFFFFF;
+void idt_set_gate(uint8_t num, uint64_t handler, uint16_t selector, 
+                  uint8_t flags, uint8_t ist) {
+    // Extract type and DPL from flags byte
+    int type = flags & 0x0F;        // Lower 4 bits = type
+    int dpl = (flags >> 5) & 0x03;  // Bits 5-6 = DPL
+    int present = (flags >> 7) & 0x01; // Bit 7 = present
     
-    idt[num].selector = sel;
-    idt[num].ist = 0;           // Don't use IST for now
-    idt[num].type_attr = flags;
-    idt[num].zero = 0;
+    struct gate_descriptor *gd = &idt[num];
+    
+    uint64_t offset = handler;
+    gd->gd_looffset = offset & 0xFFFF;
+    gd->gd_selector = selector;
+    gd->gd_ist = ist & 0x7;
+    gd->gd_xx1 = 0;
+    gd->gd_type = type;
+    gd->gd_dpl = dpl;
+    gd->gd_p = present;
+    gd->gd_hioffset = (offset >> 16) & 0xFFFFFFFFFFFF;
+    gd->gd_xx2 = 0;
+    gd->gd_zero = 0;
+    gd->gd_xx3 = 0;
 }
 
 void idt_init(void) {
-    idtp.limit = (sizeof(idt_entry_t) * IDT_ENTRIES) - 1;
-    idtp.base = (uint64_t)&idt;
+    // Zero out all IDT entries
+    memset(idt, 0, sizeof(idt));
     
-    for (int i = 0; i < IDT_ENTRIES; i++) {
-        idt[i].offset_low = 0;
-        idt[i].offset_mid = 0;
-        idt[i].offset_high = 0;
-        idt[i].selector = 0;
-        idt[i].ist = 0;
-        idt[i].type_attr = 0;
-        idt[i].zero = 0;
-    }
+    setregion(&idtp, idt, sizeof(idt) - 1);
     
     idt_load((uint64_t)&idtp);
 }

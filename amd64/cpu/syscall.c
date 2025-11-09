@@ -1,11 +1,12 @@
 #include <stdbool.h>
 #include "syscall.h"
+#include "idt.h"
+#include "gdt.h"
 
 extern bool keyboard_has_key(void);
 extern char keyboard_getchar(void);
 extern void tty_printf(const char *fmt, ...);
 extern void tty_putchar(char c);
-extern void idt_set_gate(uint8_t num, uint64_t base, uint16_t sel, uint8_t flags);
 extern void syscall_stub(void);
 
 int64_t sys_read(int fd, void *buf, size_t count) {
@@ -106,6 +107,6 @@ void syscall_handler(syscall_registers_t *regs) {
 }
 
 void syscall_init(void) {
-    idt_set_gate(SYSCALL_INT, (uint64_t)syscall_stub, 0x08, 0xEE); // 0xEE = Ring 3 accessible
+    idt_set_gate(SYSCALL_INT, (uint64_t)syscall_stub, GDT_SELECTOR_KERNEL_CODE, IDT_GATE_USER_INT, 0);
     tty_printf("Syscall handler initialized on INT 0x80\n");
 }

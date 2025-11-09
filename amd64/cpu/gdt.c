@@ -1,80 +1,81 @@
 #include "gdt.h"
+#include "segments.h"
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
 
-static struct gdt_entry gdt[7];
+static struct mem_segment_descriptor gdt_mem[5];
+static struct sys_segment_descriptor gdt_tss;
 
 static struct tss_entry tss;
 
-static struct gdt_ptr gdt_ptr;
-
-static void gdt_set_entry(int index, uint32_t base, uint32_t limit, 
-                         uint8_t access, uint8_t granularity) {
-    // Set base address (split across 3 fields)
-    gdt[index].base_low = (base & 0xFFFF);
-    gdt[index].base_mid = (base >> 16) & 0xFF;
-    gdt[index].base_high = (base >> 24) & 0xFF;
-    
-    gdt[index].limit_low = (limit & 0xFFFF);
-    gdt[index].granularity = (limit >> 16) & 0x0F;
-    
-    gdt[index].granularity |= granularity & 0xF0;
-    
-    gdt[index].access = access;
-}
-
-static void gdt_set_tss(int index, uint64_t base, uint32_t limit) {
-    gdt[index].limit_low = limit & 0xFFFF;
-    gdt[index].base_low = base & 0xFFFF;
-    gdt[index].base_mid = (base >> 16) & 0xFF;
-    gdt[index].access = 0x89; // Present, Ring 0, TSS Available (Type = 9)
-    gdt[index].granularity = 0x00;
-    gdt[index].base_high = (base >> 24) & 0xFF;
-    
-    struct gdt_entry *upper = &gdt[index + 1];
-    uint64_t base_upper = base >> 32;
-    upper->limit_low = base_upper & 0xFFFF;
-    upper->base_low = (base_upper >> 16) & 0xFFFF;
-    upper->base_mid = 0;
-    upper->access = 0;
-    upper->granularity = 0;
-    upper->base_high = 0;
-}
+static struct region_descriptor gdt_ptr;
 
 void gdt_init(void) {
     // Zero-initialize the TSS structure
-    for (size_t i = 0; i < sizeof(struct tss_entry); i++) {
-        ((uint8_t *)&tss)[i] = 0;
-    }
+    memset(&tss, 0, sizeof(struct tss_entry));
     tss.iomap_base = sizeof(struct tss_entry);
     
-    gdt_ptr.limit = (sizeof(struct gdt_entry) * 7) - 1;
-    gdt_ptr.base = (uint64_t)&gdt;
+    // Zero-initialize GDT entries
+    memset(gdt_mem, 0, sizeof(gdt_mem));
+    memset(&gdt_tss, 0, sizeof(gdt_tss));
     
-    gdt_set_entry(0, 0, 0, 0, 0);
+    // Entry 1: Kernel Code Segment (64-bit)
+    set_mem_segment(&gdt_mem[GDT_KCODE_ENTRY],
+                    NULL,                    // base (ignored in long mode)
+                    0xFFFFF,                 // limit (ignored in long mode)
+                    SDT_MEMER,               // type: executable, readable
+                    SEL_KPL,                 // DPL: kernel privilege
+                    1,                       // granularity: 4KB
+                    0,                       // def32: not 32-bit
+                    1);                      // long mode: yes
     
-    gdt_set_entry(1, 0, 0xFFFFF,
-                  GDT_ACCESS_PRESENT | GDT_ACCESS_RING0 | GDT_ACCESS_SYSTEM | 
-                  GDT_ACCESS_EXEC | GDT_ACCESS_RW,
-                  GDT_GRAN_4K | GDT_GRAN_LONG_MODE);
+    // Entry 2: Kernel Data Segment
+    set_mem_segment(&gdt_mem[GDT_KDATA_ENTRY],
+                    NULL,                    // base (ignored in long mode)
+                    0xFFFFF,                 // limit (ignored in long mode)
+                    SDT_MEMRW,               // type: read/write data
+                    SEL_KPL,                 // DPL: kernel privilege
+                    1,                       // granularity: 4KB
+                    1,                       // def32: 32-bit
+                    0);                      // long mode: no
     
-    gdt_set_entry(2, 0, 0xFFFFF,
-                  GDT_ACCESS_PRESENT | GDT_ACCESS_RING0 | GDT_ACCESS_SYSTEM | 
-                  GDT_ACCESS_RW,
-                  GDT_GRAN_4K | GDT_GRAN_32BIT);
+    // Entry 3: User Code Segment (64-bit)
+    set_mem_segment(&gdt_mem[GDT_UCODE_ENTRY],
+                    NULL,                    // base (ignored in long mode)
+                    0xFFFFF,                 // limit (ignored in long mode)
+                    SDT_MEMER,               // type: executable, readable
+                    SEL_UPL,                 // DPL: user privilege
+                    1,                       // granularity: 4KB
+                    0,                       // def32: not 32-bit
+                    1);                      // long mode: yes
     
-    gdt_set_entry(3, 0, 0xFFFFF,
-                  GDT_ACCESS_PRESENT | GDT_ACCESS_RING3 | GDT_ACCESS_SYSTEM | 
-                  GDT_ACCESS_EXEC | GDT_ACCESS_RW,
-                  GDT_GRAN_4K | GDT_GRAN_LONG_MODE);
+    // Entry 4: User Data Segment
+    set_mem_segment(&gdt_mem[GDT_UDATA_ENTRY],
+                    NULL,                    // base (ignored in long mode)
+                    0xFFFFF,                 // limit (ignored in long mode)
+                    SDT_MEMRW,               // type: read/write data
+                    SEL_UPL,                 // DPL: user privilege
+                    1,                       // granularity: 4KB
+                    1,                       // def32: 32-bit
+                    0);                      // long mode: no
     
-    gdt_set_entry(4, 0, 0xFFFFF,
-                  GDT_ACCESS_PRESENT | GDT_ACCESS_RING3 | GDT_ACCESS_SYSTEM | 
-                  GDT_ACCESS_RW,
-                  GDT_GRAN_4K | GDT_GRAN_32BIT);
+    // Entry 5-6: TSS Descriptor (16 bytes in 64-bit mode)
+    set_sys_segment(&gdt_tss,
+                    &tss,                    // base address of TSS
+                    sizeof(struct tss_entry) - 1,  // limit
+                    SDT_SYS386TSS,           // type: available TSS
+                    SEL_KPL,                 // DPL: kernel privilege
+                    0);                      // granularity: byte
     
-    // Entries 5-6: TSS Descriptor (16 bytes in 64-bit mode)
-    gdt_set_tss(5, (uint64_t)&tss, sizeof(struct tss_entry) - 1);
+    // Build a contiguous GDT in memory
+    // We need to copy our structures into a single buffer
+    static uint8_t gdt_buffer[sizeof(gdt_mem) + sizeof(gdt_tss)];
+    memcpy(gdt_buffer, gdt_mem, sizeof(gdt_mem));
+    memcpy(gdt_buffer + sizeof(gdt_mem), &gdt_tss, sizeof(gdt_tss));
+    
+    // Set up the GDT pointer
+    setregion(&gdt_ptr, gdt_buffer, sizeof(gdt_buffer) - 1);
     
     gdt_load(&gdt_ptr);
     
