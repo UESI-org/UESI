@@ -68,27 +68,38 @@ typedef struct rtc_time {
     uint8_t  weekday;       /* 1-7 (Sunday=1) */
 } rtc_time_t;
 
+typedef enum {
+    TZ_UTC = 0,
+    TZ_CET,          /* Central European Time (UTC+1/+2) */
+    TZ_EST,          /* Eastern Standard Time (UTC-5/-4) */
+    TZ_PST,          /* Pacific Standard Time (UTC-8/-7) */
+    TZ_JST,          /* Japan Standard Time (UTC+9) */
+    TZ_AEST,         /* Australian Eastern Time (UTC+10/+11) */
+} timezone_t;
+
+typedef struct {
+    const char *name;
+    int offset_seconds;      /* Standard time offset from UTC */
+    int dst_offset_seconds;  /* DST offset from UTC (0 if no DST) */
+    int has_dst;
+} timezone_info_t;
+
 typedef void (*rtc_handler_t)(void);
-
 void rtc_init(void);
-
 int rtc_get_time(rtc_time_t *time);
-
 int rtc_set_time(const rtc_time_t *time);
-
 int rtc_enable_periodic_interrupt(uint8_t rate, rtc_handler_t handler);
-
 void rtc_disable_periodic_interrupt(void);
-
 uint8_t rtc_read_register(uint8_t reg);
-
 void rtc_write_register(uint8_t reg, uint8_t value);
-
 int rtc_is_binary_mode(void);
-
 int rtc_is_24hour_mode(void);
-
 time_t rtc_get_timestamp(void);
+
+void rtc_set_timezone(timezone_t tz);
+timezone_t rtc_get_timezone(void);
+time_t rtc_get_timestamp_tz(timezone_t tz);
+int rtc_get_time_tz(rtc_time_t *time, timezone_t tz);
 
 __END_DECLS
 

@@ -9,6 +9,16 @@
 /* Static state */
 static rtc_handler_t rtc_periodic_handler = NULL;
 static uint8_t rtc_century_reg = RTC_REG_CENTURY;
+static timezone_t current_timezone = TZ_UTC;
+
+static const timezone_info_t timezone_table[] = {
+    {"UTC",  0,      0,      0},
+    {"CET",  3600,   7200,   1},  /* UTC+1, DST: UTC+2 */
+    {"EST",  -18000, -14400, 1},  /* UTC-5, DST: UTC-4 */
+    {"PST",  -28800, -25200, 1},  /* UTC-8, DST: UTC-7 */
+    {"JST",  32400,  32400,  0},  /* UTC+9, no DST */
+    {"AEST", 36000,  39600,  1},  /* UTC+10, DST: UTC+11 */
+};
 
 uint8_t
 rtc_read_register(uint8_t reg)
@@ -324,6 +334,91 @@ days_in_month(uint8_t month, uint16_t year)
 time_t
 rtc_get_timestamp(void)
 {
+    return rtc_get_timestamp_tz(current_timezone);
+}
+
+static int
+is_dst_europe(rtc_time_t *time)
+{
+    /* Last Sunday in March to last Sunday in October, 2:00 AM */
+    if (time->month < 3 || time->month > 10)
+        return 0;
+    if (time->month > 3 && time->month < 10)
+        return 1;
+    
+    /* Need to check last Sunday - simplified for now */
+    /* For production, calculate actual last Sunday */
+    return (time->month == 3) ? (time->day >= 25) : (time->day < 25);
+}
+
+static int
+is_dst_us(rtc_time_t *time)
+{
+    /* Second Sunday in March to first Sunday in November, 2:00 AM */
+    if (time->month < 3 || time->month > 11)
+        return 0;
+    if (time->month > 3 && time->month < 11)
+        return 1;
+    
+    /* Simplified - for production, calculate actual Sundays */
+    return (time->month == 3) ? (time->day >= 8) : (time->day < 7);
+}
+
+static int
+is_dst_australia(rtc_time_t *time)
+{
+    /* First Sunday in October to first Sunday in April */
+    if (time->month < 4 || time->month > 9)
+        return 1;
+    if (time->month > 4 && time->month < 10)
+        return 0;
+    
+    return (time->month == 10) ? (time->day >= 1) : (time->day < 7);
+}
+
+static int
+needs_dst(timezone_t tz, rtc_time_t *time)
+{
+    if (!timezone_table[tz].has_dst)
+        return 0;
+    
+    switch (tz) {
+        case TZ_CET:
+            return is_dst_europe(time);
+        case TZ_EST:
+        case TZ_PST:
+            return is_dst_us(time);
+        case TZ_AEST:
+            return is_dst_australia(time);
+        default:
+            return 0;
+    }
+}
+
+static int
+get_timezone_offset(timezone_t tz, rtc_time_t *time)
+{
+    if (needs_dst(tz, time))
+        return timezone_table[tz].dst_offset_seconds;
+    return timezone_table[tz].offset_seconds;
+}
+
+void
+rtc_set_timezone(timezone_t tz)
+{
+    if (tz < sizeof(timezone_table) / sizeof(timezone_table[0]))
+        current_timezone = tz;
+}
+
+timezone_t
+rtc_get_timezone(void)
+{
+    return current_timezone;
+}
+
+time_t
+rtc_get_timestamp_tz(timezone_t tz)
+{
     rtc_time_t time;
     time_t timestamp;
     uint16_t year;
@@ -335,24 +430,43 @@ rtc_get_timestamp(void)
     /* Calculate days since epoch (1970-01-01) */
     timestamp = 0;
     
-    /* Add days for complete years */
     for (year = 1970; year < time.year; year++) {
         timestamp += is_leap_year(year) ? 366 : 365;
     }
     
-    /* Add days for complete months in current year */
     for (month = 1; month < time.month; month++) {
         timestamp += days_in_month(month, time.year);
     }
     
-    /* Add remaining days */
     timestamp += time.day - 1;
     
-    /* Convert days to seconds and add time components */
     timestamp = timestamp * 86400 +
                 time.hour * 3600 +
                 time.minute * 60 +
                 time.second;
     
+    /* Apply timezone offset */
+    timestamp += get_timezone_offset(tz, &time);
+    
     return timestamp;
+}
+
+int
+rtc_get_time_tz(rtc_time_t *time, timezone_t tz)
+{
+    time_t timestamp;
+    int offset;
+    
+    /* Get UTC time first */
+    if (rtc_get_time(time) != 0)
+        return -1;
+    
+    /* Get timestamp and apply offset */
+    timestamp = rtc_get_timestamp_tz(TZ_UTC);
+    offset = get_timezone_offset(tz, time);
+    timestamp += offset;
+    
+    time->hour = (time->hour + (offset / 3600)) % 24;
+    
+    return 0;
 }
