@@ -1,0 +1,112 @@
+.\" UESI boot_amd64 manual page
+.\"
+.Dd November 9 2025
+.Dt BOOT_AMD64 8 amd64
+.Os
+.Sh NAME
+.Nm boot_amd64
+.Nd amd64 system bootstrapping procedures
+.Sh DESCRIPTION
+.Ss System Boot Overview
+UESI uses the Limine bootloader protocol for both UEFI and legacy BIOS systems.
+The boot process differs significantly depending on the firmware type.
+.Ss UEFI Boot
+On UEFI systems, the firmware loads the Limine bootloader directly from
+the EFI System Partition (ESP).
+Limine reads its configuration from
+.Pa limine.conf ,
+locates the kernel image, and loads it into memory according to the
+Limine protocol specifications.
+The kernel receives a pointer to the Limine boot information structure
+containing memory maps, framebuffer information, and other system data.
+.Ss Legacy BIOS Boot
+On legacy BIOS systems, the firmware performs a POST (Power On Self Test),
+initializing memory, keyboard, and other devices.
+It searches for extension ROMs and attempts to boot from the configured boot device.
+.Pp
+The BIOS loads the first block (at physical location: track 0, head 0,
+sector 1) off the boot device into memory.
+If the last two bytes match the signature 0xAA55, the BIOS considers it
+a valid bootable drive and executes the code in this block.
+.Pp
+For UESI systems, this boot block contains the Limine bootloader's
+initial stage, which chains to load the full Limine bootloader.
+Limine then reads
+.Pa limine.conf
+and loads the UESI kernel.
+.Ss Boot Configuration
+The Limine bootloader is configured via
+.Pa limine.conf ,
+which specifies:
+.Bl -bullet -compact
+.It
+Kernel image location and load parameters
+.It
+Boot timeout and menu options
+.It
+Framebuffer resolution and mode
+.It
+Module loading specifications
+.El
+.Pp
+See the Limine bootloader documentation for complete configuration options.
+.Ss Disk Geometry (Legacy BIOS Only)
+.Em Note :
+This section applies only to legacy BIOS boot.
+UEFI systems use GPT partitioning and do not have these restrictions.
+.Pp
+The PC BIOS disk API uses 10 bits for cylinder addressing, 8 bits for head
+addressing, and 6 bits for sector addressing.
+This limits BIOS access to 1024 cylinders, 256 heads, and 63 sectors.
+.Pp
+Modern drives exceed these limits, so the BIOS remaps the actual drive
+geometry to fit within these constraints.
+While UESI uses its own drivers to access disks directly, the bootloader
+and partition tables must still use BIOS-compatible geometry values for
+legacy BIOS systems.
+.Pp
+These geometry translations are controller and machine specific, and may
+change when moving disks between systems.
+.Ss Abnormal System Termination
+In case of kernel panics or system crashes, UESI's exception handlers
+will catch the fault and attempt to:
+.Bl -enum -compact
+.It
+Display panic information including registers and stack trace
+.It
+Perform a crash dump to the configured dump device if possible
+.It
+Halt the system to prevent further corruption
+.El
+.Pp
+Crash dumps can be recovered by
+.Xr savecore 8
+during the next boot cycle, if crash dump support is configured.
+.Sh FILES
+.Bl -tag -width /boot/limine.conf -compact
+.It Pa /boot/limine.conf
+Limine bootloader configuration file
+.It Pa /boot/uesi.elf
+UESI kernel image
+.It Pa /boot/limine.h
+Limine protocol header definitions
+.El
+.Sh SEE ALSO
+.Xr init 8 ,
+.Xr halt 8 ,
+.Xr reboot 8 ,
+.Xr savecore 8 ,
+.Xr shutdown 8
+.Pp
+Limine Bootloader Documentation:
+.Lk https://github.com/limine-bootloader/limine
+.Sh NOTES
+UESI supports both UEFI and legacy BIOS boot modes through the Limine
+bootloader protocol.
+UEFI boot is recommended for modern systems as it avoids the geometry
+translation issues inherent in legacy BIOS booting.
+.Pp
+The Limine protocol provides a clean interface between the bootloader
+and kernel, abstracting away firmware-specific details and providing
+consistent boot information regardless of whether the system uses
+UEFI or legacy BIOS.

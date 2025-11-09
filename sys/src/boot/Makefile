@@ -29,7 +29,7 @@ LIBKB := ../libkb/lib/libkb.a
 LIBMEM := ../libmem/lib/libmem.a
 LIBPRINTF := ../libprintf/lib/libprintf.a
 
-TARGET := kernel.elf
+TARGET := uesi.elf
 
 all: $(TARGET)
 
@@ -57,5 +57,5 @@ $(TARGET): $(OBJS) $(LIBCHAR) $(LIBC) $(LIBKB) $(LIBMEM) $(LIBPRINTF)
 
 clean:
 	@echo "[*] Cleaning boot build..."
-	@rm -rf obj kernel.elf
+	@rm -rf obj uesi.elf
 	@echo "[+] Boot build cleaned."

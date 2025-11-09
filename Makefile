@@ -14,7 +14,7 @@ ISODIR := $(BUILD_DIR)/iso_root
 ISO := $(BUILD_DIR)/uesi.iso
 
 .PHONY: all
-all: $(BUILD_DIR)/kernel.elf
+all: $(BUILD_DIR)/uesi.elf
 
 .PHONY: libc libchar libkb libmem libprintf boot
 
@@ -42,16 +42,16 @@ boot:
 	@echo "[*] Building kernel..."
 	@$(MAKE) -C $(BOOT_DIR) CC=$(CC) LD=$(LD)
 
-$(BUILD_DIR)/kernel.elf: libc libchar libkb libmem libprintf boot
+$(BUILD_DIR)/uesi.elf: libc libchar libkb libmem libprintf boot
 	@mkdir -p $(BUILD_DIR)
-	@cp $(BOOT_DIR)/kernel.elf $(BUILD_DIR)/kernel.elf
-	@echo "[+] Kernel built and copied to $(BUILD_DIR)/kernel.elf"
+	@cp $(BOOT_DIR)/uesi.elf $(BUILD_DIR)/uesi.elf
+	@echo "[+] Kernel built and copied to $(BUILD_DIR)/uesi.elf"
 
 .PHONY: iso
 iso: all
 	@echo "[*] Creating ISO image..."
 	@mkdir -p $(ISODIR)/boot/limine
-	@cp $(BUILD_DIR)/kernel.elf $(ISODIR)/boot/uesi
+	@cp $(BUILD_DIR)/uesi.elf $(ISODIR)/boot/uesi
 	@cp $(BOOT_DIR)/limine.conf $(ISODIR)/boot/limine/
 	@if [ -f /usr/share/limine/limine-bios.sys ]; then \
 		cp /usr/share/limine/limine-bios.sys $(ISODIR)/boot/limine/; \
