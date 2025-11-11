@@ -97,7 +97,6 @@ static const char scancode_to_ascii[] = {
     0,    // 0x58 - F12
 };
 
-// Shift key map (with shift pressed)
 static const char scancode_to_ascii_shift[] = {
     0,    // 0x00
     0,    // 0x01 - ESC
