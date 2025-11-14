@@ -22,7 +22,6 @@ typedef enum {
     PROCESS_STATE_DEAD
 } process_state_t;
 
-/* CPU context for switching */
 typedef struct {
     uint64_t r15, r14, r13, r12, r11, r10, r9, r8;
     uint64_t rbp, rdi, rsi, rdx, rcx, rbx, rax;
@@ -42,12 +41,10 @@ typedef struct process {
     page_directory_t *page_dir;
     uint64_t brk;  /* Program break for heap */
     
-    /* Stacks */
     void *kernel_stack;
     uint64_t kernel_stack_top;
     uint64_t user_stack_top;
     
-    /* CPU context */
     process_context_t context;
     
     /* Accounting */

@@ -46,6 +46,7 @@ page_directory_t *paging_get_kernel_directory(void);
 page_directory_t *paging_get_current_directory(void);
 uint64_t paging_get_flags_for_region_type(region_type_t type);
 bool paging_protect_range(page_directory_t *pd, uint64_t virt_base, size_t num_pages, uint64_t flags);
+void paging_free_user_pages(page_directory_t *pd);
 void paging_dump_address_space(page_directory_t *pd);
 
 #endif

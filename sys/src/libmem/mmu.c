@@ -268,3 +268,7 @@ void mmu_flush_tlb_single(uint64_t virt) {
 void mmu_flush_tlb_all(void) {
     write_cr3(read_cr3());
 }
+
+void *mmu_phys_to_virt(uint64_t phys) {
+    return phys_to_virt(phys);
+}

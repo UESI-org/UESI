@@ -228,6 +228,57 @@ bool paging_protect_range(page_directory_t *pd, uint64_t virt_base, size_t num_p
     return true;
 }
 
+void paging_free_user_pages(page_directory_t *pd) {
+    if (pd == NULL || pd->pml4 == NULL) {
+        return;
+    }
+    
+    extern void serial_printf(uint16_t port, const char *fmt, ...);
+    #define DEBUG_PORT 0x3F8
+    
+    serial_printf(DEBUG_PORT, "Freeing user pages for page directory %p\n", pd);
+    
+    uint64_t pages_freed = 0;
+    pml4e_t *pml4 = pd->pml4;
+    
+    for (int pml4_idx = 0; pml4_idx < 256; pml4_idx++) {
+        if (!(pml4[pml4_idx] & PAGE_PRESENT)) continue;
+        
+        uint64_t pdpt_phys = pml4[pml4_idx] & PAGE_ADDR_MASK;
+        pdpte_t *pdpt = (pdpte_t *)mmu_phys_to_virt(pdpt_phys);
+        
+        for (int pdpt_idx = 0; pdpt_idx < 512; pdpt_idx++) {
+            if (!(pdpt[pdpt_idx] & PAGE_PRESENT)) continue;
+            if (pdpt[pdpt_idx] & PAGE_HUGE) continue;  /* Skip huge pages */
+            
+            uint64_t pd_phys = pdpt[pdpt_idx] & PAGE_ADDR_MASK;
+            pde_t *pd_table = (pde_t *)mmu_phys_to_virt(pd_phys);
+            
+            for (int pd_idx = 0; pd_idx < 512; pd_idx++) {
+                if (!(pd_table[pd_idx] & PAGE_PRESENT)) continue;
+                if (pd_table[pd_idx] & PAGE_HUGE) continue;  /* Skip huge pages */
+                
+                uint64_t pt_phys = pd_table[pd_idx] & PAGE_ADDR_MASK;
+                pte_t *pt = (pte_t *)mmu_phys_to_virt(pt_phys);
+                
+                for (int pt_idx = 0; pt_idx < 512; pt_idx++) {
+                    if (!(pt[pt_idx] & PAGE_PRESENT)) continue;
+                    
+                    uint64_t page_phys = pt[pt_idx] & PAGE_ADDR_MASK;
+                    
+                    void *page_virt = mmu_phys_to_virt(page_phys);
+                    
+                    pmm_free(page_virt);
+                    pages_freed++;
+                }
+            }
+        }
+    }
+    
+    serial_printf(DEBUG_PORT, "Freed %llu user pages (%llu KB)\n", 
+                  pages_freed, pages_freed * 4);
+}
+
 void paging_dump_address_space(page_directory_t *pd) {
     if (pd == NULL) {
         serial_printf(DEBUG_PORT, "Invalid page directory\n");

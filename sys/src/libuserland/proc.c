@@ -5,8 +5,9 @@
 #include "pmm.h"
 #include "gdt.h"
 #include "segments.h"
-#include <string.h>
+#include "mmu.h"
 #include <stdbool.h>
+#include <string.h>
 #include "printf.h"
 
 static process_t *current_process = NULL;
@@ -48,7 +49,8 @@ process_t *process_create(const char *name) {
     proc->kernel_stack = kmalloc(PROCESS_KERNEL_STACK_SIZE);
     if (!proc->kernel_stack) {
         printf_("Failed to allocate kernel stack\n");
-        /* TODO: Free page directory */
+        /* Free the page directory we just created */
+        mmu_destroy_address_space(proc->page_dir);
         kfree(proc);
         return NULL;
     }
@@ -73,7 +75,12 @@ void process_destroy(process_t *proc) {
         kfree(proc->kernel_stack);
     }
     
-    /* TODO: Free user address space and page directory */
+    if (proc->page_dir) {
+        paging_free_user_pages(proc->page_dir);
+        
+        mmu_destroy_address_space(proc->page_dir);
+        proc->page_dir = NULL;
+    }
     
     kfree(proc);
 }
@@ -106,9 +113,6 @@ void process_enter_usermode(process_t *proc, uint64_t entry_point, uint64_t stac
     process_set_current(proc);
     proc->state = PROCESS_STATE_RUNNING;
     
-    /* DON'T switch page directory yet! */
-    
-    /* Set TSS RSP0 for syscalls */
     tss_set_rsp0(proc->kernel_stack_top);
     
     uint64_t user_cs = GDT_SELECTOR_USER_CODE;
@@ -131,7 +135,6 @@ void process_enter_usermode(process_t *proc, uint64_t entry_point, uint64_t stac
     asm volatile(
         "cli\n"
         
-        /* Build iretq frame */
         "movq %2, %%rax\n"
         "pushq %%rax\n"                /* SS */
         
@@ -147,18 +150,15 @@ void process_enter_usermode(process_t *proc, uint64_t entry_point, uint64_t stac
         "movq %0, %%rax\n"
         "pushq %%rax\n"                /* RIP */
         
-        /* NOW switch to user page directory - right before iretq */
         "movq %5, %%rax\n"
         "movq %%rax, %%cr3\n"          /* Load user CR3 */
         
-        /* Load segment registers */
         "movq %2, %%rax\n"
         "movw %%ax, %%ds\n"
         "movw %%ax, %%es\n"
         "movw %%ax, %%fs\n"
         "movw %%ax, %%gs\n"
         
-        /* Clear all registers */
         "xorq %%rax, %%rax\n"
         "xorq %%rbx, %%rbx\n"
         "xorq %%rcx, %%rcx\n"
