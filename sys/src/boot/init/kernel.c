@@ -9,13 +9,16 @@
 #include "pic.h"
 #include "serial_debug.h"
 #include "scheduler.h"
+#include "syscall.h"
 #include "keyboard.h"
+#include "kdebug.h"
 #include "cpuid.h"
 #include "pit.h"
 #include "pmm.h"
 #include "vmm.h"
 #include "mmu.h"
 #include "printf.h"
+#include "proc.h"
 #include "kmalloc.h"
 #include "rtc.h"
 #include "boot.h"
@@ -109,6 +112,12 @@ static void initialize_system_components(void) {
     isr_install();
     debug_success("IDT initialized");
 
+    kdebug_init();
+    isr_register_handler(3, kdebug_breakpoint_handler);  // INT3 for breakpoints
+    debug_success("Kernel debugger initialized");
+
+    syscall_init();
+
     pic_init();
     debug_success("PIC initialized");
 
@@ -131,6 +140,17 @@ static void initialize_system_components(void) {
 static void run_tests(void) {
     test_kmalloc();
     test_rtc();
+    
+    struct limine_module_response *modules = boot_get_modules();
+    if (modules && modules->module_count > 0) {
+        struct limine_file *user_prog = modules->modules[0];
+        debug_section("Loading Userland Program");
+        printf("Module: %s (%lu bytes)\n", 
+               user_prog->path, (unsigned long)user_prog->size);
+        userland_load_and_run(user_prog->address, user_prog->size, "test");
+    } else {
+        printf("No userland modules found\n");
+    }
 }
 
 void kmain(void) {
@@ -163,6 +183,9 @@ void kmain(void) {
     initialize_cpu(&cpu);
 
     initialize_system_components();
+
+    process_init();
+    debug_success("Process subsystem initialized");
 
     run_tests();
 

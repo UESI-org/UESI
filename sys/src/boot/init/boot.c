@@ -11,6 +11,12 @@ static volatile struct limine_framebuffer_request framebuffer_request = {
 };
 
 __attribute__((used, section(".limine_requests")))
+static volatile struct limine_module_request module_request = {
+    .id = LIMINE_MODULE_REQUEST,
+    .revision = 0
+};
+
+__attribute__((used, section(".limine_requests")))
 static volatile struct limine_memmap_request memmap_request = {
     .id = LIMINE_MEMMAP_REQUEST,
     .revision = 0
@@ -51,4 +57,8 @@ struct limine_memmap_response *boot_get_memmap(void) {
 
 struct limine_hhdm_response *boot_get_hhdm(void) {
     return (struct limine_hhdm_response *)hhdm_request.response;
+}
+
+struct limine_module_response *boot_get_modules(void) {
+    return (struct limine_module_response *)module_request.response;
 }

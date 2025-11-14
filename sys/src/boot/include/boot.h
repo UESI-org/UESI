@@ -14,4 +14,6 @@ struct limine_memmap_response *boot_get_memmap(void);
 
 struct limine_hhdm_response *boot_get_hhdm(void);
 
+struct limine_module_response *boot_get_modules(void);
+
 #endif

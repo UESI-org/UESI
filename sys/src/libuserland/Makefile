@@ -1,19 +1,26 @@
 CC ?= x86_64-elf-gcc
 AR := ar
-CFLAGS := -Wall -Wextra -std=gnu11 -ffreestanding -fno-stack-protector \
-          -fno-stack-check -fno-lto -fno-PIC -ffunction-sections -fdata-sections \
-          -m64 -march=x86-64 -mabi=sysv -mno-80387 -mno-mmx -mno-sse -mno-sse2 \
-          -mno-red-zone -mcmodel=kernel -O2 -I$(INCDIR) -I../boot/include -nostdlib -fno-builtin -s \
-          -DPRINTF_INCLUDE_CONFIG_H -DPRINTF_DISABLE_SUPPORT_FLOAT -DPRINTF_DISABLE_SUPPORT_EXPONENTIAL \
-		  -I../libchar/include
-ARFLAGS := rcs
+
 INCDIR := include
 OBJDIR := obj
 LIBDIR := lib
-TARGET := $(LIBDIR)/libprintf.a
-SRCS := printf.c puts.c putchar.c
-OBJS := $(SRCS:%.c=$(OBJDIR)/%.o)
+
+TARGET := $(LIBDIR)/libuserland.a
+
 INCLUDES := -I$(INCDIR) -I../boot/include
+
+CFLAGS := -Wall -Wextra -std=gnu11 -ffreestanding -fno-stack-protector \
+          -fno-stack-check -fno-lto -fno-PIC -ffunction-sections -fdata-sections \
+          -m64 -march=x86-64 -mabi=sysv -mno-80387 -mno-mmx -mno-sse -mno-sse2 \
+          -mno-red-zone -mcmodel=kernel -O2 -nostdlib -fno-builtin -s \
+          -I../../sys -I../../../amd64/include -I../libmem/include \
+		  -I../libc/include -I../libprintf/include -I../sys/src/boot/include $(INCLUDES)
+ARFLAGS := rcs
+
+SRCS := elf_loader.c \
+        proc.c
+
+OBJS := $(SRCS:%.c=$(OBJDIR)/%.o)
 
 .PHONY: all
 all: $(TARGET)
@@ -41,19 +48,19 @@ rebuild: clean all
 
 .PHONY: install
 install: $(TARGET)
-	@echo "Installing libprintf.a..."
+	@echo "Installing libuserland.a..."
 	@mkdir -p ../../lib
 	cp $(TARGET) ../../lib/
 	@mkdir -p ../../include
-	cp $(INCDIR)/printf.h ../../include/
+	cp $(INCDIR)/*.h ../../include/
 	@echo "Installation complete"
 
 .PHONY: help
 help:
-	@echo "Makefile for libprintf.a"
+	@echo "Makefile for libuserland.a"
 	@echo ""
 	@echo "Targets:"
-	@echo "  all      - Build libprintf.a (default)"
+	@echo "  all      - Build libuserland.a (default)"
 	@echo "  clean    - Remove all build artifacts"
 	@echo "  rebuild  - Clean and rebuild"
 	@echo "  install  - Install library to ../../lib and headers to ../../include"

@@ -3,7 +3,7 @@ LD ?= x86_64-elf-ld
 
 INCLUDES := -I. -Iinclude -I../libc/include -I../libchar/include -I../libkb/include \
             -I../libmem/include -I../libprintf/include -I../../../amd64/include \
-            -I../../../sys/sys -I../../../sys
+            -I../../../sys/sys -I../../../sys -I../libuserland/include -I../libkdebug/include
 
 CFLAGS := -Wall -Wextra -std=gnu11 -ffreestanding -fno-stack-protector \
           -fno-stack-check -fno-lto -fno-PIC -ffunction-sections -fdata-sections \
@@ -28,6 +28,8 @@ LIBC := ../libc/lib/libc.a
 LIBKB := ../libkb/lib/libkb.a
 LIBMEM := ../libmem/lib/libmem.a
 LIBPRINTF := ../libprintf/lib/libprintf.a
+LIBKDEBUG := ../libkdebug/lib/libkdebug.a
+LIBUSERLAND := ../libuserland/lib/libuserland.a
 
 TARGET := uesi.elf
 
@@ -45,8 +47,8 @@ obj/cpu/%_asm.o: ../../../amd64/cpu/%.S
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(TARGET): $(OBJS) $(LIBCHAR) $(LIBC) $(LIBKB) $(LIBMEM) $(LIBPRINTF)
-	$(LD) $(LDFLAGS) -o $@ $(OBJS) $(LIBCHAR) $(LIBC) $(LIBKB) $(LIBMEM) $(LIBPRINTF) $(LIBC)
+$(TARGET): $(OBJS) $(LIBCHAR) $(LIBC) $(LIBKB) $(LIBMEM) $(LIBPRINTF) $(LIBKDEBUG) $(LIBUSERLAND)
+	$(LD) $(LDFLAGS) -o $@ $(OBJS) $(LIBUSERLAND) $(LIBCHAR) $(LIBC) $(LIBKB) $(LIBMEM) $(LIBPRINTF) $(LIBKDEBUG)
 	@echo "Kernel built: $(TARGET)"
 	@echo "Objects compiled:"
 	@echo "  Init objects: $(INIT_OBJS)"
