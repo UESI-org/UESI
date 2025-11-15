@@ -1,8 +1,8 @@
 #ifndef RTC_H_
 #define RTC_H_
 
-#include "cdefs.h"
-#include "types.h"
+#include <cdefs.h>
+#include <types.h>
 
 __BEGIN_DECLS
 

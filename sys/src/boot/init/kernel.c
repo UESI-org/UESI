@@ -7,6 +7,7 @@
 #include "isr.h"
 #include "idt.h"
 #include "pic.h"
+#include "pci.h"
 #include "serial_debug.h"
 #include "scheduler.h"
 #include "syscall.h"
@@ -181,6 +182,10 @@ void kmain(void) {
 
     cpu_info_t cpu;
     initialize_cpu(&cpu);
+
+    debug_section("Initializing PCI");
+    pci_init();
+    pci_print_devices();
 
     initialize_system_components();
 

@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "specialreg.h"
+#include <specialreg.h>
 
 /*
  * CPUID Leaf Numbers

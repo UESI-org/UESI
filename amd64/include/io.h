@@ -33,7 +33,7 @@
 #ifndef _MACHINE_PIO_H_
 #define _MACHINE_PIO_H_
 
-#include "types.h"
+#include <types.h>
 
 /*
  * Functions to provide access to x86 programmed I/O instructions.

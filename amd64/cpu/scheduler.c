@@ -1,8 +1,8 @@
-#include "scheduler.h"
-#include "pit.h"
-#include "isr.h"
-#include "pmm.h"
-#include "vmm.h"
+#include <scheduler.h>
+#include <pit.h>
+#include <isr.h>
+#include <pmm.h>
+#include <vmm.h>
 #include <string.h>
 
 extern void tty_printf(const char *fmt, ...);

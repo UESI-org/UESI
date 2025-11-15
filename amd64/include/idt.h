@@ -2,7 +2,7 @@
 #define IDT_H
 
 #include <stdint.h>
-#include "segments.h"
+#include <segments.h>
 
 #define IDT_ENTRIES 256
 

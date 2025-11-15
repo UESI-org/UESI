@@ -1,7 +1,7 @@
 /* This cpuid.c should remain heavily commented! it's a complex software!!!*/
 
-#include "cpuid.h"
-#include "printf.h"
+#include <cpuid.h>
+#include <printf.h>
 #include <stddef.h>
 #include <string.h>
 

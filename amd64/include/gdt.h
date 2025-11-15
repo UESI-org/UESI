@@ -2,7 +2,7 @@
 #define GDT_H
 
 #include <stdint.h>
-#include "segments.h"
+#include <segments.h>
 
 /* 
  * GDT Entry indices (not selectors - use GSEL macro for selectors)

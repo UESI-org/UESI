@@ -1,8 +1,8 @@
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdbool.h>
-#include "serial.h"
-#include "io.h"
+#include <serial.h>
+#include <io.h>
 
 bool serial_init(uint16_t port) {
     return serial_init_custom(port, SERIAL_BAUD_115200,

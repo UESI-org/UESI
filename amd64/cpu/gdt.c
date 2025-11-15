@@ -1,5 +1,5 @@
-#include "gdt.h"
-#include "segments.h"
+#include <gdt.h>
+#include <segments.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>

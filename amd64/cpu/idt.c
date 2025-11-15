@@ -1,6 +1,6 @@
-#include "idt.h"
-#include "segments.h"
-#include "gdt.h"
+#include <idt.h>
+#include <segments.h>
+#include <gdt.h>
 #include <stddef.h>
 #include <string.h>
 

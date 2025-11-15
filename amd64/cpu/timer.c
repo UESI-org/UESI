@@ -1,7 +1,7 @@
-#include "timer.h"
-#include "idt.h"
-#include "gdt.h"
-#include "io.h"
+#include <timer.h>
+#include <idt.h>
+#include <gdt.h>
+#include <io.h>
 #include <stddef.h>
 
 static volatile uint64_t timer_ticks = 0;

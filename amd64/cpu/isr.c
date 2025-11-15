@@ -1,10 +1,10 @@
 #include <stddef.h>
-#include "isr.h"
-#include "idt.h"
-#include "gdt.h"
-#include "io.h"
-#include "pit.h"
-#include "mmu.h"
+#include <isr.h>
+#include <idt.h>
+#include <gdt.h>
+#include <io.h>
+#include <pit.h>
+#include <mmu.h>
 
 extern void tty_printf(const char *fmt, ...);
 

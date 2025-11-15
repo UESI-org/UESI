@@ -1,7 +1,7 @@
 #include <stdbool.h>
-#include "syscall.h"
-#include "idt.h"
-#include "gdt.h"
+#include <syscall.h>
+#include <idt.h>
+#include <gdt.h>
 
 extern bool keyboard_has_key(void);
 extern char keyboard_getchar(void);

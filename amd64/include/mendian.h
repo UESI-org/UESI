@@ -1,7 +1,7 @@
 #ifndef _MACHINE_ENDIAN_H_
 #define _MACHINE_ENDIAN_H_
 
-#include "types.h"
+#include <types.h>
 
 /* Only define the public macros if NOT included from _endian.h */
 #ifndef __FROM_SYS__ENDIAN

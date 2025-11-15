@@ -1,5 +1,5 @@
-#include "pic.h"
-#include "io.h"
+#include <pic.h>
+#include <io.h>
 
 /**
  * Initialize the 8259 PIC chips in cascade mode
