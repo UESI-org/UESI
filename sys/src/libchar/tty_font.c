@@ -1,4 +1,4 @@
-#include "tty.h"
+#include <tty.h>
 
 // GohuFont 14 Medium - 8x14 bitmap font
 // Copyright by Hugo Chargois, Licensed under the WTFPL

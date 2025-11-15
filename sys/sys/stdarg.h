@@ -18,7 +18,7 @@
 #ifndef _STDARG_H_
 #define _STDARG_H_
 
-#include "cdefs.h"
+#include <cdefs.h>
 
 /* Define __gnuc_va_list.  */
 

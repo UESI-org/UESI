@@ -1,4 +1,4 @@
-#include "tty.h"
+#include <tty.h>
 #include <stdarg.h>
 
 static void itoa(int64_t value, char *str, int base) {

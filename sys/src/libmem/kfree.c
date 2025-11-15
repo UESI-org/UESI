@@ -1,6 +1,6 @@
-#include "include/kfree.h"
-#include "include/kmalloc.h"
-#include "include/pmm.h"
+#include <kfree.h>
+#include <kmalloc.h>
+#include <pmm.h>
 #include <stdint.h>
 #include <stdbool.h>
 

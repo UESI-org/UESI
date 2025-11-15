@@ -1,6 +1,6 @@
-#include "paging.h"
-#include "mmu.h"
-#include "pmm.h"
+#include <paging.h>
+#include <mmu.h>
+#include <pmm.h>
 #include <string.h>
 
 extern void tty_printf(const char *fmt, ...);

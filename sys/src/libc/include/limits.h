@@ -35,7 +35,7 @@
 #ifndef _LIMITS_H_
 #define	_LIMITS_H_
 
-#include "cdefs.h"
+#include <cdefs.h>
 
 #if __POSIX_VISIBLE
 #define	_POSIX_ARG_MAX		4096

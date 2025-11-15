@@ -38,7 +38,7 @@
 #ifndef	_SYS_CDEFS_H_
 #define	_SYS_CDEFS_H_
 
-#include "mcdefs.h"
+#include <mcdefs.h>
 
 /*
  * Macro to test if we're using a specific version of gcc or later.

@@ -1,4 +1,4 @@
-#include "boot.h"
+#include <boot.h>
 #include <stddef.h>
 
 __attribute__((used, section(".limine_requests")))

@@ -1,4 +1,4 @@
-#include "tty.h"
+#include <tty.h>
 
 void tty_putpixel(uint64_t x, uint64_t y, uint32_t color) {
     tty_t *tty = tty_get();

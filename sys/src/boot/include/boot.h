@@ -2,7 +2,7 @@
 #define BOOT_H
 
 #include <stdbool.h>
-#include "limine.h"
+#include <limine.h>
 
 void boot_init(void);
 

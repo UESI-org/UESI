@@ -4,8 +4,8 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
-#include "types.h"
-#include "paging.h"
+#include <types.h>
+#include <paging.h>
 
 #define PROCESS_MAX_NAME 64
 #define PROCESS_KERNEL_STACK_SIZE (16 * 1024)  /* 16KB kernel stack */

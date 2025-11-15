@@ -1,7 +1,7 @@
-#include "include/vmm.h"
-#include "include/paging.h"
-#include "include/pmm.h"
-#include "include/mmu.h"
+#include <vmm.h>
+#include <paging.h>
+#include <pmm.h>
+#include <mmu.h>
 #include <string.h>
 
 extern void tty_printf(const char *fmt, ...);

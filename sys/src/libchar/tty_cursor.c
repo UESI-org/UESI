@@ -1,4 +1,4 @@
-#include "tty.h"
+#include <tty.h>
 
 static uint64_t last_cursor_x = 0;
 static uint64_t last_cursor_y = 0;

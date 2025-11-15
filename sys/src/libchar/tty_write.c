@@ -1,4 +1,4 @@
-#include "tty.h"
+#include <tty.h>
 
 void tty_putchar(char c) {
     tty_t *tty = tty_get();

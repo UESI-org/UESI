@@ -3,8 +3,8 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "elf.h"
-#include "proc.h"
+#include <elf.h>
+#include <proc.h>
 
 bool elf_validate(const void *elf_data, size_t size);
 bool elf_load(process_t *proc, const void *elf_data, size_t size, 

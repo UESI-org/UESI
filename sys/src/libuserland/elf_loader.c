@@ -1,16 +1,16 @@
 /* Complex program, keep heavily commented! */
 
-#include "elf_loader.h"
-#include "elf.h"
-#include "proc.h"
+#include <elf_loader.h>
+#include <elf.h>
+#include <proc.h>
 #include <string.h>
 #include <stdbool.h>
-#include "pmm.h"
-#include "paging.h"
-#include "mmu.h"
-#include "printf.h"
-#include "boot.h"
-#include "limine.h"
+#include <pmm.h>
+#include <paging.h>
+#include <mmu.h>
+#include <printf.h>
+#include <boot.h>
+#include <limine.h>
 
 static uint64_t hhdm_offset = 0;
 

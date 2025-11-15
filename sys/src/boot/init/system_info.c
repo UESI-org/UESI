@@ -1,11 +1,11 @@
-#include "system_info.h"
+#include <system_info.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include "serial.h"
-#include "serial_debug.h"
-#include "tty.h"
-#include "printf.h"
-#include "pmm.h"
+#include <serial.h>
+#include <serial_debug.h>
+#include <tty.h>
+#include <printf.h>
+#include <pmm.h>
 
 static void print_cpu_basic_info(const cpu_info_t *info) {
     if (!info || !info->cpuid_supported) {

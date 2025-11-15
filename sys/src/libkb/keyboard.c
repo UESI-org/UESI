@@ -1,7 +1,7 @@
-#include "include/keyboard.h"
-#include "include/mapping.h"
-#include "isr.h"
-#include "printf.h"
+#include <keyboard.h>
+#include <mapping.h>
+#include <isr.h>
+#include <printf.h>
 #include <stddef.h>
 
 extern void tty_putchar(char c);

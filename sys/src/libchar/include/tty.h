@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
-#include "limine.h"
+#include <limine.h>
 
 #define TTY_COLOR_BLACK         0x00000000
 #define TTY_COLOR_BLUE          0x000000AA

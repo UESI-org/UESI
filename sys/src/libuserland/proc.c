@@ -1,14 +1,14 @@
-#include "proc.h"
-#include "kmalloc.h"
-#include "kfree.h"
-#include "paging.h"
-#include "pmm.h"
-#include "gdt.h"
-#include "segments.h"
-#include "mmu.h"
+#include <proc.h>
+#include <kmalloc.h>
+#include <kfree.h>
+#include <paging.h>
+#include <pmm.h>
+#include <gdt.h>
+#include <segments.h>
+#include <mmu.h>
 #include <stdbool.h>
 #include <string.h>
-#include "printf.h"
+#include <printf.h>
 
 static process_t *current_process = NULL;
 static pid_t next_pid = 1;

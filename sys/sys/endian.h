@@ -37,8 +37,8 @@
 #ifndef _SYS_ENDIAN_H_
 #define _SYS_ENDIAN_H_
 
-#include "cdefs.h"
-#include "_endian.h"
+#include <cdefs.h>
+#include <_endian.h>
 
 /* Public names */
 #define LITTLE_ENDIAN	_LITTLE_ENDIAN

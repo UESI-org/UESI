@@ -1,4 +1,4 @@
-#include "tty.h"
+#include <tty.h>
 
 // ANSI 256-color palette
 static uint32_t ansi_palette[256] = {0};

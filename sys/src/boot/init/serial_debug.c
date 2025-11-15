@@ -1,5 +1,5 @@
-#include "serial_debug.h"
-#include "serial.h"
+#include <serial_debug.h>
+#include <serial.h>
 
 static bool debug_enabled = false;
 

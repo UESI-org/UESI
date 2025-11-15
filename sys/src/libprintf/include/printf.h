@@ -40,7 +40,7 @@
 #define PRINTF_H_
 
 #ifdef PRINTF_INCLUDE_CONFIG_H
-#include "printf_config.h"
+#include <printf_config.h>
 #endif
 
 #ifdef __cplusplus

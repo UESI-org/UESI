@@ -1,5 +1,5 @@
-#include "include/mmu.h"
-#include "include/pmm.h"
+#include <mmu.h>
+#include <pmm.h>
 #include <limine.h>
 #include <string.h>
 

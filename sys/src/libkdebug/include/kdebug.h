@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
-#include "isr.h"
+#include <isr.h>
 
 #define KDEBUG_LEVEL_NONE    0
 #define KDEBUG_LEVEL_ERROR   1

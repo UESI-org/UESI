@@ -42,10 +42,10 @@
  * printf_config.h header file
  */
 #if PRINTF_INCLUDE_CONFIG_H
-#include "printf_config.h"
+#include <printf_config.h>
 #endif
 
-#include "printf.h"
+#include <printf.h>
 
 #ifdef __cplusplus
 #include <cstdint>

@@ -26,12 +26,12 @@
 #ifndef _SYS_LIMITS_H_
 #define _SYS_LIMITS_H_
 
-#include "cdefs.h"
+#include <cdefs.h>
 
 /* Common definitions for limits.h. */
 
 /* Legacy */
-#include "mlimits.h"
+#include <mlimits.h>
 
 #define	CHAR_BIT	8		/* number of bits in a char */
 

@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
-#include "paging.h"
+#include <paging.h>
 
 #define VMM_KERNEL_HEAP_START   0xFFFFFFFF90000000ULL
 #define VMM_KERNEL_HEAP_SIZE    (64 * 1024 * 1024)

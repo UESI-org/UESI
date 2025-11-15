@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "serial.h"
+#include <serial.h>
 
 #define DEBUG_PORT SERIAL_COM1
 

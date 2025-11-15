@@ -1,4 +1,4 @@
-#include "syscall.h"
+#include <syscall.h>
 
 int main(void) {
     const char *msg = "Hello from userland!\n";

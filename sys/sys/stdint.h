@@ -19,8 +19,8 @@
 #ifndef	_SYS_STDINT_H_
 #define _SYS_STDINT_H_
 
-#include "cdefs.h"
-#include "_mtypes.h"
+#include <cdefs.h>
+#include <_mtypes.h>
 
 #ifndef	__BIT_TYPES_DEFINED__
 #define	__BIT_TYPES_DEFINED__

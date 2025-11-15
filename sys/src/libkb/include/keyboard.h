@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "printf.h"
+#include <printf.h>
 
 #define KEY_ESCAPE      0x01
 #define KEY_BACKSPACE   0x0E

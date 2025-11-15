@@ -1,4 +1,4 @@
-#include "puts.h"
+#include <puts.h>
 #include <stddef.h>
 
 extern void _putchar(char character);

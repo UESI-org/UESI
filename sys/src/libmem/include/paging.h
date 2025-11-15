@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
-#include "mmu.h"
+#include <mmu.h>
 
 #define PAGING_FLAG_PRESENT     PAGE_PRESENT
 #define PAGING_FLAG_WRITE       PAGE_WRITE

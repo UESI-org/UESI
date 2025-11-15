@@ -1,6 +1,6 @@
-#include "kdebug.h"
-#include "serial.h"
-#include "printf.h"
+#include <kdebug.h>
+#include <serial.h>
+#include <printf.h>
 #include <stdarg.h>
 
 static int debug_level = KDEBUG_LEVEL_INFO;

@@ -1,7 +1,7 @@
 #ifndef SYSTEM_INFO_H
 #define SYSTEM_INFO_H
 
-#include "cpuid.h"
+#include <cpuid.h>
 
 void system_print_cpu_info(const cpu_info_t *cpu);
 

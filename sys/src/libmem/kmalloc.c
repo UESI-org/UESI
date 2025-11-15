@@ -1,7 +1,7 @@
-#include "include/kmalloc.h"
-#include "include/kfree.h"
-#include "include/pmm.h"
-#include "include/paging.h"
+#include <kmalloc.h>
+#include <kfree.h>
+#include <pmm.h>
+#include <paging.h>
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>

@@ -1,19 +1,19 @@
-#include "tests.h"
+#include <tests.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
-#include "kmalloc.h"
-#include "kfree.h"
-#include "rtc.h"
-#include "serial.h"
-#include "serial_debug.h"
-#include "tty.h"
-#include "printf.h"
-#include "pmm.h"
-#include "proc.h"
-#include "elf_loader.h"
-#include "paging.h"
-#include "proc.h"
+#include <kmalloc.h>
+#include <kfree.h>
+#include <rtc.h>
+#include <serial.h>
+#include <serial_debug.h>
+#include <tty.h>
+#include <printf.h>
+#include <pmm.h>
+#include <proc.h>
+#include <elf_loader.h>
+#include <paging.h>
+#include <proc.h>
 
 #define PROCESS_USER_STACK_SIZE (2 * 1024 * 1024)
 

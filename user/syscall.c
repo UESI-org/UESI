@@ -1,4 +1,4 @@
-#include "syscall.h"
+#include <syscall.h>
 
 /* System call with 0 arguments */
 int64_t syscall0(uint64_t syscall_num) {
