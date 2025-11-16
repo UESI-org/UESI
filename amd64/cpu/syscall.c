@@ -1,5 +1,6 @@
 #include <stdbool.h>
 #include <syscall.h>
+#include <scheduler.h>
 #include <idt.h>
 #include <gdt.h>
 
@@ -70,9 +71,22 @@ int64_t sys_write(int fd, const void *buf, size_t count) {
 }
 
 void sys_exit(int status) {
-    tty_printf("\nProcess exited with status: %d\n", status);
-    asm volatile("cli; hlt");
-    while(1);
+    task_t *current = scheduler_get_current_task();
+    
+    if (current) {
+        tty_printf("[SYSCALL] Task %d (%s) exiting with status %d\n", 
+                   current->tid, current->name, status);
+        
+        scheduler_exit_task(status);
+        
+        while(1) {
+            asm volatile("hlt");
+        }
+    } else {
+        tty_printf("\nProcess exited with status: %d (no scheduler context)\n", status);
+        asm volatile("cli; hlt");
+        while(1);
+    }
 }
 
 void syscall_handler(syscall_registers_t *regs) {
