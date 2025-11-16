@@ -96,17 +96,14 @@ static void cache_free(cache_t *cache, slab_t *slab, int obj_index) {
     slab_mark_free(slab, obj_index);
     cache->free_count++;
     
-    /* Determine current slab state */
     bool was_full = (slab->free_count == 1); /* Was full before this free */
     bool is_empty = (slab->free_count == slab->total_count);
     
     if (was_full) {
-        /* Move from full list to partial list */
         slab_remove_from_list(&cache->full, slab);
         slab->next = cache->partial;
         cache->partial = slab;
     } else if (is_empty) {
-        /* Slab is now completely empty */
         slab_remove_from_list(&cache->partial, slab);
         
         if (cache->empty == NULL) {
@@ -133,7 +130,7 @@ bool kfree_validate(void *ptr) {
 
 void kfree(void *ptr) {
     if (ptr == NULL) {
-        return; /* Freeing NULL is a no-op */
+        return;
     }
     
     cache_t *cache;
@@ -141,10 +138,9 @@ void kfree(void *ptr) {
     int obj_index;
     
     if (find_allocation(ptr, &cache, &slab, &obj_index)) {
-        /* This is a slab-allocated object */
         cache_free(cache, slab, obj_index);
         return;
     }
-   
+
     pmm_free(ptr);
 }

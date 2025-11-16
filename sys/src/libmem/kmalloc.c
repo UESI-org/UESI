@@ -72,7 +72,7 @@ static slab_t *slab_create(cache_t *cache) {
     }
     
     size_t extra_bits = (bitmap_size * 64) - cache->objects_per_slab;
-    if (extra_bits > 0) {
+    if (extra_bits > 0 && extra_bits < 64) {
         uint64_t mask = (1ULL << (64 - extra_bits)) - 1;
         slab->free_bitmap[bitmap_size - 1] &= mask;
     }
@@ -215,12 +215,10 @@ void *kmalloc_aligned(size_t size, size_t align) {
         return kmalloc(size);
     }
     
-    /* Find cache with sufficient alignment */
     int cache_idx = get_cache_index(size > align ? size : align);
     if (cache_idx < 0) {
-        /* Fall back to page allocation for large/aligned requests */
-        size_t alloc_size = size + align;
-        size_t num_pages = (alloc_size + PAGE_SIZE - 1) / PAGE_SIZE;
+
+        size_t num_pages = (size + PAGE_SIZE - 1) / PAGE_SIZE;
         return pmm_alloc_contiguous(num_pages);
     }
     
