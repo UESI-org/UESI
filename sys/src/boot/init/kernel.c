@@ -25,12 +25,8 @@
 #include <boot.h>
 #include <tests.h>
 #include <system_info.h>
-
-static void hcf(void) {
-    for (;;) {
-        __asm__ volatile ("hlt");
-    }
-}
+#include <panic.h>
+#include <serial.h>
 
 static void keyboard_handler(char c) {
     tty_putchar(c);
@@ -43,8 +39,7 @@ static void initialize_memory(void) {
     struct limine_hhdm_response *hhdm = boot_get_hhdm();
     
     if (memmap == NULL || hhdm == NULL) {
-        debug_error("Memory map or HHDM not available");
-        hcf();
+        panic("Memory map or HHDM not available from bootloader");
     }
 
     pmm_init(memmap, hhdm);
@@ -65,10 +60,7 @@ static void initialize_cpu(cpu_info_t *cpu) {
     cpuid_init(cpu);
 
     if (!cpu->cpuid_supported) {
-        debug_error("CPUID not supported!");
-        tty_set_color(TTY_COLOR_RED, TTY_COLOR_BLACK);
-        printf("FATAL: CPUID instruction not supported\n");
-        hcf();
+        panic("CPUID instruction not supported - this CPU is too old");
     }
 
     bool all_features_present = true;
@@ -93,7 +85,7 @@ static void initialize_cpu(cpu_info_t *cpu) {
 
     if (!all_features_present) {
         tty_set_color(TTY_COLOR_WHITE, TTY_COLOR_BLACK);
-        hcf();
+        panic("Required CPU features missing (64-bit, PAE, NX)");
     }
 
     debug_success("CPU detection complete");
@@ -158,8 +150,7 @@ void kmain(void) {
     debug_init();
 
     if (!boot_verify_protocol()) {
-        debug_error("Limine base revision mismatch");
-        hcf();
+        panic("Limine base revision mismatch - incompatible bootloader version");
     }
     debug_success("Limine protocol verified");
 
@@ -167,8 +158,7 @@ void kmain(void) {
 
     struct limine_framebuffer *framebuffer = boot_get_framebuffer();
     if (framebuffer == NULL) {
-        debug_error("No framebuffer available");
-        hcf();
+        panic("No framebuffer available from bootloader");
     }
 
     debug_framebuffer_info(framebuffer->width, framebuffer->height,
@@ -177,6 +167,12 @@ void kmain(void) {
     tty_init(framebuffer);
     tty_set_color(TTY_COLOR_WHITE, TTY_COLOR_BLACK);
     debug_success("TTY initialized");
+
+    if (!serial_init(SERIAL_COM1)) {
+        debug_error("Serial port initialization failed (non-fatal)");
+    } else {
+        debug_success("Serial port initialized");
+    }
 
     initialize_memory();
 

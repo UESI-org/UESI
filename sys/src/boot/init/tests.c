@@ -14,6 +14,7 @@
 #include <elf_loader.h>
 #include <paging.h>
 #include <proc.h>
+#include <panic.h>
 
 #define PROCESS_USER_STACK_SIZE (2 * 1024 * 1024)
 

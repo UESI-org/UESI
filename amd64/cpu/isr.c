@@ -5,6 +5,7 @@
 #include <io.h>
 #include <pit.h>
 #include <mmu.h>
+#include <panic.h>
 
 extern void tty_printf(const char *fmt, ...);
 
@@ -52,37 +53,63 @@ void isr_handler(registers_t *regs) {
         handler(regs);
     } else {
         if (regs->int_no < 32) {
-            // Special handling for page faults
+            /* Determine panic code based on exception type */
+            panic_code_t code = PANIC_GENERAL;
+            
+            switch (regs->int_no) {
+                case 0:  code = PANIC_DIVIDE_BY_ZERO; break;
+                case 6:  code = PANIC_INVALID_OPCODE; break;
+                case 8:  code = PANIC_DOUBLE_FAULT; break;
+                case 12: code = PANIC_STACK_OVERFLOW; break;
+                case 13: code = PANIC_GPF; break;
+                case 14: code = PANIC_PAGE_FAULT; break;
+                case 18: code = PANIC_MACHINE_CHECK; break;
+                default: code = PANIC_GENERAL; break;
+            }
+            
+            /* Special handling for page faults - try MMU handler first */
             if (regs->int_no == 14) {
                 uint64_t faulting_address;
-                asm volatile("mov %%cr2, %0" : "=r"(faulting_address));
+                __asm__ volatile("mov %%cr2, %0" : "=r"(faulting_address));
+                
                 mmu_handle_page_fault(faulting_address, regs->err_code);
+                
+                char pf_msg[256];
+                char *p = pf_msg;
+                
+                const char *msg1 = "Page Fault at address 0x";
+                while (*msg1) *p++ = *msg1++;
+                
+                for (int i = 60; i >= 0; i -= 4) {
+                    int digit = (faulting_address >> i) & 0xF;
+                    *p++ = "0123456789ABCDEF"[digit];
+                }
+                
+                const char *msg2 = " - ";
+                while (*msg2) *p++ = *msg2++;
+                
+                if (!(regs->err_code & 0x1)) {
+                    const char *msg = "Page not present";
+                    while (*msg) *p++ = *msg++;
+                } else if (regs->err_code & 0x2) {
+                    const char *msg = "Write to read-only page";
+                    while (*msg) *p++ = *msg++;
+                } else if (regs->err_code & 0x4) {
+                    const char *msg = "User mode access violation";
+                    while (*msg) *p++ = *msg++;
+                } else if (regs->err_code & 0x8) {
+                    const char *msg = "Reserved bit violation";
+                    while (*msg) *p++ = *msg++;
+                } else if (regs->err_code & 0x10) {
+                    const char *msg = "Instruction fetch";
+                    while (*msg) *p++ = *msg++;
+                }
+                *p = '\0';
+                
+                panic_registers(pf_msg, regs, code);
             }
             
-            tty_printf("\n=== EXCEPTION: %s ===\n", exception_messages[regs->int_no]);
-            tty_printf("INT: %d, ERR: 0x%p\n", regs->int_no, (void*)regs->err_code);
-            tty_printf("RAX: 0x%p  RBX: 0x%p\n", (void*)regs->rax, (void*)regs->rbx);
-            tty_printf("RCX: 0x%p  RDX: 0x%p\n", (void*)regs->rcx, (void*)regs->rdx);
-            tty_printf("RSI: 0x%p  RDI: 0x%p\n", (void*)regs->rsi, (void*)regs->rdi);
-            tty_printf("RBP: 0x%p  RSP: 0x%p\n", (void*)regs->rbp, (void*)regs->rsp);
-            tty_printf("RIP: 0x%p  RFLAGS: 0x%p\n", (void*)regs->rip, (void*)regs->rflags);
-            tty_printf("CS: 0x%x  SS: 0x%x\n", (unsigned int)regs->cs, (unsigned int)regs->ss);
-            
-            if (regs->int_no == 14) {
-                uint64_t faulting_address;
-                asm volatile("mov %%cr2, %0" : "=r"(faulting_address));
-                tty_printf("Page fault at: 0x%p\n", (void*)faulting_address);
-                tty_printf("Error code: ");
-                if (regs->err_code & 0x1) tty_printf("PRESENT ");
-                if (regs->err_code & 0x2) tty_printf("WRITE ");
-                if (regs->err_code & 0x4) tty_printf("USER ");
-                if (regs->err_code & 0x8) tty_printf("RESERVED ");
-                if (regs->err_code & 0x10) tty_printf("INSTRUCTION_FETCH ");
-                tty_printf("\n");
-            }
-     
-            asm volatile("cli; hlt");
-            while(1);
+            panic_registers(exception_messages[regs->int_no], regs, code);
         }
     }
 }
