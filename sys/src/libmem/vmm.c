@@ -202,11 +202,14 @@ vmm_address_space_t *vmm_fork_address_space(vmm_address_space_t *parent) {
             
             if (phys != 0) {
                 uint64_t cow_flags = current->flags & ~PAGE_WRITE;
+                
                 mmu_map_page(child->page_dir, virt, phys, cow_flags);
                 
                 paging_protect_range(parent->page_dir, virt, 1, cow_flags);
             }
         }
+        
+        current->cow = true;
         
         current = current->next;
     }
@@ -246,16 +249,31 @@ void *vmm_alloc(vmm_address_space_t *space, size_t size) {
         return NULL;
     }
     
+    vmm_region_t *check = space->regions;
+    while (check != NULL) {
+        if (!(virt_addr + size <= check->virt_start || virt_addr >= check->virt_end)) {
+            return NULL;
+        }
+        check = check->next;
+    }
+    
     size_t num_pages = size / PAGE_SIZE;
     
     for (size_t i = 0; i < num_pages; i++) {
         void *phys_page = pmm_alloc();
         if (phys_page == NULL) {
             for (size_t j = 0; j < i; j++) {
-                mmu_unmap_page(space->page_dir, virt_addr + (j * PAGE_SIZE));
+                uint64_t virt = virt_addr + (j * PAGE_SIZE);
+                uint64_t phys = mmu_get_physical_address(space->page_dir, virt);
+                if (phys != 0) {
+                    mmu_unmap_page(space->page_dir, virt);
+                    pmm_free((void *)phys);
+                }
             }
             return NULL;
         }
+        
+        memset(phys_page, 0, PAGE_SIZE);
         
         uint64_t phys = (uint64_t)phys_page;
         uint64_t flags = PAGE_PRESENT | PAGE_WRITE;
@@ -267,16 +285,24 @@ void *vmm_alloc(vmm_address_space_t *space, size_t size) {
         if (!mmu_map_page(space->page_dir, virt_addr + (i * PAGE_SIZE), phys, flags)) {
             pmm_free(phys_page);
             for (size_t j = 0; j < i; j++) {
-                mmu_unmap_page(space->page_dir, virt_addr + (j * PAGE_SIZE));
+                uint64_t virt = virt_addr + (j * PAGE_SIZE);
+                uint64_t phys_addr = mmu_get_physical_address(space->page_dir, virt);
+                if (phys_addr != 0) {
+                    mmu_unmap_page(space->page_dir, virt);
+                    pmm_free((void *)phys_addr);
+                }
             }
             return NULL;
         }
-        
-        memset((void *)(virt_addr + (i * PAGE_SIZE)), 0, PAGE_SIZE);
     }
     
-    space->brk += size;
-    stats.used_pages += num_pages;
+    if (virt_addr == space->brk) {
+        space->brk += size;
+    }
+    
+    if (stats.used_pages + num_pages >= stats.used_pages) {  // Overflow check
+        stats.used_pages += num_pages;
+    }
     
     vmm_region_t *region = vmm_create_region(virt_addr, virt_addr + size,
                                              space == kernel_space ? VMM_REGION_KERNEL_HEAP : VMM_REGION_USER_HEAP,
@@ -300,17 +326,38 @@ void *vmm_alloc_at(vmm_address_space_t *space, uint64_t virt_addr, size_t size, 
     for (size_t i = 0; i < num_pages; i++) {
         void *phys_page = pmm_alloc();
         if (phys_page == NULL) {
+            for (size_t j = 0; j < i; j++) {
+                uint64_t virt = virt_addr + (j * PAGE_SIZE);
+                uint64_t phys = mmu_get_physical_address(space->page_dir, virt);
+                if (phys != 0) {
+                    mmu_unmap_page(space->page_dir, virt);
+                    pmm_free((void *)phys);
+                }
+            }
             return NULL;
         }
+        
+        memset(phys_page, 0, PAGE_SIZE);
         
         uint64_t phys = (uint64_t)phys_page;
         if (!mmu_map_page(space->page_dir, virt_addr + (i * PAGE_SIZE), phys, flags)) {
             pmm_free(phys_page);
+            for (size_t j = 0; j < i; j++) {
+                uint64_t virt = virt_addr + (j * PAGE_SIZE);
+                uint64_t phys_addr = mmu_get_physical_address(space->page_dir, virt);
+                if (phys_addr != 0) {
+                    mmu_unmap_page(space->page_dir, virt);
+                    pmm_free((void *)phys_addr);
+                }
+            }
             return NULL;
         }
     }
     
-    stats.used_pages += num_pages;
+    if (stats.used_pages + num_pages >= stats.used_pages) {  // Overflow check
+        stats.used_pages += num_pages;
+    }
+    
     return (void *)virt_addr;
 }
 
@@ -334,7 +381,12 @@ void vmm_free(vmm_address_space_t *space, void *ptr, size_t size) {
         }
     }
     
-    stats.used_pages -= num_pages;
+    if (stats.used_pages >= num_pages) {
+        stats.used_pages -= num_pages;
+    } else {
+        stats.used_pages = 0;
+    }
+    
     vmm_remove_region(space, virt_addr);
 }
 
@@ -385,7 +437,12 @@ bool vmm_unmap_region(vmm_address_space_t *space, uint64_t virt_start, size_t si
     
     paging_unmap_range(space->page_dir, virt_start, num_pages);
     vmm_remove_region(space, virt_start);
-    stats.used_pages -= num_pages;
+    
+    if (stats.used_pages >= num_pages) {
+        stats.used_pages -= num_pages;
+    } else {
+        stats.used_pages = 0;
+    }
     
     return true;
 }
@@ -421,15 +478,23 @@ void *vmm_sbrk(vmm_address_space_t *space, intptr_t increment) {
     }
     
     if (increment > 0) {
-        void *result = vmm_alloc(space, increment);
+        size_t alloc_size = increment;
+        void *result = vmm_alloc(space, alloc_size);
         if (result == NULL) {
             return (void *)-1;
         }
     } else {
-        vmm_free(space, (void *)new_brk, -increment);
+        uint64_t free_start = (new_brk + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
+        uint64_t free_end = old_brk & ~(PAGE_SIZE - 1);
+        
+        if (free_end > free_start) {
+            size_t free_size = free_end - free_start;
+            vmm_free(space, (void *)free_start, free_size);
+        }
+        
+        space->brk = new_brk;
     }
     
-    space->brk = new_brk;
     return (void *)old_brk;
 }
 
@@ -453,6 +518,13 @@ void vmm_handle_page_fault(uint64_t fault_addr, uint64_t error_code) {
     if (region->cow && (error_code & 0x2)) {
         uint64_t page_addr = fault_addr & ~(PAGE_SIZE - 1);
         
+        uint64_t old_phys = mmu_get_physical_address(space->page_dir, page_addr);
+        if (old_phys == 0) {
+            serial_printf(DEBUG_PORT, "COW fault but page not mapped at 0x%p\n",
+                         (void *)fault_addr);
+            return;
+        }
+        
         void *new_page = pmm_alloc();
         if (new_page == NULL) {
             serial_printf(DEBUG_PORT, "Failed to allocate page for COW at 0x%p\n",
@@ -460,13 +532,26 @@ void vmm_handle_page_fault(uint64_t fault_addr, uint64_t error_code) {
             return;
         }
         
-        memcpy(new_page, (void *)page_addr, PAGE_SIZE);
+        memcpy(new_page, (void *)old_phys, PAGE_SIZE);
         
         mmu_unmap_page(space->page_dir, page_addr);
-        mmu_map_page(space->page_dir, page_addr, (uint64_t)new_page, 
-                    region->flags | PAGE_WRITE);
         
-        region->cow = false;
+        uint64_t new_flags = region->flags | PAGE_WRITE;
+        if (!mmu_map_page(space->page_dir, page_addr, (uint64_t)new_page, new_flags)) {
+            serial_printf(DEBUG_PORT, "Failed to remap COW page at 0x%p\n",
+                         (void *)fault_addr);
+            pmm_free(new_page);
+            return;
+        }
+        size_t region_pages = (region->virt_end - region->virt_start) / PAGE_SIZE;
+        bool all_writable = true;
+        for (size_t i = 0; i < region_pages; i++) {
+            uint64_t check_addr = region->virt_start + (i * PAGE_SIZE);
+            uint64_t check_phys = mmu_get_physical_address(space->page_dir, check_addr);
+            if (check_phys != 0) {
+            }
+        }
+        
         vmm_flush_tlb(page_addr);
         
         serial_printf(DEBUG_PORT, "COW page fault resolved at 0x%p\n", (void *)fault_addr);
@@ -475,6 +560,7 @@ void vmm_handle_page_fault(uint64_t fault_addr, uint64_t error_code) {
                      (void *)fault_addr, (void *)error_code);
     }
 }
+
 
 void vmm_flush_tlb(uint64_t virt_addr) {
     mmu_flush_tlb_single(virt_addr);
