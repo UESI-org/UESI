@@ -10,7 +10,7 @@ CFLAGS := -Wall -Wextra -std=gnu11 -ffreestanding -fno-stack-protector \
           -m64 -march=x86-64 -mabi=sysv -mno-80387 -mno-mmx -mno-sse -mno-sse2 \
           -mno-red-zone -mcmodel=kernel -O2 \
           $(INCLUDES) \
-          -nostdlib -fno-builtin -s -DPRINTF_INCLUDE_CONFIG_H
+          -nostdlib -fno-builtin -s -DPRINTF_INCLUDE_CONFIG_H -D_KERNEL
 
 LDFLAGS := -nostdlib -static -T linker.lds -z max-page-size=0x1000
 

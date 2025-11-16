@@ -27,9 +27,16 @@
 #include <system_info.h>
 #include <panic.h>
 #include <serial.h>
+#include <sys/spinlock.h>
+
+spinlock_t my_lock;
 
 static void keyboard_handler(char c) {
     tty_putchar(c);
+}
+
+void init_subsystem(void) {
+    spinlock_init(&my_lock, "my_subsystem");
 }
 
 static void initialize_memory(void) {
@@ -108,6 +115,8 @@ static void initialize_system_components(void) {
     kdebug_init();
     isr_register_handler(3, kdebug_breakpoint_handler);  // INT3 for breakpoints
     debug_success("Kernel debugger initialized");
+
+    init_subsystem();
 
     syscall_init();
 
