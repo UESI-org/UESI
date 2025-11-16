@@ -58,6 +58,11 @@ void pmm_init(struct limine_memmap_response *memmap, struct limine_hhdm_response
     
     for (uint64_t i = 0; i < entry_count; i++) {
         struct limine_memmap_entry *entry = entries[i];
+        
+        if (entry->base > UINT64_MAX - entry->length) {
+            continue;
+        }
+        
         uint64_t top = entry->base + entry->length;
         if (top > highest_addr) {
             highest_addr = top;
@@ -67,6 +72,7 @@ void pmm_init(struct limine_memmap_response *memmap, struct limine_hhdm_response
     total_pages = highest_addr / PAGE_SIZE;
     bitmap_size = (total_pages + 7) / 8;
 
+    bitmap = NULL;
     for (uint64_t i = 0; i < entry_count; i++) {
         struct limine_memmap_entry *entry = entries[i];
         if (entry->type == LIMINE_MEMMAP_USABLE && entry->length >= bitmap_size) {
@@ -77,8 +83,18 @@ void pmm_init(struct limine_memmap_response *memmap, struct limine_hhdm_response
         }
     }
 
+    if (bitmap == NULL) {
+        return;
+    }
+
     for (uint64_t i = 0; i < bitmap_size; i++) {
         bitmap[i] = 0xFF;
+    }
+    
+    uint64_t excess_bits = total_pages % 8;
+    if (excess_bits != 0) {
+        uint8_t mask = (1 << excess_bits) - 1;
+        bitmap[bitmap_size - 1] = ~mask;
     }
 
     free_pages = 0;
@@ -86,13 +102,18 @@ void pmm_init(struct limine_memmap_response *memmap, struct limine_hhdm_response
     for (uint64_t i = 0; i < entry_count; i++) {
         struct limine_memmap_entry *entry = entries[i];
         if (entry->type == LIMINE_MEMMAP_USABLE) {
-            uint64_t base_page = entry->base / PAGE_SIZE;
-            uint64_t page_count = entry->length / PAGE_SIZE;
+            uint64_t aligned_base = (entry->base + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
+            uint64_t aligned_end = (entry->base + entry->length) & ~(PAGE_SIZE - 1);
             
-            for (uint64_t j = 0; j < page_count; j++) {
-                bitmap_clear(base_page + j);
-                free_pages++;
-                usable_pages++;
+            if (aligned_end > aligned_base) {
+                uint64_t base_page = aligned_base / PAGE_SIZE;
+                uint64_t page_count = (aligned_end - aligned_base) / PAGE_SIZE;
+                
+                for (uint64_t j = 0; j < page_count; j++) {
+                    bitmap_clear(base_page + j);
+                    free_pages++;
+                    usable_pages++;
+                }
             }
         }
     }
