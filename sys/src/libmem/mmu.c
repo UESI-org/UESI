@@ -254,8 +254,6 @@ void mmu_set_page_fault_handler(page_fault_handler_t handler) {
 }
 
 void mmu_handle_page_fault(uint64_t fault_addr, uint64_t error_code) {
-    fault_addr = read_cr2();
-    
     if (page_fault_handler != NULL) {
         page_fault_handler(fault_addr, error_code);
     }
