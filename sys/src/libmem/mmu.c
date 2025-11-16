@@ -156,20 +156,19 @@ bool mmu_map_page(page_directory_t *pd, uint64_t virt, uint64_t phys, uint64_t f
     
     pml4e_t *pml4 = pd->pml4;
     
-    pdpte_t *pdpt = get_next_level((uint64_t *)pml4, PML4_INDEX(virt), true, 
-                                   PAGE_WRITE | (flags & PAGE_USER));
+    uint64_t table_flags = PAGE_WRITE | (flags & PAGE_USER);
+    
+    pdpte_t *pdpt = get_next_level((uint64_t *)pml4, PML4_INDEX(virt), true, table_flags);
     if (pdpt == NULL) {
         return false;
     }
     
-    pde_t *pd_table = get_next_level((uint64_t *)pdpt, PDPT_INDEX(virt), true, 
-                                     PAGE_WRITE | (flags & PAGE_USER));
+    pde_t *pd_table = get_next_level((uint64_t *)pdpt, PDPT_INDEX(virt), true, table_flags);
     if (pd_table == NULL) {
         return false;
     }
     
-    pte_t *pt = get_next_level((uint64_t *)pd_table, PD_INDEX(virt), true, 
-                               PAGE_WRITE | (flags & PAGE_USER));
+    pte_t *pt = get_next_level((uint64_t *)pd_table, PD_INDEX(virt), true, table_flags);
     if (pt == NULL) {
         return false;
     }
