@@ -27,8 +27,19 @@ static bool find_allocation(void *ptr, cache_t **out_cache, slab_t **out_slab, i
             if ((uintptr_t)ptr >= (uintptr_t)slab &&
                 (uintptr_t)ptr < (uintptr_t)slab + PAGE_SIZE) {
                 
+                if ((uintptr_t)ptr < (uintptr_t)slab->objects) {
+                    serial_printf(DEBUG_PORT, "[kfree] Invalid pointer in slab header region\n");
+                    return false;
+                }
+                
                 /* Calculate object index */
                 uintptr_t offset = (uintptr_t)ptr - (uintptr_t)slab->objects;
+                
+                if (offset % cache->object_size != 0) {
+                    serial_printf(DEBUG_PORT, "[kfree] Pointer not aligned to object boundary\n");
+                    return false;
+                }
+                
                 int index = offset / cache->object_size;
                 
                 if (index >= 0 && (uint32_t)index < cache->objects_per_slab) {
@@ -47,7 +58,18 @@ static bool find_allocation(void *ptr, cache_t **out_cache, slab_t **out_slab, i
             if ((uintptr_t)ptr >= (uintptr_t)slab &&
                 (uintptr_t)ptr < (uintptr_t)slab + PAGE_SIZE) {
                 
+                if ((uintptr_t)ptr < (uintptr_t)slab->objects) {
+                    serial_printf(DEBUG_PORT, "[kfree] Invalid pointer in slab header region\n");
+                    return false;
+                }
+                
                 uintptr_t offset = (uintptr_t)ptr - (uintptr_t)slab->objects;
+                
+                if (offset % cache->object_size != 0) {
+                    serial_printf(DEBUG_PORT, "[kfree] Pointer not aligned to object boundary\n");
+                    return false;
+                }
+                
                 int index = offset / cache->object_size;
                 
                 if (index >= 0 && (uint32_t)index < cache->objects_per_slab) {
@@ -106,8 +128,15 @@ static void cache_free(cache_t *cache, slab_t *slab, int obj_index) {
     } else if (is_empty) {
         slab_remove_from_list(&cache->partial, slab);
         
-        if (cache->empty == NULL) {
-            slab->next = NULL;
+        int empty_count = 0;
+        slab_t *temp = cache->empty;
+        while (temp != NULL && empty_count < 2) {
+            empty_count++;
+            temp = temp->next;
+        }
+        
+        if (empty_count < 2) {
+            slab->next = cache->empty;
             cache->empty = slab;
         } else {
             pmm_free(slab);

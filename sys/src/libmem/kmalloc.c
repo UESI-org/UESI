@@ -25,12 +25,20 @@ static inline int get_cache_index(size_t size) {
     return -1; /* Size too large for caching */
 }
 
-static uint32_t calculate_objects_per_slab(size_t object_size) {
-    /* Reserve space for slab header and bitmap */
-    size_t usable_size = PAGE_SIZE - sizeof(slab_t);
+static uint32_t calculate_objects_per_slab(size_t object_size, size_t align) {
+    /* Reserve space for slab header */
+    size_t header_base = sizeof(slab_t);
     
-    /* Calculate objects considering bitmap overhead */
-    uint32_t objects = (usable_size * 8) / ((object_size * 8) + 1);
+    uint32_t estimated_objects = 200; /* Start with reasonable estimate */
+    size_t bitmap_size = (estimated_objects + 63) / 64 * sizeof(uint64_t);
+    
+    /* Calculate aligned start for objects */
+    size_t header_total = header_base + bitmap_size;
+    size_t aligned_start = (header_total + align - 1) & ~(align - 1);
+    
+    size_t usable_size = PAGE_SIZE - aligned_start;
+    
+    uint32_t objects = usable_size / object_size;
     
     /* Ensure we don't exceed reasonable limits */
     if (objects > 256) objects = 256;
@@ -43,7 +51,7 @@ static void cache_init(cache_t *cache, const char *name, size_t object_size, siz
     cache->name = name;
     cache->object_size = object_size;
     cache->align = align;
-    cache->objects_per_slab = calculate_objects_per_slab(object_size);
+    cache->objects_per_slab = calculate_objects_per_slab(object_size, align);
     cache->partial = NULL;
     cache->full = NULL;
     cache->empty = NULL;
@@ -63,7 +71,7 @@ static slab_t *slab_create(cache_t *cache) {
     slab->total_count = cache->objects_per_slab;
     slab->free_count = cache->objects_per_slab;
     
-    size_t bitmap_size = (cache->objects_per_slab + 63) / 64; /* Round up to uint64_t */
+    size_t bitmap_size = (cache->objects_per_slab + 63) / 64;
     slab->free_bitmap = (uint64_t *)((uint8_t *)slab + sizeof(slab_t));
     
     /* Initialize bitmap - all objects are free (set all bits to 1) */
@@ -74,11 +82,12 @@ static slab_t *slab_create(cache_t *cache) {
     size_t extra_bits = (bitmap_size * 64) - cache->objects_per_slab;
     if (extra_bits > 0 && extra_bits < 64) {
         uint64_t mask = (1ULL << (64 - extra_bits)) - 1;
-        slab->free_bitmap[bitmap_size - 1] &= mask;
+        slab->free_bitmap[bitmap_size - 1] = (1ULL << (64 - extra_bits)) - 1;
     }
     
     size_t header_size = sizeof(slab_t) + (bitmap_size * sizeof(uint64_t));
-    slab->objects = (void *)((uint8_t *)page + header_size);
+    size_t aligned_header = (header_size + cache->align - 1) & ~(cache->align - 1);
+    slab->objects = (void *)((uint8_t *)page + aligned_header);
     
     return slab;
 }
@@ -133,6 +142,13 @@ static void *cache_alloc(cache_t *cache, uint32_t flags) {
     int obj_index = slab_find_free(slab, cache);
     if (obj_index < 0) {
         serial_printf(DEBUG_PORT, "[kmalloc] BUG: No free object in partial slab\n");
+        return NULL;
+    }
+    
+    size_t bitmap_index = obj_index / 64;
+    size_t bit_index = obj_index % 64;
+    if (!(slab->free_bitmap[bitmap_index] & (1ULL << bit_index))) {
+        serial_printf(DEBUG_PORT, "[kmalloc] BUG: Attempted to allocate already-used object\n");
         return NULL;
     }
     
