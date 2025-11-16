@@ -67,7 +67,8 @@ bool paging_map_region(page_directory_t *pd, memory_region_t *region) {
         return false;
     }
     
-    uint64_t phys_addr = (uint64_t)phys_base - mmu_get_current_address_space()->phys_addr;
+    uint64_t hhdm_offset = kernel_directory->phys_addr;
+    uint64_t phys_addr = (uint64_t)phys_base - hhdm_offset;
     
     if (!paging_map_range(pd, region->base, phys_addr, num_pages, region->flags)) {
         pmm_free_contiguous(phys_base, num_pages);
@@ -112,7 +113,7 @@ page_directory_t *paging_create_user_address_space(void) {
 }
 
 page_directory_t *paging_clone_address_space(page_directory_t *src) {
-    if (src == NULL) {
+    if (src == NULL || src->pml4 == NULL) {
         return NULL;
     }
     
@@ -121,30 +122,56 @@ page_directory_t *paging_clone_address_space(page_directory_t *src) {
         return NULL;
     }
     
-    for (uint64_t pml4_idx = 0; pml4_idx < 256; pml4_idx++) {
-        uint64_t virt_base = pml4_idx << PML4_SHIFT;
+    pml4e_t *src_pml4 = src->pml4;
+    
+    for (int pml4_idx = 0; pml4_idx < 256; pml4_idx++) {
+        if (!(src_pml4[pml4_idx] & PAGE_PRESENT)) continue;
         
-        for (uint64_t offset = 0; offset < (1ULL << PML4_SHIFT); offset += PAGE_SIZE) {
-            uint64_t virt = virt_base + offset;
+        uint64_t pdpt_phys = src_pml4[pml4_idx] & PAGE_ADDR_MASK;
+        pdpte_t *pdpt = (pdpte_t *)mmu_phys_to_virt(pdpt_phys);
+        
+        for (int pdpt_idx = 0; pdpt_idx < 512; pdpt_idx++) {
+            if (!(pdpt[pdpt_idx] & PAGE_PRESENT)) continue;
+            if (pdpt[pdpt_idx] & PAGE_HUGE) continue;  // Skip huge pages for now
             
-            if (mmu_is_mapped(src, virt)) {
-                uint64_t phys = mmu_get_physical_address(src, virt);
+            uint64_t pd_phys = pdpt[pdpt_idx] & PAGE_ADDR_MASK;
+            pde_t *pd_table = (pde_t *)mmu_phys_to_virt(pd_phys);
+            
+            for (int pd_idx = 0; pd_idx < 512; pd_idx++) {
+                if (!(pd_table[pd_idx] & PAGE_PRESENT)) continue;
+                if (pd_table[pd_idx] & PAGE_HUGE) continue;  // Skip huge pages
                 
-                void *new_page = pmm_alloc();
-                if (new_page == NULL) {
-                    mmu_destroy_address_space(new_pd);
-                    return NULL;
-                }
+                uint64_t pt_phys = pd_table[pd_idx] & PAGE_ADDR_MASK;
+                pte_t *pt = (pte_t *)mmu_phys_to_virt(pt_phys);
                 
-                uint64_t src_virt = phys + kernel_directory->phys_addr;
-                memcpy(new_page, (void *)src_virt, PAGE_SIZE);
-                
-                uint64_t new_phys = (uint64_t)new_page - kernel_directory->phys_addr;
-                
-                if (!mmu_map_page(new_pd, virt, new_phys, PAGE_PRESENT | PAGE_WRITE)) {
-                    pmm_free(new_page);
-                    mmu_destroy_address_space(new_pd);
-                    return NULL;
+                for (int pt_idx = 0; pt_idx < 512; pt_idx++) {
+                    if (!(pt[pt_idx] & PAGE_PRESENT)) continue;
+                    
+                    uint64_t src_page_phys = pt[pt_idx] & PAGE_ADDR_MASK;
+                    uint64_t flags = pt[pt_idx] & ~PAGE_ADDR_MASK;
+                    
+                    void *new_page = pmm_alloc();
+                    if (new_page == NULL) {
+                        mmu_destroy_address_space(new_pd);
+                        return NULL;
+                    }
+                    
+                    void *src_page_virt = mmu_phys_to_virt(src_page_phys);
+                    memcpy(new_page, src_page_virt, PAGE_SIZE);
+                    
+                    page_directory_t *current = mmu_get_current_address_space();
+                    uint64_t new_phys = (uint64_t)new_page - current->phys_addr;
+                    
+                    uint64_t virt = ((uint64_t)pml4_idx << PML4_SHIFT) |
+                                   ((uint64_t)pdpt_idx << PDPT_SHIFT) |
+                                   ((uint64_t)pd_idx << PD_SHIFT) |
+                                   ((uint64_t)pt_idx << PT_SHIFT);
+                    
+                    if (!mmu_map_page(new_pd, virt, new_phys, flags)) {
+                        pmm_free(new_page);
+                        mmu_destroy_address_space(new_pd);
+                        return NULL;
+                    }
                 }
             }
         }
@@ -233,12 +260,10 @@ void paging_free_user_pages(page_directory_t *pd) {
         return;
     }
     
-    extern void serial_printf(uint16_t port, const char *fmt, ...);
-    #define DEBUG_PORT 0x3F8
-    
     serial_printf(DEBUG_PORT, "Freeing user pages for page directory %p\n", pd);
     
     uint64_t pages_freed = 0;
+    uint64_t tables_freed = 0;
     pml4e_t *pml4 = pd->pml4;
     
     for (int pml4_idx = 0; pml4_idx < 256; pml4_idx++) {
@@ -249,14 +274,14 @@ void paging_free_user_pages(page_directory_t *pd) {
         
         for (int pdpt_idx = 0; pdpt_idx < 512; pdpt_idx++) {
             if (!(pdpt[pdpt_idx] & PAGE_PRESENT)) continue;
-            if (pdpt[pdpt_idx] & PAGE_HUGE) continue;  /* Skip huge pages */
+            if (pdpt[pdpt_idx] & PAGE_HUGE) continue;
             
             uint64_t pd_phys = pdpt[pdpt_idx] & PAGE_ADDR_MASK;
             pde_t *pd_table = (pde_t *)mmu_phys_to_virt(pd_phys);
             
             for (int pd_idx = 0; pd_idx < 512; pd_idx++) {
                 if (!(pd_table[pd_idx] & PAGE_PRESENT)) continue;
-                if (pd_table[pd_idx] & PAGE_HUGE) continue;  /* Skip huge pages */
+                if (pd_table[pd_idx] & PAGE_HUGE) continue;
                 
                 uint64_t pt_phys = pd_table[pd_idx] & PAGE_ADDR_MASK;
                 pte_t *pt = (pte_t *)mmu_phys_to_virt(pt_phys);
@@ -265,18 +290,30 @@ void paging_free_user_pages(page_directory_t *pd) {
                     if (!(pt[pt_idx] & PAGE_PRESENT)) continue;
                     
                     uint64_t page_phys = pt[pt_idx] & PAGE_ADDR_MASK;
-                    
                     void *page_virt = mmu_phys_to_virt(page_phys);
                     
                     pmm_free(page_virt);
                     pages_freed++;
                 }
+                
+                pmm_free(pt);
+                tables_freed++;
             }
+            
+            pmm_free(pd_table);
+            tables_freed++;
         }
+        
+        pmm_free(pdpt);
+        tables_freed++;
+        
+        pml4[pml4_idx] = 0;
     }
     
     serial_printf(DEBUG_PORT, "Freed %llu user pages (%llu KB)\n", 
                   pages_freed, pages_freed * 4);
+    serial_printf(DEBUG_PORT, "Freed %llu page table structures (%llu KB)\n",
+                  tables_freed, tables_freed * 4);
 }
 
 void paging_dump_address_space(page_directory_t *pd) {
