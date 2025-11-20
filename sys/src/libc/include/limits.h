@@ -35,7 +35,7 @@
 #ifndef _LIMITS_H_
 #define	_LIMITS_H_
 
-#include <cdefs.h>
+#include <sys/cdefs.h>
 
 #if __POSIX_VISIBLE
 #define	_POSIX_ARG_MAX		4096
@@ -108,10 +108,10 @@
 #define	_XOPEN_PATH_MAX		1024
 #endif /* __XPG_VISIBLE */
 
-#include "sys/limits.h"
+#include <sys/limits.h>
 
 #if __POSIX_VISIBLE
-#include "syslimits.h"
+#include <sys/syslimits.h>
 #endif
 
 #endif /* !_LIMITS_H_ */

@@ -37,7 +37,7 @@
  *	@(#)errno.h	8.5 (Berkeley) 1/21/94
  */
 
-#include <cdefs.h>
+#include <sys/cdefs.h>
 
 #define EPERM		1	/* Operation not permitted */
 #define ENOENT		2	/* No such file or directory */

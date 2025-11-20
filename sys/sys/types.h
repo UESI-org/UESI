@@ -40,11 +40,11 @@
 #ifndef _SYS_TYPES_H_
 #define	_SYS_TYPES_H_
 
-#include <cdefs.h>
+#include <sys/cdefs.h>
 #if __BSD_VISIBLE
-#include <endian.h>
+#include <sys/endian.h>
 #else
-#include <_endian.h>
+#include <sys/_endian.h>
 #endif
 
 #if __BSD_VISIBLE

@@ -1,9 +1,18 @@
 CC ?= x86_64-elf-gcc
 LD ?= x86_64-elf-ld
 
-INCLUDES := -I. -Iinclude -I../libc/include -I../libchar/include -I../libkb/include \
-            -I../libmem/include -I../libprintf/include -I../../../amd64/include \
-            -I../../../sys/sys -I../../../sys -I../libuserland/include -I../libkdebug/include
+INCLUDES := -I. -Iinclude \
+            -I../libc/include \
+            -I../libchar/include \
+            -I../libkb/include \
+            -I../libmem/include \
+            -I../libprintf/include \
+            -I../libkdebug/include \
+            -I../libuserland/include \
+            -I../libfs/include \
+            -I../../../amd64/include \
+            -I../../../sys/sys \
+            -I../../../sys
 
 CFLAGS := -Wall -Wextra -std=gnu11 -ffreestanding -fno-stack-protector \
           -fno-stack-check -fno-lto -fno-PIC -ffunction-sections -fdata-sections \
@@ -21,15 +30,27 @@ CPU_ASM_SRC := $(wildcard ../../../amd64/cpu/*.S)
 INIT_OBJS := $(patsubst init/%.c,obj/init/%.o,$(INIT_C_SRC))
 CPU_C_OBJS := $(patsubst ../../../amd64/cpu/%.c,obj/cpu/%_c.o,$(CPU_C_SRC))
 CPU_ASM_OBJS := $(patsubst ../../../amd64/cpu/%.S,obj/cpu/%_asm.o,$(CPU_ASM_SRC))
+
 OBJS := $(INIT_OBJS) $(CPU_C_OBJS) $(CPU_ASM_OBJS)
 
-LIBCHAR := ../libchar/lib/libchar.a
-LIBC := ../libc/lib/libc.a 
-LIBKB := ../libkb/lib/libkb.a
-LIBMEM := ../libmem/lib/libmem.a
-LIBPRINTF := ../libprintf/lib/libprintf.a
-LIBKDEBUG := ../libkdebug/lib/libkdebug.a
-LIBUSERLAND := ../libuserland/lib/libuserland.a
+LIBCHAR      := ../libchar/lib/libchar.a
+LIBKB        := ../libkb/lib/libkb.a
+LIBMEM       := ../libmem/lib/libmem.a
+LIBPRINTF    := ../libprintf/lib/libprintf.a
+LIBKDEBUG    := ../libkdebug/lib/libkdebug.a
+LIBUSERLAND  := ../libuserland/lib/libuserland.a
+LIBFS        := ../libfs/lib/libfs.a
+LIBC         := ../libc/lib/libc.a
+
+LIBS := \
+    $(LIBUSERLAND) \
+    $(LIBCHAR) \
+    $(LIBKB) \
+    $(LIBMEM) \
+    $(LIBPRINTF) \
+    $(LIBKDEBUG) \
+    $(LIBFS) \
+    $(LIBC)
 
 TARGET := uesi.elf
 
@@ -47,13 +68,17 @@ obj/cpu/%_asm.o: ../../../amd64/cpu/%.S
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(TARGET): $(OBJS) $(LIBCHAR) $(LIBC) $(LIBKB) $(LIBMEM) $(LIBPRINTF) $(LIBKDEBUG) $(LIBUSERLAND)
-	$(LD) $(LDFLAGS) -o $@ $(OBJS) $(LIBUSERLAND) $(LIBCHAR) $(LIBC) $(LIBKB) $(LIBMEM) $(LIBPRINTF) $(LIBKDEBUG)
+$(TARGET): $(OBJS) $(LIBS)
+	$(LD) $(LDFLAGS) -o $@ $(OBJS) $(LIBS)
 	@echo "Kernel built: $(TARGET)"
-	@echo "Objects compiled:"
-	@echo "  Init objects: $(INIT_OBJS)"
-	@echo "  CPU C objects: $(CPU_C_OBJS)"
-	@echo "  CPU ASM objects: $(CPU_ASM_OBJS)"
+	@echo "Init OBJS: $(INIT_OBJS)"
+	@echo "CPU C OBJS: $(CPU_C_OBJS)"
+	@echo "CPU ASM OBJS: $(CPU_ASM_OBJS)"
+
+clean:
+	@echo "[*] Cleaning boot build..."
+	@rm -rf obj uesi.elf
+	@echo "[+] Boot build cleaned."
 
 .PHONY: all clean list-sources
 
@@ -64,8 +89,3 @@ list-sources:
 	@echo "  $(CPU_C_SRC)"
 	@echo "CPU ASM sources:"
 	@echo "  $(CPU_ASM_SRC)"
-
-clean:
-	@echo "[*] Cleaning boot build..."
-	@rm -rf obj uesi.elf
-	@echo "[+] Boot build cleaned."

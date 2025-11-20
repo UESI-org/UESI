@@ -29,7 +29,7 @@
 #define	NZERO	0
 
 #ifndef KERNEL
-#include <types.h>
+#include <sys/types.h>
 #endif
 
 #define	NBPG		4096		/* bytes/page */

@@ -1,7 +1,7 @@
 /* Complex program, keep heavily commented! */
 
-#include <elf_loader.h>
-#include <elf.h>
+#include <sys/elf_loader.h>
+#include <sys/elf.h>
 #include <proc.h>
 #include <string.h>
 #include <stdbool.h>

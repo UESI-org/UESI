@@ -1,28 +1,31 @@
 CC ?= x86_64-elf-gcc
 AR := ar
+ARFLAGS := rcs
 
 INCDIR := include
+BOOTINCDIR := ../boot/include
+SYSINCDIR := ../../../sys
+ARCHINCDIR := ../../../amd64/include
+LIBMEMINCDIR := ../libmem/include
+LIBCINCDIR := ../libc/include
+LIBPRINTFINCDIR := ../libprintf/include
 OBJDIR := obj
 LIBDIR := lib
-
 TARGET := $(LIBDIR)/libuserland.a
 
-INCLUDES := -I$(INCDIR) -I../boot/include
+SRCS := elf_loader.c proc.c
+OBJS := $(SRCS:%.c=$(OBJDIR)/%.o)
 
 CFLAGS := -Wall -Wextra -std=gnu11 -ffreestanding -fno-stack-protector \
           -fno-stack-check -fno-lto -fno-PIC -ffunction-sections -fdata-sections \
           -m64 -march=x86-64 -mabi=sysv -mno-80387 -mno-mmx -mno-sse -mno-sse2 \
-          -mno-red-zone -mcmodel=kernel -O2 -nostdlib -fno-builtin -s \
-          -I../../sys -I../../../amd64/include -I../libmem/include \
-		  -I../libc/include -I../libprintf/include -I../sys/src/boot/include $(INCLUDES)
-ARFLAGS := rcs
+          -mno-red-zone -mcmodel=kernel -O2 -nostdlib -fno-builtin -s
 
-SRCS := elf_loader.c \
-        proc.c
+INCLUDES := -I$(INCDIR) -I$(BOOTINCDIR) -I$(SYSINCDIR) -I$(ARCHINCDIR) \
+            -I$(LIBMEMINCDIR) -I$(LIBCINCDIR) -I$(LIBPRINTFINCDIR)
 
-OBJS := $(SRCS:%.c=$(OBJDIR)/%.o)
+.PHONY: all clean rebuild install help
 
-.PHONY: all
 all: $(TARGET)
 
 $(OBJDIR):
@@ -35,18 +38,15 @@ $(TARGET): $(OBJDIR) $(LIBDIR) $(OBJS)
 	$(AR) $(ARFLAGS) $@ $(OBJS)
 	@echo "Built $@"
 
-$(OBJDIR)/%.o: %.c
-	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+$(OBJDIR)/%.o: %.c | $(OBJDIR)
+	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@ -MMD -MP
 
-.PHONY: clean
 clean:
 	rm -rf $(OBJDIR) $(LIBDIR)
 	@echo "Cleaned build artifacts"
 
-.PHONY: rebuild
 rebuild: clean all
 
-.PHONY: install
 install: $(TARGET)
 	@echo "Installing libuserland.a..."
 	@mkdir -p ../../lib
@@ -55,7 +55,6 @@ install: $(TARGET)
 	cp $(INCDIR)/*.h ../../include/
 	@echo "Installation complete"
 
-.PHONY: help
 help:
 	@echo "Makefile for libuserland.a"
 	@echo ""
@@ -67,6 +66,3 @@ help:
 	@echo "  help     - Show this help message"
 
 -include $(OBJS:.o=.d)
-
-$(OBJDIR)/%.d: %.c | $(OBJDIR)
-	@$(CC) $(CFLAGS) $(INCLUDES) -MM -MT $(OBJDIR)/$*.o $< > $@

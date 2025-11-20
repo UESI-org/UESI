@@ -34,7 +34,7 @@
 #ifndef	_MACHINE_LIMITS_H_
 #define	_MACHINE_LIMITS_H_
 
-#include <cdefs.h>
+#include <sys/cdefs.h>
 
 #if __POSIX_VISIBLE || __XPG_VISIBLE
 #define SSIZE_MAX	LONG_MAX	/* max value for a ssize_t */

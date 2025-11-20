@@ -10,14 +10,20 @@ LIB_DIR := lib
 CRT0_SRC := crt0.S
 CRT0 := $(LIB_DIR)/crt0.o
 LIBUSER := $(LIB_DIR)/libuser.a
+
 SYSCALL_SRC := syscall.c
 SYSCALL_OBJ := $(OBJ_DIR)/syscall.o
 
 LDS_SCRIPT := src/userland.lds
 
+SYSINCDIR := ../sys/sys
+SYS1INCDIR := ../sys
+LIBCINCDIR := ../sys/src/libc/include
+ARCHINCDIR := ../amd64/include
+
 CFLAGS := -Wall -Wextra -std=gnu11 -ffreestanding -nostdlib -nostdinc \
-           -fno-builtin -fno-stack-protector -O2 -ffunction-sections -fdata-sections \
-           -Iinclude -I../sys/sys -I../sys/src/libc/include -I../amd64/include
+          -fno-builtin -fno-stack-protector -O2 -ffunction-sections -fdata-sections \
+          -Iinclude -I$(SYSINCDIR) -I$(SYS1INCDIR) -I$(LIBCINCDIR) -I$(ARCHINCDIR)
 
 LDFLAGS := -nostdlib -z max-page-size=0x1000
 

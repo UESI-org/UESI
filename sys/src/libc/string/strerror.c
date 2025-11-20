@@ -1,28 +1,44 @@
-#include "../include/string.h"
-#include "../include/str_deb.h"
-#include <stdint.h>
+/*	$OpenBSD: strerror.c,v 1.8 2015/08/31 02:53:57 guenther Exp $ */
+/*
+ * Copyright (c) 1988 Regents of the University of California.
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. Neither the name of the University nor the names of its contributors
+ *    may be used to endorse or promote products derived from this software
+ *    without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
+ */
 
-char *strerror(int errnum) {
-    static char buf[32];
-    
-    if (errnum >= 0 && errnum < (int)NUM_ERRORS)
-        return (char *)error_strings[errnum];
-    
-    char *p = buf + sizeof(buf) - 1;
-    *p = '\0';
-    
-    int n = errnum < 0 ? -errnum : errnum;
-    do {
-        *--p = '0' + (n % 10);
-        n /= 10;
-    } while (n > 0 && p > buf);
-    
-    if (errnum < 0 && p > buf)
-        *--p = '-';
-    
-    const char *prefix = "Unknown error ";
-    while (*prefix && p > buf)
-        *--p = *prefix++;
-    
-    return p;
+#include <string.h>
+#include <limits.h>
+
+#define NL_TEXTMAX	255
+
+char *
+strerror(int num)
+{
+	static char buf[NL_TEXTMAX];
+
+	(void)strerror_r(num, buf, sizeof(buf));
+	return (buf);
 }
+DEF_STRONG(strerror);

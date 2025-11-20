@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include <elf.h>
+#include <sys/elf.h>
 #include <proc.h>
 
 bool elf_validate(const void *elf_data, size_t size);

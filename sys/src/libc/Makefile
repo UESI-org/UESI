@@ -1,63 +1,60 @@
 CC ?= x86_64-elf-gcc
 AR := ar
-CFLAGS := -Wall -Wextra -std=gnu11 -ffreestanding -fno-stack-protector \
-          -fno-stack-check -fno-lto -fno-PIC -ffunction-sections -fdata-sections \
-          -m64 -march=x86-64 -mabi=sysv -mno-80387 -mno-mmx -mno-sse -mno-sse2 \
-          -mno-red-zone -mcmodel=kernel -O2 -I$(INCDIR) -I../boot/include -nostdlib -fno-builtin -s \
-          -I../../../sys/sys -I../../../amd64/include
 ARFLAGS := rcs
+
 INCDIR := include
+SYSINCDIR := ../../../sys
+ARCHINCDIR := ../../../amd64/include
+BOOTINCDIR := ../boot/include
+
 SRCDIR := string
+GENDIR := gen
+
 OBJDIR := obj
 LIBDIR := lib
 TARGET := $(LIBDIR)/libc.a
-SRCS := $(SRCDIR)/malloc.c \
-        $(SRCDIR)/memchr.c \
-        $(SRCDIR)/memcmp.c \
-        $(SRCDIR)/memcpy.c \
-        $(SRCDIR)/memmove.c \
-        $(SRCDIR)/memset.c \
-        $(SRCDIR)/strcat.c \
-        $(SRCDIR)/strchr.c \
-        $(SRCDIR)/strcmp.c \
-        $(SRCDIR)/strcoll.c \
-        $(SRCDIR)/strcpy.c \
-        $(SRCDIR)/strcspn.c \
-        $(SRCDIR)/strerror.c \
-        $(SRCDIR)/strerror_r.c \
-        $(SRCDIR)/strlen.c \
-        $(SRCDIR)/strncat.c \
-        $(SRCDIR)/strncmp.c \
-        $(SRCDIR)/strncpy.c \
-        $(SRCDIR)/strndup.c \
-        $(SRCDIR)/strpbrk.c \
-        $(SRCDIR)/strrchr.c \
-        $(SRCDIR)/strsignal.c \
-        $(SRCDIR)/strspn.c \
-        $(SRCDIR)/strstr.c \
-        $(SRCDIR)/strtok.c \
-        $(SRCDIR)/strtok_r.c \
-        $(SRCDIR)/strxfrm.c
-OBJS := $(SRCS:$(SRCDIR)/%.c=$(OBJDIR)/%.o)
-INCLUDES := -I$(INCDIR) -I../boot/include
-.PHONY: all
+
+SRCS := $(wildcard $(SRCDIR)/*.c)
+GENSRC := $(wildcard $(GENDIR)/*.c)
+
+OBJS := $(SRCS:$(SRCDIR)/%.c=$(OBJDIR)/%.o) \
+        $(GENSRC:$(GENDIR)/%.c=$(OBJDIR)/gen_%.o)
+
+CFLAGS := -Wall -Wextra -std=gnu11 -ffreestanding -fno-stack-protector \
+          -fno-stack-check -fno-lto -fno-PIC -ffunction-sections -fdata-sections \
+          -m64 -march=x86-64 -mabi=sysv -mno-80387 -mno-mmx -mno-sse -mno-sse2 \
+          -mno-red-zone -mcmodel=kernel -O2 \
+          -I$(INCDIR) -I$(SYSINCDIR) -I$(ARCHINCDIR) -I$(BOOTINCDIR) \
+          -nostdlib -fno-builtin -s
+
+INCLUDES := -I$(INCDIR) -I$(SYSINCDIR) -I$(ARCHINCDIR) -I$(BOOTINCDIR)
+
+.PHONY: all clean rebuild install help
+
 all: $(TARGET)
+
 $(OBJDIR):
 	@mkdir -p $(OBJDIR)
+
 $(LIBDIR):
 	@mkdir -p $(LIBDIR)
+
 $(TARGET): $(OBJDIR) $(LIBDIR) $(OBJS)
 	$(AR) $(ARFLAGS) $@ $(OBJS)
 	@echo "Built $@"
-$(OBJDIR)/%.o: $(SRCDIR)/%.c
-	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
-.PHONY: clean
+
+$(OBJDIR)/%.o: $(SRCDIR)/%.c | $(OBJDIR)
+	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@ -MMD -MP
+
+$(OBJDIR)/gen_%.o: $(GENDIR)/%.c | $(OBJDIR)
+	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@ -MMD -MP
+
 clean:
 	rm -rf $(OBJDIR) $(LIBDIR)
 	@echo "Cleaned build artifacts"
-.PHONY: rebuild
+
 rebuild: clean all
-.PHONY: install
+
 install: $(TARGET)
 	@echo "Installing libc.a..."
 	@mkdir -p ../../lib
@@ -65,7 +62,7 @@ install: $(TARGET)
 	@mkdir -p ../../include
 	cp $(INCDIR)/string.h ../../include/
 	@echo "Installation complete"
-.PHONY: help
+
 help:
 	@echo "Makefile for libc.a"
 	@echo ""
@@ -73,8 +70,7 @@ help:
 	@echo "  all      - Build libc.a (default)"
 	@echo "  clean    - Remove all build artifacts"
 	@echo "  rebuild  - Clean and rebuild"
-	@echo "  install  - Install library to ../../lib and headers to ../../include"
+	@echo "  install  - Install library and headers"
 	@echo "  help     - Show this help message"
+
 -include $(OBJS:.o=.d)
-$(OBJDIR)/%.d: $(SRCDIR)/%.c | $(OBJDIR)
-	@$(CC) $(CFLAGS) $(INCLUDES) -MM -MT $(OBJDIR)/$*.o $< > $@

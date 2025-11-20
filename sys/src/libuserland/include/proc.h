@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
-#include <types.h>
+#include <sys/types.h>
 #include <paging.h>
 
 #define PROCESS_MAX_NAME 64

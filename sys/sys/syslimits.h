@@ -32,7 +32,7 @@
  *	@(#)syslimits.h	8.1 (Berkeley) 6/2/93
  */
 
-#include <cdefs.h>
+#include <sys/cdefs.h>
 
 #if __POSIX_VISIBLE || __XPG_VISIBLE || __BSD_VISIBLE
 #define	ARG_MAX		 (512 * 1024)	/* max bytes for an exec function */

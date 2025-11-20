@@ -137,11 +137,8 @@
 # define __warn_unused_result	/* delete */
 #endif
 
-#if __GNUC_PREREQ__(3,3) && !defined(__clang__)
-# define __bounded(args)	__attribute__ ((__bounded__ args ))
-#else
-# define __bounded(args)	/* delete */
-#endif
+/* GCC doesn't support OpenBSD's __bounded__ attribute, so for our kernel we have to adapt */
+#define __bounded__(x, y, z)	/* delete */
 
 /*
  * __returns_twice makes the compiler not assume the function
@@ -269,6 +266,20 @@
 
 #define	__BEGIN_DECLS	__BEGIN_EXTERN_C
 #define	__END_DECLS	__END_EXTERN_C
+
+#if __GNUC_PREREQ__(3, 3)
+
+#ifndef __strong_alias
+#define __strong_alias(new, old) \
+        __asm__(".global " #new "\n" #new " = " #old);
+#endif
+
+#ifndef __weak_alias
+#define __weak_alias(new, old) \
+        __asm__(".weak " #new "\n" #new " = " #old);
+#endif
+
+#endif
 
 /*
  * "The nice thing about standards is that there are so many to choose from."

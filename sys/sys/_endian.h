@@ -33,7 +33,7 @@
 #ifndef _SYS__ENDIAN_H_
 #define _SYS__ENDIAN_H_
 
-#include <_types.h>
+#include <sys/_types.h>
 
 #define __FROM_SYS__ENDIAN
 #include <mendian.h>

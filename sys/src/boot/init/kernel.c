@@ -17,6 +17,10 @@
 #include <pit.h>
 #include <pmm.h>
 #include <vmm.h>
+#include <vfs.h>
+#include <inode.h>
+#include <blk.h>
+#include <blkalloc.h>
 #include <mmu.h>
 #include <printf.h>
 #include <proc.h>
@@ -30,6 +34,9 @@
 #include <sys/spinlock.h>
 
 spinlock_t my_lock;
+
+// Global or static block allocator - must persist beyond initialization
+static blk_allocator_t g_block_alloc;
 
 static void keyboard_handler(char c) {
     tty_putchar(c);
@@ -60,7 +67,22 @@ static void initialize_memory(void) {
 
     vmm_init();
     debug_success("VMM initialized");
+    
+    vfs_init();
+    debug_success("VFS initialized");
+    inode_cache_init();
+    debug_success("inode cache initialized");
+
+    /* Son of a bitch... For some reason the allocation triggers a GPF panic, working on fixing it soon
+    blk_alloc_init(&g_block_alloc, 4096, 0, BLK_SIZE_4K);
+    debug_success("blk alloc initialized");
+    */
+
+
+    blk_buffer_init();
+    debug_success("blk buffer initialized");
 }
+
 
 static void initialize_cpu(cpu_info_t *cpu) {
     debug_section("Detecting CPU");
