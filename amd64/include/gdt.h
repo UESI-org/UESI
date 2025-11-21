@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <segments.h>
+#include <tss.h>
 
 /* 
  * GDT Entry indices (not selectors - use GSEL macro for selectors)
@@ -26,27 +27,6 @@
 #define GDT_SELECTOR_USER_CODE      GSEL(GDT_UCODE_ENTRY, SEL_UPL)  // 0x1B
 #define GDT_SELECTOR_USER_DATA      GSEL(GDT_UDATA_ENTRY, SEL_UPL)  // 0x23
 #define GDT_SELECTOR_TSS            GSEL(GDT_TSS_ENTRY, SEL_KPL)    // 0x28
-
-/*
- * TSS structure for AMD64 long mode
- */
-struct tss_entry {
-    uint32_t reserved0;
-    uint64_t rsp0;          // Stack pointer for privilege level 0
-    uint64_t rsp1;          // Stack pointer for privilege level 1
-    uint64_t rsp2;          // Stack pointer for privilege level 2
-    uint64_t reserved1;
-    uint64_t ist1;          // Interrupt Stack Table 1
-    uint64_t ist2;          // Interrupt Stack Table 2
-    uint64_t ist3;          // Interrupt Stack Table 3
-    uint64_t ist4;          // Interrupt Stack Table 4
-    uint64_t ist5;          // Interrupt Stack Table 5
-    uint64_t ist6;          // Interrupt Stack Table 6
-    uint64_t ist7;          // Interrupt Stack Table 7
-    uint64_t reserved2;
-    uint16_t reserved3;
-    uint16_t iomap_base;    // I/O Map Base Address
-} __attribute__((packed));
 
 void gdt_init(void);
 void gdt_load(struct region_descriptor *gdt_ptr);

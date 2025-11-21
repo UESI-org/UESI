@@ -1,5 +1,6 @@
 #include <gdt.h>
 #include <segments.h>
+#include <tss.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -7,16 +8,14 @@
 static struct mem_segment_descriptor gdt_mem[5];
 static struct sys_segment_descriptor gdt_tss;
 
-static struct tss_entry tss;
+static struct x86_64_tss tss;
 
 static struct region_descriptor gdt_ptr;
 
 void gdt_init(void) {
-    // Zero-initialize the TSS structure
-    memset(&tss, 0, sizeof(struct tss_entry));
-    tss.iomap_base = sizeof(struct tss_entry);
+    memset(&tss, 0, sizeof(struct x86_64_tss));
+    tss.tss_iobase = sizeof(struct x86_64_tss);
     
-    // Zero-initialize GDT entries
     memset(gdt_mem, 0, sizeof(gdt_mem));
     memset(&gdt_tss, 0, sizeof(gdt_tss));
     
@@ -63,7 +62,7 @@ void gdt_init(void) {
     // Entry 5-6: TSS Descriptor (16 bytes in 64-bit mode)
     set_sys_segment(&gdt_tss,
                     &tss,                    // base address of TSS
-                    sizeof(struct tss_entry) - 1,  // limit
+                    sizeof(struct x86_64_tss) - 1,  // limit
                     SDT_SYS386TSS,           // type: available TSS
                     SEL_KPL,                 // DPL: kernel privilege
                     0);                      // granularity: byte
@@ -83,5 +82,5 @@ void gdt_init(void) {
 }
 
 void tss_set_rsp0(uint64_t rsp0) {
-    tss.rsp0 = rsp0;
+    tss.tss_rsp0 = rsp0;
 }
