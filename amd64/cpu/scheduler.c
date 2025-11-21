@@ -3,6 +3,7 @@
 #include <isr.h>
 #include <pmm.h>
 #include <vmm.h>
+#include <vfs.h>
 #include <string.h>
 
 extern void tty_printf(const char *fmt, ...);
@@ -116,6 +117,10 @@ task_t *scheduler_create_task(const char *name, void (*entry_point)(void),
     } else {
         task->page_directory = vmm_create_address_space(false);
     }
+
+    for (int i = 0; i < MAX_OPEN_FILES; i++) {
+        task->fd_table[i] = NULL;
+    }
     
     if (task != scheduler.idle_task) {
         queue_add(&scheduler.ready_queues[priority], task);
@@ -131,6 +136,14 @@ task_t *scheduler_create_task(const char *name, void (*entry_point)(void),
 
 void scheduler_destroy_task(task_t *task) {
     if (!task || task == scheduler.idle_task) return;
+
+    // Close all open files - ADD THIS
+    for (int i = 0; i < MAX_OPEN_FILES; i++) {
+        if (task->fd_table[i] != NULL) {
+            vfs_close((vfs_file_t *)task->fd_table[i]);
+            task->fd_table[i] = NULL;
+        }
+    }
     
     // Remove from any queue/list
     switch (task->state) {

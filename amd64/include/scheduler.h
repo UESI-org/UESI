@@ -55,6 +55,9 @@ typedef struct task {
     
     uint32_t exit_code;
     
+    #define MAX_OPEN_FILES 32
+    void *fd_table[MAX_OPEN_FILES];
+    
     struct task *next;
     struct task *prev;
 } task_t;

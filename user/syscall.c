@@ -48,6 +48,14 @@ int64_t syscall3(uint64_t syscall_num, uint64_t arg1, uint64_t arg2, uint64_t ar
     return ret;
 }
 
+int64_t open(const char *path, uint32_t flags, mode_t mode) {
+    return syscall3(SYS_OPEN, (uint64_t)path, (uint64_t)flags, (uint64_t)mode);
+}
+
+int64_t close(int fd) {
+    return syscall1(SYS_CLOSE, (uint64_t)fd);
+}
+
 int64_t read(int fd, void *buf, size_t count) {
     return syscall3(SYS_READ, (uint64_t)fd, (uint64_t)buf, (uint64_t)count);
 }

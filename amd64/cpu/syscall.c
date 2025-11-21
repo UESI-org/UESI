@@ -1,6 +1,7 @@
 #include <stdbool.h>
 #include <syscall.h>
 #include <scheduler.h>
+#include <vfs.h>
 #include <idt.h>
 #include <gdt.h>
 
@@ -10,70 +11,177 @@ extern void tty_printf(const char *fmt, ...);
 extern void tty_putchar(char c);
 extern void syscall_stub(void);
 
-int64_t sys_read(int fd, void *buf, size_t count) {
-    if (fd != 0) {
+int64_t sys_open(const char *path, uint32_t flags, mode_t mode) {
+    task_t *current = scheduler_get_current_task();
+    if (current == NULL || path == NULL) {
         return -1;
     }
     
+    // Find free fd slot (start at 3, skip stdin/stdout/stderr)
+    int fd = -1;
+    for (int i = 3; i < MAX_OPEN_FILES; i++) {
+        if (current->fd_table[i] == NULL) {
+            fd = i;
+            break;
+        }
+    }
+    
+    if (fd == -1) {
+        tty_printf("[SYSCALL] No free file descriptors\n");
+        return -1; // No free file descriptors (EMFILE)
+    }
+    
+    vfs_file_t *file;
+    int ret = vfs_open(path, flags, mode, &file);
+    if (ret != 0) {
+        tty_printf("[SYSCALL] vfs_open failed: %d\n", ret);
+        return ret; // Return VFS error code
+    }
+    
+    current->fd_table[fd] = file;
+    
+    tty_printf("[SYSCALL] Task %d opened '%s' as fd %d\n", 
+               current->tid, path, fd);
+    
+    return fd;
+}
+
+int64_t sys_close(int fd) {
+    task_t *current = scheduler_get_current_task();
+    if (current == NULL) {
+        return -1;
+    }
+    
+    // Can't close stdin/stdout/stderr
+    if (fd < 3 || fd >= MAX_OPEN_FILES) {
+        return -1; // Invalid fd
+    }
+    
+    vfs_file_t *file = (vfs_file_t *)current->fd_table[fd];
+    if (file == NULL) {
+        return -1; // File not open
+    }
+    
+    int ret = vfs_close(file);
+    if (ret != 0) {
+        tty_printf("[SYSCALL] vfs_close failed: %d\n", ret);
+        return ret;
+    }
+    
+    current->fd_table[fd] = NULL;
+    
+    tty_printf("[SYSCALL] Task %d closed fd %d\n", current->tid, fd);
+    
+    return 0;
+}
+
+int64_t sys_read(int fd, void *buf, size_t count) {
     if (buf == NULL || count == 0) {
         return -1;
     }
     
-    char *buffer = (char *)buf;
-    size_t bytes_read = 0;
-    
-    // Read characters from keyboard buffer
-    while (bytes_read < count) {
-        if (!keyboard_has_key()) {
-            if (bytes_read > 0) {
+    // Handle stdin (fd 0) - read from keyboard
+    if (fd == 0) {
+        char *buffer = (char *)buf;
+        size_t bytes_read = 0;
+        
+        while (bytes_read < count) {
+            if (!keyboard_has_key()) {
+                if (bytes_read > 0) {
+                    break;
+                }
+                while (!keyboard_has_key()) {
+                    asm volatile("hlt");
+                }
+            }
+            
+            char c = keyboard_getchar();
+            
+            if (c == '\n' || c == '\r') {
+                buffer[bytes_read++] = '\n';
+                tty_putchar('\n');
                 break;
             }
-            while (!keyboard_has_key()) {
-                asm volatile("hlt");
+            
+            if (c == '\b' || c == 0x08 || c == 0x7F) {
+                if (bytes_read > 0) {
+                    bytes_read--;
+                    tty_putchar('\b');
+                    tty_putchar(' ');
+                    tty_putchar('\b');
+                }
+                continue;
             }
+            
+            buffer[bytes_read++] = c;
+            tty_putchar(c);
         }
         
-        char c = keyboard_getchar();
-        
-        if (c == '\n' || c == '\r') {
-            buffer[bytes_read++] = '\n';
-            tty_putchar('\n');
-            break;
-        }
-        
-        // Handle backspace (Ctrl+H or ASCII 8)
-        if (c == '\b' || c == 0x08 || c == 0x7F) {
-            if (bytes_read > 0) {
-                bytes_read--;
-                tty_putchar('\b');
-                tty_putchar(' ');
-                tty_putchar('\b');
-            }
-            continue;
-        }
-        
-        buffer[bytes_read++] = c;
-        tty_putchar(c);
+        return bytes_read;
     }
     
-    return bytes_read;
+    task_t *current = scheduler_get_current_task();
+    if (current == NULL) {
+        return -1; // No current task
+    }
+    
+    if (fd < 0 || fd >= MAX_OPEN_FILES) {
+        return -1; // Invalid fd
+    }
+    
+    vfs_file_t *file = (vfs_file_t *)current->fd_table[fd];
+    if (file == NULL) {
+        return -1; // File not open
+    }
+    
+    ssize_t result = vfs_read(file, buf, count);
+    return result;
 }
 
 int64_t sys_write(int fd, const void *buf, size_t count) {
-    if (fd == 1 || fd == 2) { // stdout or stderr
+    if (buf == NULL || count == 0) {
+        return -1;
+    }
+    
+    // Handle stdout/stderr (fd 1 and 2) - direct TTY output
+    if (fd == 1 || fd == 2) {
         const char *str = (const char *)buf;
         for (size_t i = 0; i < count; i++) {
             tty_putchar(str[i]);
         }
         return count;
     }
-    return -1;
+    
+    task_t *current = scheduler_get_current_task();
+    if (current == NULL) {
+        return -1; // No current task
+    }
+    
+    if (fd < 0 || fd >= MAX_OPEN_FILES) {
+        return -1; // Invalid fd
+    }
+    
+    vfs_file_t *file = (vfs_file_t *)current->fd_table[fd];
+    if (file == NULL) {
+        return -1; // File not open
+    }
+    
+    ssize_t result = vfs_write(file, buf, count);
+    return result;
 }
 
 void sys_exit(int status) {
     task_t *current = scheduler_get_current_task();
     
     if (current) {
+        for (int i = 0; i < MAX_OPEN_FILES; i++) {
+            if (current->fd_table[i] != NULL) {
+                vfs_file_t *file = (vfs_file_t *)current->fd_table[i];
+                vfs_close(file);
+                current->fd_table[i] = NULL;
+            }
+        }
+        
         tty_printf("[SYSCALL] Task %d (%s) exiting with status %d\n", 
                    current->tid, current->name, status);
         
@@ -90,11 +198,6 @@ void sys_exit(int status) {
 }
 
 void syscall_handler(syscall_registers_t *regs) {
-    // System V ABI for syscalls on x86_64:
-    // rax = syscall number
-    // rdi = arg1, rsi = arg2, rdx = arg3
-    // Return value goes in rax
-    
     uint64_t syscall_num = regs->rax;
     int64_t ret = -1;
     
@@ -109,6 +212,14 @@ void syscall_handler(syscall_registers_t *regs) {
             
         case SYSCALL_EXIT:
             sys_exit((int)regs->rdi);
+            break;
+        
+        case SYSCALL_OPEN:
+            ret = sys_open((const char*)regs->rdi, (uint32_t)regs->rsi, (mode_t)regs->rdx);
+            break;
+        
+        case SYSCALL_CLOSE:
+            ret = sys_close((int)regs->rdi);
             break;
             
         default:
