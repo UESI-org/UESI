@@ -94,7 +94,7 @@ void pmm_init(struct limine_memmap_response *memmap, struct limine_hhdm_response
     uint64_t excess_bits = total_pages % 8;
     if (excess_bits != 0) {
         uint8_t mask = (1 << excess_bits) - 1;
-        bitmap[bitmap_size - 1] = ~mask;
+        bitmap[bitmap_size - 1] = 0xFF & ~mask;
     }
 
     free_pages = 0;

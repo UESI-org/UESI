@@ -267,7 +267,8 @@ void *vmm_alloc(vmm_address_space_t *space, size_t size) {
                 uint64_t phys = mmu_get_physical_address(space->page_dir, virt);
                 if (phys != 0) {
                     mmu_unmap_page(space->page_dir, virt);
-                    pmm_free((void *)phys);
+                    void *virt = mmu_phys_to_virt(phys);
+                    pmm_free(virt);
                 }
             }
             return NULL;
@@ -275,7 +276,7 @@ void *vmm_alloc(vmm_address_space_t *space, size_t size) {
         
         memset(phys_page, 0, PAGE_SIZE);
         
-        uint64_t phys = (uint64_t)phys_page;
+        uint64_t phys = mmu_virt_to_phys(phys_page);
         uint64_t flags = PAGE_PRESENT | PAGE_WRITE;
         
         if (space != kernel_space) {
@@ -331,7 +332,7 @@ void *vmm_alloc_at(vmm_address_space_t *space, uint64_t virt_addr, size_t size, 
                 uint64_t phys = mmu_get_physical_address(space->page_dir, virt);
                 if (phys != 0) {
                     mmu_unmap_page(space->page_dir, virt);
-                    pmm_free((void *)phys);
+                    pmm_free(mmu_phys_to_virt(phys));
                 }
             }
             return NULL;
@@ -339,7 +340,7 @@ void *vmm_alloc_at(vmm_address_space_t *space, uint64_t virt_addr, size_t size, 
         
         memset(phys_page, 0, PAGE_SIZE);
         
-        uint64_t phys = (uint64_t)phys_page;
+        uint64_t phys = mmu_virt_to_phys(phys_page);
         if (!mmu_map_page(space->page_dir, virt_addr + (i * PAGE_SIZE), phys, flags)) {
             pmm_free(phys_page);
             for (size_t j = 0; j < i; j++) {
@@ -408,7 +409,7 @@ bool vmm_map_region(vmm_address_space_t *space, uint64_t virt_start, size_t size
             return false;
         }
         
-        uint64_t phys = (uint64_t)phys_page;
+        uint64_t phys = mmu_virt_to_phys(phys_page);
         if (!mmu_map_page(space->page_dir, virt_start + (i * PAGE_SIZE), phys, flags)) {
             pmm_free(phys_page);
             return false;
@@ -532,25 +533,20 @@ void vmm_handle_page_fault(uint64_t fault_addr, uint64_t error_code) {
             return;
         }
         
-        memcpy(new_page, (void *)old_phys, PAGE_SIZE);
+        void *old_virt = mmu_phys_to_virt(old_phys);
+        memcpy(new_page, old_virt, PAGE_SIZE);
         
         mmu_unmap_page(space->page_dir, page_addr);
         
         uint64_t new_flags = region->flags | PAGE_WRITE;
-        if (!mmu_map_page(space->page_dir, page_addr, (uint64_t)new_page, new_flags)) {
+        uint64_t new_phys = mmu_virt_to_phys(new_page);
+        if (!mmu_map_page(space->page_dir, page_addr, new_phys, new_flags)) {
             serial_printf(DEBUG_PORT, "Failed to remap COW page at 0x%p\n",
                          (void *)fault_addr);
             pmm_free(new_page);
             return;
         }
         size_t region_pages = (region->virt_end - region->virt_start) / PAGE_SIZE;
-        bool all_writable = true;
-        for (size_t i = 0; i < region_pages; i++) {
-            uint64_t check_addr = region->virt_start + (i * PAGE_SIZE);
-            uint64_t check_phys = mmu_get_physical_address(space->page_dir, check_addr);
-            if (check_phys != 0) {
-            }
-        }
         
         vmm_flush_tlb(page_addr);
         

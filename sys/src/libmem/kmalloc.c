@@ -78,11 +78,13 @@ static slab_t *slab_create(cache_t *cache) {
     for (size_t i = 0; i < bitmap_size; i++) {
         slab->free_bitmap[i] = 0xFFFFFFFFFFFFFFFFULL;
     }
-    
+
     size_t extra_bits = (bitmap_size * 64) - cache->objects_per_slab;
     if (extra_bits > 0 && extra_bits < 64) {
-        uint64_t mask = (1ULL << (64 - extra_bits)) - 1;
-        slab->free_bitmap[bitmap_size - 1] = (1ULL << (64 - extra_bits)) - 1;
+        /* Create mask with only valid object bits set */
+        uint64_t valid_bits = 64 - extra_bits;
+        uint64_t mask = (valid_bits == 64) ? 0xFFFFFFFFFFFFFFFFULL : ((1ULL << valid_bits) - 1);
+        slab->free_bitmap[bitmap_size - 1] = mask;
     }
     
     size_t header_size = sizeof(slab_t) + (bitmap_size * sizeof(uint64_t));
@@ -231,9 +233,10 @@ void *kmalloc_aligned(size_t size, size_t align) {
         return kmalloc(size);
     }
     
-    int cache_idx = get_cache_index(size > align ? size : align);
+    size_t required = (size > align) ? size : align;
+    int cache_idx = get_cache_index(required);
+    
     if (cache_idx < 0) {
-
         size_t num_pages = (size + PAGE_SIZE - 1) / PAGE_SIZE;
         return pmm_alloc_contiguous(num_pages);
     }
