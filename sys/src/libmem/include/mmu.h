@@ -58,5 +58,6 @@ void mmu_handle_page_fault(uint64_t fault_addr, uint64_t error_code);
 void mmu_flush_tlb_single(uint64_t virt);
 void mmu_flush_tlb_all(void);
 void *mmu_phys_to_virt(uint64_t phys);
+uint64_t mmu_virt_to_phys(void *virt);
 
 #endif

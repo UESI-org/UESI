@@ -5,6 +5,7 @@
 
 static uint64_t hhdm_offset;
 static page_directory_t *kernel_pd;
+static page_directory_t *current_pd = NULL;
 static page_fault_handler_t page_fault_handler;
 
 static inline uint64_t read_cr3(void) {
@@ -65,6 +66,8 @@ void mmu_init(struct limine_hhdm_response *hhdm) {
     
     kernel_pd->pml4 = (pml4e_t *)phys_to_virt(current_cr3);
     kernel_pd->phys_addr = current_cr3;
+    
+    current_pd = kernel_pd;
     
     page_fault_handler = NULL;
 }
@@ -140,10 +143,11 @@ void mmu_switch_address_space(page_directory_t *pd) {
     }
     
     write_cr3(pd->phys_addr);
+    current_pd = pd;
 }
 
 page_directory_t *mmu_get_current_address_space(void) {
-    return kernel_pd;
+    return current_pd;
 }
 
 bool mmu_map_page(page_directory_t *pd, uint64_t virt, uint64_t phys, uint64_t flags) {
@@ -268,4 +272,8 @@ void mmu_flush_tlb_all(void) {
 
 void *mmu_phys_to_virt(uint64_t phys) {
     return phys_to_virt(phys);
+}
+
+uint64_t mmu_virt_to_phys(void *virt) {
+    return virt_to_phys(virt);
 }

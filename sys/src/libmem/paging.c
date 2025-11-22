@@ -67,7 +67,7 @@ bool paging_map_region(page_directory_t *pd, memory_region_t *region) {
         return false;
     }
     
-    uint64_t phys_addr = mmu_get_physical_address(kernel_directory, (uint64_t)phys_base);
+    uint64_t phys_addr = mmu_virt_to_phys(phys_base);
     
     if (!paging_map_range(pd, region->base, phys_addr, num_pages, region->flags)) {
         pmm_free_contiguous(phys_base, num_pages);
@@ -75,6 +75,10 @@ bool paging_map_region(page_directory_t *pd, memory_region_t *region) {
     }
     
     return true;
+}
+
+bool paging_identity_map(page_directory_t *pd, uint64_t phys_base, size_t num_pages, uint64_t flags) {
+    return paging_map_range(pd, phys_base, phys_base, num_pages, flags);
 }
 
 bool paging_is_range_mapped(page_directory_t *pd, uint64_t virt_base, size_t num_pages) {
@@ -154,7 +158,7 @@ page_directory_t *paging_clone_address_space(page_directory_t *src) {
                     void *src_page_virt = mmu_phys_to_virt(src_page_phys);
                     memcpy(new_page, src_page_virt, PAGE_SIZE);
                     
-                    uint64_t new_phys = mmu_get_physical_address(kernel_directory, (uint64_t)new_page);
+                    uint64_t new_phys = mmu_virt_to_phys(new_page);
                     
                     uint64_t virt = ((uint64_t)pml4_idx << PML4_SHIFT) |
                                    ((uint64_t)pdpt_idx << PDPT_SHIFT) |
