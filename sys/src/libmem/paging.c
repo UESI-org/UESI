@@ -67,8 +67,7 @@ bool paging_map_region(page_directory_t *pd, memory_region_t *region) {
         return false;
     }
     
-    uint64_t hhdm_offset = kernel_directory->phys_addr;
-    uint64_t phys_addr = (uint64_t)phys_base - hhdm_offset;
+    uint64_t phys_addr = mmu_get_physical_address(kernel_directory, (uint64_t)phys_base);
     
     if (!paging_map_range(pd, region->base, phys_addr, num_pages, region->flags)) {
         pmm_free_contiguous(phys_base, num_pages);
@@ -76,10 +75,6 @@ bool paging_map_region(page_directory_t *pd, memory_region_t *region) {
     }
     
     return true;
-}
-
-bool paging_identity_map(page_directory_t *pd, uint64_t phys_base, size_t num_pages, uint64_t flags) {
-    return paging_map_range(pd, phys_base, phys_base, num_pages, flags);
 }
 
 bool paging_is_range_mapped(page_directory_t *pd, uint64_t virt_base, size_t num_pages) {
@@ -159,8 +154,7 @@ page_directory_t *paging_clone_address_space(page_directory_t *src) {
                     void *src_page_virt = mmu_phys_to_virt(src_page_phys);
                     memcpy(new_page, src_page_virt, PAGE_SIZE);
                     
-                    page_directory_t *current = mmu_get_current_address_space();
-                    uint64_t new_phys = (uint64_t)new_page - current->phys_addr;
+                    uint64_t new_phys = mmu_get_physical_address(kernel_directory, (uint64_t)new_page);
                     
                     uint64_t virt = ((uint64_t)pml4_idx << PML4_SHIFT) |
                                    ((uint64_t)pdpt_idx << PDPT_SHIFT) |
@@ -251,6 +245,7 @@ bool paging_protect_range(page_directory_t *pd, uint64_t virt_base, size_t num_p
             return false;
         }
     }
+    mmu_flush_tlb_all();
     
     return true;
 }
@@ -317,7 +312,7 @@ void paging_free_user_pages(page_directory_t *pd) {
 }
 
 void paging_dump_address_space(page_directory_t *pd) {
-    if (pd == NULL) {
+    if (pd == NULL || pd->pml4 == NULL) {
         serial_printf(DEBUG_PORT, "Invalid page directory\n");
         return;
     }
@@ -327,29 +322,65 @@ void paging_dump_address_space(page_directory_t *pd) {
     serial_printf(DEBUG_PORT, "PML4 Virtual: 0x%p\n", (void *)pd->pml4);
     
     uint64_t mapped_pages = 0;
+    pml4e_t *pml4 = pd->pml4;
     
     for (uint64_t pml4_idx = 0; pml4_idx < 512; pml4_idx++) {
+        if (!(pml4[pml4_idx] & PAGE_PRESENT)) continue;
+        
+        uint64_t pdpt_phys = pml4[pml4_idx] & PAGE_ADDR_MASK;
+        pdpte_t *pdpt = (pdpte_t *)mmu_phys_to_virt(pdpt_phys);
+        
         bool has_mappings = false;
         
         for (uint64_t pdpt_idx = 0; pdpt_idx < 512; pdpt_idx++) {
+            if (!(pdpt[pdpt_idx] & PAGE_PRESENT)) continue;
+            if (pdpt[pdpt_idx] & PAGE_HUGE) {
+                if (!has_mappings) {
+                    serial_printf(DEBUG_PORT, "\nPML4[%u] mappings:\n", (unsigned int)pml4_idx);
+                    has_mappings = true;
+                }
+                uint64_t virt = (pml4_idx << PML4_SHIFT) | (pdpt_idx << PDPT_SHIFT);
+                uint64_t phys = pdpt[pdpt_idx] & PAGE_ADDR_MASK;
+                serial_printf(DEBUG_PORT, "  0x%016llx -> 0x%016llx (1GB huge)\n", virt, phys);
+                mapped_pages += 512 * 512;
+                continue;
+            }
+            
+            uint64_t pd_phys = pdpt[pdpt_idx] & PAGE_ADDR_MASK;
+            pde_t *pd_table = (pde_t *)mmu_phys_to_virt(pd_phys);
+            
             for (uint64_t pd_idx = 0; pd_idx < 512; pd_idx++) {
+                if (!(pd_table[pd_idx] & PAGE_PRESENT)) continue;
+                if (pd_table[pd_idx] & PAGE_HUGE) {
+                    if (!has_mappings) {
+                        serial_printf(DEBUG_PORT, "\nPML4[%u] mappings:\n", (unsigned int)pml4_idx);
+                        has_mappings = true;
+                    }
+                    uint64_t virt = (pml4_idx << PML4_SHIFT) | (pdpt_idx << PDPT_SHIFT) | (pd_idx << PD_SHIFT);
+                    uint64_t phys = pd_table[pd_idx] & PAGE_ADDR_MASK;
+                    serial_printf(DEBUG_PORT, "  0x%016llx -> 0x%016llx (2MB huge)\n", virt, phys);
+                    mapped_pages += 512;
+                    continue;
+                }
+                
+                uint64_t pt_phys = pd_table[pd_idx] & PAGE_ADDR_MASK;
+                pte_t *pt = (pte_t *)mmu_phys_to_virt(pt_phys);
+                
                 for (uint64_t pt_idx = 0; pt_idx < 512; pt_idx++) {
+                    if (!(pt[pt_idx] & PAGE_PRESENT)) continue;
+                    
+                    if (!has_mappings) {
+                        serial_printf(DEBUG_PORT, "\nPML4[%u] mappings:\n", (unsigned int)pml4_idx);
+                        has_mappings = true;
+                    }
+                    
                     uint64_t virt = (pml4_idx << PML4_SHIFT) |
                                    (pdpt_idx << PDPT_SHIFT) |
                                    (pd_idx << PD_SHIFT) |
                                    (pt_idx << PT_SHIFT);
-                    
-                    if (mmu_is_mapped(pd, virt)) {
-                        if (!has_mappings) {
-                            serial_printf(DEBUG_PORT, "\nPML4[%u] mappings:\n", (unsigned int)pml4_idx);
-                            has_mappings = true;
-                        }
-                        
-                        uint64_t phys = mmu_get_physical_address(pd, virt);
-                        serial_printf(DEBUG_PORT, "  0x%p -> 0x%p\n", 
-                                    (void *)virt, (void *)phys);
-                        mapped_pages++;
-                    }
+                    uint64_t phys = pt[pt_idx] & PAGE_ADDR_MASK;
+                    serial_printf(DEBUG_PORT, "  0x%016llx -> 0x%016llx\n", virt, phys);
+                    mapped_pages++;
                 }
             }
         }
