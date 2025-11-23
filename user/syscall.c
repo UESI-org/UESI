@@ -68,3 +68,7 @@ void exit(int status) {
     syscall1(SYS_EXIT, (uint64_t)status);
     __builtin_unreachable();
 }
+
+int sysinfo(struct sysinfo *info) {
+    return (int)syscall1(SYS_SYSINFO, (uint64_t)info);
+}

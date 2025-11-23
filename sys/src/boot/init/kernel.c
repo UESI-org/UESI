@@ -32,6 +32,7 @@
 #include <panic.h>
 #include <serial.h>
 #include <sys/spinlock.h>
+#include <sys/sysinfo.h>
 
 spinlock_t my_lock;
 static blk_allocator_t g_block_alloc;
@@ -138,6 +139,7 @@ static void initialize_system_components(void) {
     init_subsystem();
 
     syscall_init();
+    sysinfo_init();
 
     pic_init();
     debug_success("PIC initialized");

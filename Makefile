@@ -15,6 +15,7 @@ LIBPRINTF_DIR := $(SYS_DIR)/libprintf
 LIBKDEBUG_DIR := $(SYS_DIR)/libkdebug
 LIBUSERLAND_DIR := $(SYS_DIR)/libuserland
 LIBFS_DIR := $(SYS_DIR)/libfs
+LIBKERN_DIR := sys/kern
 
 BUILD_DIR := build
 ISODIR := $(BUILD_DIR)/iso_root
@@ -55,7 +56,11 @@ libfs:
 	@echo "[*] Building libfs..."
 	@$(MAKE) -C $(LIBFS_DIR) CC=$(CC) AR=$(AR)
 
-boot: libc libchar libkb libmem libprintf libkdebug libuserland libfs
+libkern:
+	@echo "[*] Building libkern..."
+	@$(MAKE) -C $(LIBKERN_DIR) CC=$(CC) AR=$(AR)
+
+boot: libc libchar libkb libmem libprintf libkdebug libuserland libfs libkern
 	@echo "[*] Building kernel..."
 	@$(MAKE) -C $(BOOT_DIR) CC=$(CC) LD=$(LD)
 
@@ -131,7 +136,8 @@ clean:
 	@$(MAKE) -C $(LIBPRINTF_DIR) clean || true
 	@$(MAKE) -C $(LIBKDEBUG_DIR) clean || true
 	@$(MAKE) -C $(LIBUSERLAND_DIR) clean || true
-	@$(MAKE) -C $(LIBFS_DIR) clean || true      # <-- added
+	@$(MAKE) -C $(LIBFS_DIR) clean || true
+	@$(MAKE) -C $(LIBKERN_DIR) clean || true
 	@$(MAKE) -C $(BOOT_DIR) clean || true
 	@$(MAKE) -C $(USER_DIR) clean || true
 	@$(MAKE) -C $(USER_DIR)/src clean || true
@@ -150,7 +156,8 @@ info:
 	@echo "libprintf dir:  $(LIBPRINTF_DIR)"
 	@echo "libkdebug dir:  $(LIBKDEBUG_DIR)"
 	@echo "libuserland dir:$(LIBUSERLAND_DIR)"
-	@echo "libfs dir:      $(LIBFS_DIR)"    # <-- added
+	@echo "libfs dir:      $(LIBFS_DIR)"
+	@echo "libkern dir:    $(LIBKERN_DIR)"
 	@echo "boot dir:       $(BOOT_DIR)"
 	@echo "build dir:      $(BUILD_DIR)"
 	@echo "ISO path:       $(ISO)"

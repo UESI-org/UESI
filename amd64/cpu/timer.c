@@ -1,3 +1,5 @@
+#include <sys/kernel.h>
+#include <sys/sysinfo.h>
 #include <timer.h>
 #include <idt.h>
 #include <gdt.h>
@@ -16,6 +18,12 @@ extern void timer_handler(void);
 void timer_handler(void) {
     timer_ticks++;
     interrupt_count++;
+    
+    hardclock();
+
+    if ((timer_ticks % 500) == 0) {
+        sysinfo_update_load();
+    }
     
     if (callback_list == NULL) {
         return;
@@ -70,6 +78,11 @@ void timer_init(uint32_t frequency_hz) {
     timer_ticks = 0;
     interrupt_count = 0;
     callback_list = NULL;
+    
+    hz = frequency_hz;
+    tick = 1000000 / hz;
+    tick_nsec = 1000000000 / hz;
+    ticks = 0;
     
     timer_set_frequency(frequency_hz);
     

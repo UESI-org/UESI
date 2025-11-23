@@ -5,11 +5,13 @@
 #include <stddef.h>
 #include <sys/types.h>
 
-#define SYSCALL_READ  0
-#define SYSCALL_WRITE 1
-#define SYSCALL_EXIT  2
-#define SYSCALL_OPEN  3
-#define SYSCALL_CLOSE 4
+#define SYSCALL_READ    0
+#define SYSCALL_WRITE   1
+#define SYSCALL_EXIT    2
+#define SYSCALL_OPEN    3
+#define SYSCALL_CLOSE   4
+#define SYSCALL_SYSINFO 5
+
 #define SYSCALL_INT 0x80
 
 typedef struct {
@@ -19,11 +21,16 @@ typedef struct {
     uint64_t rip, cs, rflags, userrsp, ss;
 } syscall_registers_t;
 
+struct sysinfo;
+
 void syscall_init(void);
 void syscall_handler(syscall_registers_t *regs);
+
 int64_t sys_read(int fd, void *buf, size_t count);
 int64_t sys_write(int fd, const void *buf, size_t count);
 void sys_exit(int status);
 int64_t sys_open(const char *path, uint32_t flags, mode_t mode);
 int64_t sys_close(int fd);
+int64_t sys_sysinfo(struct sysinfo *info);
+
 #endif

@@ -4,12 +4,26 @@
 #include <vfs.h>
 #include <idt.h>
 #include <gdt.h>
+#include <sys/sysinfo.h>
 
 extern bool keyboard_has_key(void);
 extern char keyboard_getchar(void);
 extern void tty_printf(const char *fmt, ...);
 extern void tty_putchar(char c);
 extern void syscall_stub(void);
+
+extern int kern_sysinfo(struct sysinfo *info);
+extern int kern_sysinfo(struct sysinfo *info);
+
+int64_t sys_sysinfo(struct sysinfo *info) {
+    if (info == NULL) {
+        return -1;
+    }
+    
+    int ret = kern_sysinfo(info);
+    
+    return ret;
+}
 
 int64_t sys_open(const char *path, uint32_t flags, mode_t mode) {
     task_t *current = scheduler_get_current_task();
@@ -220,6 +234,10 @@ void syscall_handler(syscall_registers_t *regs) {
         
         case SYSCALL_CLOSE:
             ret = sys_close((int)regs->rdi);
+            break;
+        
+        case SYSCALL_SYSINFO:
+            ret = sys_sysinfo((struct sysinfo*)regs->rdi);
             break;
             
         default:

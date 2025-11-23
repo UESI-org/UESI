@@ -40,6 +40,7 @@ LIBPRINTF    := ../libprintf/lib/libprintf.a
 LIBKDEBUG    := ../libkdebug/lib/libkdebug.a
 LIBUSERLAND  := ../libuserland/lib/libuserland.a
 LIBFS        := ../libfs/lib/libfs.a
+LIBKERN      := ../../../sys/kern/lib/libkern.a
 LIBC         := ../libc/lib/libc.a
 
 LIBS := \
@@ -50,6 +51,7 @@ LIBS := \
     $(LIBPRINTF) \
     $(LIBKDEBUG) \
     $(LIBFS) \
+    $(LIBKERN) \
     $(LIBC)
 
 TARGET := uesi.elf
