@@ -13,10 +13,7 @@
 #include <proc.h>
 #include <elf_loader.h>
 #include <paging.h>
-#include <proc.h>
 #include <panic.h>
-
-#define PROCESS_USER_STACK_SIZE (2 * 1024 * 1024)
 
 void test_kmalloc(void) {
     debug_section("Testing kmalloc/kfree");
@@ -185,27 +182,42 @@ bool userland_load_and_run(const void *elf_data, size_t elf_size, const char *na
     serial_printf(DEBUG_PORT, "\n=== USERLAND_LOAD_AND_RUN START ===\n");
     printf_("\n=== Loading User Program: %s ===\n", name);
     
+    /* Create process structure */
     serial_printf(DEBUG_PORT, "Creating process...\n");
-    process_t *proc = process_create(name);
-    if (!proc) {
+    struct process *ps = process_alloc(name);
+    if (!ps) {
         serial_printf(DEBUG_PORT, "ERROR: Failed to create process\n");
         printf_("Failed to create process\n");
         return false;
     }
-    serial_printf(DEBUG_PORT, "Process created: PID=%d\n", proc->pid);
+    serial_printf(DEBUG_PORT, "Process created: PID=%d\n", ps->ps_pid);
     
+    /* Create main thread for the process */
+    serial_printf(DEBUG_PORT, "Creating main thread...\n");
+    struct proc *p = proc_alloc(ps, name);
+    if (!p) {
+        serial_printf(DEBUG_PORT, "ERROR: Failed to create thread\n");
+        printf_("Failed to create main thread\n");
+        process_release(ps);
+        return false;
+    }
+    serial_printf(DEBUG_PORT, "Thread created: TID=%d\n", p->p_tid);
+    
+    /* Load ELF executable */
     serial_printf(DEBUG_PORT, "Loading ELF...\n");
     uint64_t entry_point = 0;
-    if (!elf_load(proc, elf_data, elf_size, &entry_point)) {
+    if (!elf_load(ps, elf_data, elf_size, &entry_point)) {
         serial_printf(DEBUG_PORT, "ERROR: ELF load failed\n");
         printf_("Failed to load ELF executable\n");
-        process_destroy(proc);
+        proc_free(p);
+        process_release(ps);
         return false;
     }
     serial_printf(DEBUG_PORT, "ELF loaded, entry=0x%016lx\n", entry_point);
     
+    /* Allocate user stack */
     serial_printf(DEBUG_PORT, "Allocating user stack...\n");
-    uint64_t stack_top = proc->user_stack_top;
+    uint64_t stack_top = p->p_ustack_top;
     uint64_t stack_bottom = stack_top - PROCESS_USER_STACK_SIZE;
     size_t stack_pages = PROCESS_USER_STACK_SIZE / 4096;
     
@@ -227,7 +239,8 @@ bool userland_load_and_run(const void *elf_data, size_t elf_size, const char *na
             serial_printf(DEBUG_PORT, "ERROR: Failed to allocate physical page %lu\n", 
                           (unsigned long)i);
             printf_("Failed to allocate stack page\n");
-            process_destroy(proc);
+            proc_free(p);
+            process_release(ps);
             return false;
         }
         
@@ -237,12 +250,13 @@ bool userland_load_and_run(const void *elf_data, size_t elf_size, const char *na
         uint64_t flags = PAGING_FLAG_PRESENT | PAGING_FLAG_WRITE | 
                         PAGING_FLAG_USER | PAGING_FLAG_NX;
         
-        if (!paging_map_range(proc->page_dir, virt_page, phys_page, 1, flags)) {
+        if (!paging_map_range(ps->ps_vmspace, virt_page, phys_page, 1, flags)) {
             serial_printf(DEBUG_PORT, "ERROR: Failed to map page %lu at virt=0x%016lx phys=0x%016lx\n",
                           (unsigned long)i, virt_page, phys_page);
             printf_("Failed to map stack page\n");
             pmm_free(page_virt);  /* Free using virtual address */
-            process_destroy(proc);
+            proc_free(p);
+            process_release(ps);
             return false;
         }
     }
@@ -251,10 +265,14 @@ bool userland_load_and_run(const void *elf_data, size_t elf_size, const char *na
     printf_("User stack: 0x%lx - 0x%lx (%lu KB)\n", 
         stack_bottom, stack_top, (unsigned long)(PROCESS_USER_STACK_SIZE / 1024));
     
+    /* Mark process as ready to run */
+    p->p_stat = SRUN;
+    
     serial_printf(DEBUG_PORT, "About to enter usermode...\n");
     printf_("\n=== Entering User Mode ===\n\n");
     
-    process_enter_usermode(proc, entry_point, stack_top);
+    /* Enter usermode - this function does not return */
+    proc_enter_usermode(p, entry_point, stack_top);
     
     return true;
 }

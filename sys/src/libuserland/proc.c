@@ -1,4 +1,6 @@
 #include <proc.h>
+#include <sys/queue.h>
+#include <sys/atomic.h>
 #include <kmalloc.h>
 #include <kfree.h>
 #include <paging.h>
@@ -6,159 +8,349 @@
 #include <gdt.h>
 #include <segments.h>
 #include <mmu.h>
-#include <stdbool.h>
 #include <string.h>
 #include <printf.h>
 
-static process_t *current_process = NULL;
-static pid_t next_pid = 1;
+struct processlist allprocess = LIST_HEAD_INITIALIZER(allprocess);
+struct processlist zombprocess = LIST_HEAD_INITIALIZER(zombprocess);
+struct proclist allproc = TAILQ_HEAD_INITIALIZER(allproc);
+struct proclist runqueue = TAILQ_HEAD_INITIALIZER(runqueue);
 
-void process_init(void) {
-    current_process = NULL;
-    next_pid = 1;
+struct pidhashhead *pidhashtbl = NULL;
+struct tidhashhead *tidhashtbl = NULL;
+unsigned long pidhash = 0;
+unsigned long tidhash = 0;
+
+struct process *initprocess = NULL;
+struct proc *curproc = NULL;
+
+static pid_t nextpid = 1;
+static pid_t nexttid = 1;
+
+static pid_t
+allocpid(void)
+{
+    pid_t pid;
+    
+    do {
+        pid = nextpid++;
+        if (nextpid > PID_MAX)
+            nextpid = 1;
+    } while (prfind(pid) != NULL);
+    
+    return pid;
+}
+
+static pid_t
+alloctid(void)
+{
+    pid_t tid;
+    
+    do {
+        tid = nexttid++;
+        nexttid &= TID_MASK;
+        if (nexttid == 0)
+            nexttid = 1;
+    } while (tfind(tid) != NULL);
+    
+    return tid;
+}
+
+void
+proc_init(void)
+{
+    /* Initialize hash tables */
+    pidhash = 128; /* Should be power of 2 - 1 */
+    tidhash = 128;
+    
+    pidhashtbl = kmalloc((pidhash + 1) * sizeof(struct pidhashhead));
+    tidhashtbl = kmalloc((tidhash + 1) * sizeof(struct tidhashhead));
+    
+    if (!pidhashtbl || !tidhashtbl) {
+        printf_("Failed to allocate process hash tables\n");
+        return;
+    }
+    
+    for (unsigned long i = 0; i <= pidhash; i++)
+        LIST_INIT(&pidhashtbl[i]);
+    
+    for (unsigned long i = 0; i <= tidhash; i++)
+        LIST_INIT(&tidhashtbl[i]);
+    
     printf_("Process subsystem initialized\n");
 }
 
-pid_t process_alloc_pid(void) {
-    return next_pid++;
-}
-
-process_t *process_create(const char *name) {
-    process_t *proc = kmalloc(sizeof(process_t));
-    if (!proc) {
+struct process *
+process_alloc(const char *name)
+{
+    struct process *ps;
+    
+    ps = kmalloc(sizeof(struct process));
+    if (!ps) {
         printf_("Failed to allocate process structure\n");
         return NULL;
     }
     
-    memset(proc, 0, sizeof(process_t));
+    memset(ps, 0, sizeof(struct process));
     
-    /* Set process ID and name */
-    proc->pid = process_alloc_pid();
-    strncpy(proc->name, name, PROCESS_MAX_NAME - 1);
-    proc->name[PROCESS_MAX_NAME - 1] = '\0';
-    proc->state = PROCESS_STATE_READY;
+    /* Initialize reference count */
+    ps->ps_refcnt = 1;
     
-    /* Create user address space */
-    proc->page_dir = paging_create_user_address_space();
-    if (!proc->page_dir) {
-        printf_("Failed to create address space for process\n");
-        kfree(proc);
+    /* Allocate PID */
+    ps->ps_pid = allocpid();
+    
+    /* Set name */
+    strncpy(ps->ps_comm, name, _MAXCOMLEN - 1);
+    ps->ps_comm[_MAXCOMLEN - 1] = '\0';
+    
+    /* Initialize thread list */
+    TAILQ_INIT(&ps->ps_threads);
+    ps->ps_threadcnt = 0;
+    
+    /* Initialize children list */
+    LIST_INIT(&ps->ps_children);
+    
+    /* Create address space */
+    ps->ps_vmspace = paging_create_user_address_space();
+    if (!ps->ps_vmspace) {
+        printf_("Failed to create address space\n");
+        kfree(ps);
         return NULL;
     }
     
-    proc->kernel_stack = kmalloc(PROCESS_KERNEL_STACK_SIZE);
-    if (!proc->kernel_stack) {
+    /* Set initial flags */
+    ps->ps_flags = PS_EMBRYO;
+    
+    /* Add to process list and hash table */
+    LIST_INSERT_HEAD(&allprocess, ps, ps_list);
+    LIST_INSERT_HEAD(PIDHASH(ps->ps_pid), ps, ps_hash);
+    
+    printf_("Allocated process %d (%s)\n", ps->ps_pid, ps->ps_comm);
+    
+    return ps;
+}
+
+void
+process_free(struct process *ps)
+{
+    if (!ps)
+        return;
+    
+    printf_("Freeing process %d (%s)\n", ps->ps_pid, ps->ps_comm);
+    
+    /* Remove from lists */
+    LIST_REMOVE(ps, ps_list);
+    LIST_REMOVE(ps, ps_hash);
+    
+    /* Free address space */
+    if (ps->ps_vmspace) {
+        paging_free_user_pages(ps->ps_vmspace);
+        mmu_destroy_address_space(ps->ps_vmspace);
+    }
+    
+    kfree(ps);
+}
+
+struct proc *
+proc_alloc(struct process *ps, const char *name)
+{
+    struct proc *p;
+    
+    if (!ps) {
+        printf_("Cannot allocate thread: null process\n");
+        return NULL;
+    }
+    
+    p = kmalloc(sizeof(struct proc));
+    if (!p) {
+        printf_("Failed to allocate thread structure\n");
+        return NULL;
+    }
+    
+    memset(p, 0, sizeof(struct proc));
+    
+    /* Link to process */
+    p->p_p = ps;
+    p->p_vmspace = ps->ps_vmspace;
+    
+    /* Allocate TID */
+    p->p_tid = alloctid();
+    
+    /* Set name */
+    if (name) {
+        strncpy(p->p_name, name, _MAXCOMLEN - 1);
+        p->p_name[_MAXCOMLEN - 1] = '\0';
+    } else {
+        strncpy(p->p_name, ps->ps_comm, _MAXCOMLEN - 1);
+    }
+    
+    /* Allocate kernel stack */
+    p->p_kstack = kmalloc(PROCESS_KERNEL_STACK_SIZE);
+    if (!p->p_kstack) {
         printf_("Failed to allocate kernel stack\n");
-        /* Free the page directory we just created */
-        mmu_destroy_address_space(proc->page_dir);
-        kfree(proc);
+        kfree(p);
         return NULL;
     }
     
-    memset(proc->kernel_stack, 0, PROCESS_KERNEL_STACK_SIZE);
-    proc->kernel_stack_top = (uint64_t)proc->kernel_stack + PROCESS_KERNEL_STACK_SIZE;
+    memset(p->p_kstack, 0, PROCESS_KERNEL_STACK_SIZE);
+    p->p_kstack_top = (uint64_t)p->p_kstack + PROCESS_KERNEL_STACK_SIZE;
     
-    /* Set user stack top (will be allocated on-demand or by loader) */
-    proc->user_stack_top = USER_STACK_TOP;
+    /* Set user stack top */
+    p->p_ustack_top = USER_STACK_TOP;
     
-    printf_("Created process %d (%s)\n", proc->pid, proc->name);
+    /* Set initial state */
+    p->p_stat = SIDL;
+    p->p_flag = 0;
     
-    return proc;
-}
-
-void process_destroy(process_t *proc) {
-    if (!proc) return;
+    /* Add to process thread list */
+    TAILQ_INSERT_TAIL(&ps->ps_threads, p, p_thr_link);
+    ps->ps_threadcnt++;
+    atomic_inc_int(&ps->ps_threadcnt);
     
-    printf_("Destroying process %d (%s)\n", proc->pid, proc->name);
-    
-    if (proc->kernel_stack) {
-        kfree(proc->kernel_stack);
+    /* Set as main thread if this is the first */
+    if (!ps->ps_mainproc) {
+        ps->ps_mainproc = p;
     }
     
-    if (proc->page_dir) {
-        paging_free_user_pages(proc->page_dir);
+    /* Add to global thread list and hash table */
+    TAILQ_INSERT_TAIL(&allproc, p, p_list);
+    LIST_INSERT_HEAD(TIDHASH(p->p_tid), p, p_hash);
+    
+    printf_("Allocated thread %d in process %d (%s)\n", 
+            p->p_tid, ps->ps_pid, p->p_name);
+    
+    return p;
+}
+
+void
+proc_free(struct proc *p)
+{
+    struct process *ps;
+    
+    if (!p)
+        return;
+    
+    ps = p->p_p;
+    
+    printf_("Freeing thread %d (%s)\n", p->p_tid, p->p_name);
+    
+    /* Remove from process thread list */
+    if (ps) {
+        TAILQ_REMOVE(&ps->ps_threads, p, p_thr_link);
+        atomic_dec_int(&ps->ps_threadcnt);
         
-        mmu_destroy_address_space(proc->page_dir);
-        proc->page_dir = NULL;
+        if (ps->ps_mainproc == p)
+            ps->ps_mainproc = NULL;
     }
     
-    kfree(proc);
-}
-
-process_t *process_get_current(void) {
-    return current_process;
-}
-
-void process_set_current(process_t *proc) {
-    current_process = proc;
-}
-
-extern void enter_usermode_asm(uint64_t entry, uint64_t stack, uint64_t rflags) __attribute__((noreturn));
-
-void process_enter_usermode(process_t *proc, uint64_t entry_point, uint64_t stack_top) {
-    extern void serial_printf(uint16_t port, const char *fmt, ...);
-    #define DEBUG_PORT 0x3F8
+    /* Remove from global lists */
+    TAILQ_REMOVE(&allproc, p, p_list);
+    LIST_REMOVE(p, p_hash);
     
-    if (!proc) {
-        serial_printf(DEBUG_PORT, "ERROR: NULL process!\n");
-        printf_("Cannot enter usermode: null process\n");
-        while(1) asm("hlt");
+    /* Free kernel stack */
+    if (p->p_kstack) {
+        kfree(p->p_kstack);
     }
     
-    serial_printf(DEBUG_PORT, "\n=== PROCESS ENTER USERMODE ===\n");
-    serial_printf(DEBUG_PORT, "PID: %d, Name: %s\n", proc->pid, proc->name);
-    serial_printf(DEBUG_PORT, "Entry: 0x%016lx\n", entry_point);
-    serial_printf(DEBUG_PORT, "Stack: 0x%016lx\n", stack_top);
+    kfree(p);
+}
+
+struct process *
+prfind(pid_t pid)
+{
+    struct process *ps;
+    struct pidhashhead *list;
     
-    process_set_current(proc);
-    proc->state = PROCESS_STATE_RUNNING;
+    list = PIDHASH(pid);
+    LIST_FOREACH(ps, list, ps_hash) {
+        if (ps->ps_pid == pid)
+            return ps;
+    }
     
-    tss_set_rsp0(proc->kernel_stack_top);
+    return NULL;
+}
+
+struct proc *
+tfind(pid_t tid)
+{
+    struct proc *p;
+    struct tidhashhead *list;
     
+    list = TIDHASH(tid);
+    LIST_FOREACH(p, list, p_hash) {
+        if (p->p_tid == tid)
+            return p;
+    }
+    
+    return NULL;
+}
+
+void
+proc_enter_usermode(struct proc *p, uint64_t entry_point, uint64_t stack_top)
+{
+    struct process *ps;
+    
+    if (!p) {
+        printf_("Cannot enter usermode: null thread\n");
+        while (1) asm("hlt");
+    }
+    
+    ps = p->p_p;
+    
+    printf_("Process: %d (%s), Thread: %d (%s)\n", 
+            ps->ps_pid, ps->ps_comm, p->p_tid, p->p_name);
+    printf_("Entry: 0x%016lx, Stack: 0x%016lx\n", entry_point, stack_top);
+    
+    /* Set as current thread */
+    proc_set_current(p);
+    
+    /* Update state */
+    p->p_stat = SRUN;
+    
+    /* Clear EMBRYO flag and set EXEC flag atomically */
+    unsigned int old_flags, new_flags;
+    do {
+        old_flags = ps->ps_flags;
+        new_flags = (old_flags & ~PS_EMBRYO) | PS_EXEC;
+    } while (atomic_cas_uint(&ps->ps_flags, old_flags, new_flags) != old_flags);
+    
+    /* Set TSS kernel stack */
+    tss_set_rsp0(p->p_kstack_top);
+    
+    /* Prepare for iretq */
     uint64_t user_cs = GDT_SELECTOR_USER_CODE;
     uint64_t user_ss = GDT_SELECTOR_USER_DATA;
-    uint64_t rflags = 0x202;
+    uint64_t rflags = 0x202; /* IF=1, Reserved bit */
     
-    serial_printf(DEBUG_PORT, "CS: 0x%04x, SS: 0x%04x\n", (unsigned int)user_cs, (unsigned int)user_ss);
-    serial_printf(DEBUG_PORT, "About to switch to user page tables and execute iretq...\n");
-    
-    printf_("Entering usermode: entry=0x%lx stack=0x%lx\n", entry_point, stack_top);
-    
+    /* Align stack */
     if (stack_top & 0xF) {
         stack_top &= ~0xFULL;
-        serial_printf(DEBUG_PORT, "Stack aligned to: 0x%016lx\n", stack_top);
     }
     
-    /* Get the physical address of the user page directory */
-    uint64_t user_cr3 = proc->page_dir->phys_addr;
+    /* Get physical address of user page directory */
+    uint64_t user_cr3 = ps->ps_vmspace->phys_addr;
     
+    /* Switch to user mode using iretq */
     asm volatile(
         "cli\n"
         
-        "movq %2, %%rax\n"
-        "pushq %%rax\n"                /* SS */
+        /* Push iretq frame */
+        "pushq %2\n"        /* SS */
+        "pushq %1\n"        /* RSP */
+        "pushq %4\n"        /* RFLAGS */
+        "pushq %3\n"        /* CS */
+        "pushq %0\n"        /* RIP */
         
-        "movq %1, %%rax\n"
-        "pushq %%rax\n"                /* RSP */
+        /* Load user CR3 */
+        "movq %5, %%cr3\n"
         
-        "movq %4, %%rax\n"
-        "pushq %%rax\n"                /* RFLAGS */
+        /* Set data segments */
+        "movw %w2, %%ds\n"
+        "movw %w2, %%es\n"
+        "movw %w2, %%fs\n"
+        "movw %w2, %%gs\n"
         
-        "movq %3, %%rax\n"
-        "pushq %%rax\n"                /* CS */
-        
-        "movq %0, %%rax\n"
-        "pushq %%rax\n"                /* RIP */
-        
-        "movq %5, %%rax\n"
-        "movq %%rax, %%cr3\n"          /* Load user CR3 */
-        
-        "movq %2, %%rax\n"
-        "movw %%ax, %%ds\n"
-        "movw %%ax, %%es\n"
-        "movw %%ax, %%fs\n"
-        "movw %%ax, %%gs\n"
-        
+        /* Clear all registers */
         "xorq %%rax, %%rax\n"
         "xorq %%rbx, %%rbx\n"
         "xorq %%rcx, %%rcx\n"
@@ -175,9 +367,11 @@ void process_enter_usermode(process_t *proc, uint64_t entry_point, uint64_t stac
         "xorq %%r14, %%r14\n"
         "xorq %%r15, %%r15\n"
         
+        /* Jump to userspace */
         "iretq\n"
         :
-        : "r"(entry_point), "r"(stack_top), "r"(user_ss), "r"(user_cs), "r"(rflags), "r"(user_cr3)
+        : "r"(entry_point), "r"(stack_top), "r"(user_ss), 
+          "r"(user_cs), "r"(rflags), "r"(user_cr3)
         : "memory"
     );
     

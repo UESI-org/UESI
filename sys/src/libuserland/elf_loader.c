@@ -102,9 +102,9 @@ bool elf_validate(const void *elf_data, size_t size) {
     return true;
 }
 
-bool elf_load(process_t *proc, const void *elf_data, size_t size, 
+bool elf_load(struct process *ps, const void *elf_data, size_t size, 
               uint64_t *entry_point) {
-    if (!proc || !elf_data || !entry_point) {
+    if (!ps || !elf_data || !entry_point) {
         return false;
     }
 
@@ -168,7 +168,7 @@ bool elf_load(process_t *proc, const void *elf_data, size_t size,
             /* Convert to physical address by subtracting HHDM offset */
             uint64_t phys_page = (uint64_t)page_virt - hhdm_offset;
             
-            if (!paging_map_range(proc->page_dir, virt_page, phys_page, 1, page_flags)) {
+            if (!paging_map_range(ps->ps_vmspace, virt_page, phys_page, 1, page_flags)) {
                 printf_("ELF: Failed to map page at 0x%lx\n", virt_page);
                 pmm_free(page_virt);  /* Free using virtual address */
                 return false;
@@ -187,7 +187,7 @@ bool elf_load(process_t *proc, const void *elf_data, size_t size,
                 uint64_t virt_page = (phdr->p_vaddr + off) & ~0xFFFULL;
                 
                 /* Get physical address of this page */
-                uint64_t phys_page = mmu_get_physical_address(proc->page_dir, virt_page);
+                uint64_t phys_page = mmu_get_physical_address(ps->ps_vmspace, virt_page);
                 if (phys_page == 0) {
                     serial_printf(DEBUG_PORT, "ERROR: Failed to get phys for virt=0x%lx\n", virt_page);
                     return false;
@@ -224,7 +224,7 @@ bool elf_load(process_t *proc, const void *elf_data, size_t size,
             for (size_t off = 0; off < zero_size; off += 4096) {
                 uint64_t virt_page = (zero_start + off) & ~0xFFFULL;
                 
-                uint64_t phys_page = mmu_get_physical_address(proc->page_dir, virt_page);
+                uint64_t phys_page = mmu_get_physical_address(ps->ps_vmspace, virt_page);
                 if (phys_page == 0) {
                     serial_printf(DEBUG_PORT, "ERROR: Failed to get phys for virt=0x%lx\n", virt_page);
                     return false;
@@ -262,10 +262,10 @@ bool elf_load(process_t *proc, const void *elf_data, size_t size,
         }
     }
     
-    proc->brk = (max_addr + 0xFFF) & ~0xFFFULL;
+    ps->ps_brk = (max_addr + 0xFFF) & ~0xFFFULL;
     
     printf_("ELF: Loaded successfully, entry=0x%lx brk=0x%lx\n", 
-            *entry_point, proc->brk);
+            *entry_point, ps->ps_brk);
     
     return true;
 }

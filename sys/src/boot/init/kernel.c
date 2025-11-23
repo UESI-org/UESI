@@ -34,8 +34,6 @@
 #include <sys/spinlock.h>
 
 spinlock_t my_lock;
-
-// Global or static block allocator - must persist beyond initialization
 static blk_allocator_t g_block_alloc;
 
 static void keyboard_handler(char c) {
@@ -77,7 +75,6 @@ static void initialize_memory(void) {
     blk_alloc_init(&g_block_alloc, 4096, 0, BLK_SIZE_4K);
     debug_success("blk alloc initialized");
     */
-
 
     blk_buffer_init();
     debug_success("blk buffer initialized");
@@ -216,7 +213,7 @@ void kmain(void) {
 
     initialize_system_components();
 
-    process_init();
+    proc_init();
     debug_success("Process subsystem initialized");
 
     run_tests();
