@@ -13,6 +13,8 @@
 #define SYS_OPEN    3
 #define SYS_CLOSE   4
 #define SYS_SYSINFO 5
+#define SYS_GETHOSTNAME 6
+#define SYS_GETHOSTID 7
 
 struct sysinfo {
     int64_t uptime;             /* Seconds since boot */
@@ -41,5 +43,7 @@ void exit(int status) __attribute__((noreturn));
 int64_t open(const char *path, uint32_t flags, mode_t mode);
 int64_t close(int fd);
 int sysinfo(struct sysinfo *info);
+int gethostname(char *name, size_t len);
+int gethostid(void);
 
 #endif

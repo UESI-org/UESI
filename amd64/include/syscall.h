@@ -11,6 +11,8 @@
 #define SYSCALL_OPEN    3
 #define SYSCALL_CLOSE   4
 #define SYSCALL_SYSINFO 5
+#define SYSCALL_GETHOSTNAME 6
+#define SYSCALL_GETHOSTID 7
 
 #define SYSCALL_INT 0x80
 
@@ -32,5 +34,7 @@ void sys_exit(int status);
 int64_t sys_open(const char *path, uint32_t flags, mode_t mode);
 int64_t sys_close(int fd);
 int64_t sys_sysinfo(struct sysinfo *info);
+int64_t sys_gethostname(char *name, size_t len);
+int64_t sys_gethostid(void);
 
 #endif

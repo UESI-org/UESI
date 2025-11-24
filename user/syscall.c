@@ -72,3 +72,11 @@ void exit(int status) {
 int sysinfo(struct sysinfo *info) {
     return (int)syscall1(SYS_SYSINFO, (uint64_t)info);
 }
+
+int gethostname(char *name, size_t len) {
+    return (int)syscall2(SYS_GETHOSTNAME, (uint64_t)name, (uint64_t)len);
+}
+
+int gethostid(void) {
+    return (int)syscall0(SYS_GETHOSTID);
+}

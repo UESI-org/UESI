@@ -14,6 +14,8 @@ extern void syscall_stub(void);
 
 extern int kern_sysinfo(struct sysinfo *info);
 extern int kern_sysinfo(struct sysinfo *info);
+extern int gethostname(char *name, size_t len);
+extern int gethostid(void);
 
 int64_t sys_sysinfo(struct sysinfo *info) {
     if (info == NULL) {
@@ -22,6 +24,26 @@ int64_t sys_sysinfo(struct sysinfo *info) {
     
     int ret = kern_sysinfo(info);
     
+    return ret;
+}
+
+int64_t sys_gethostname(char *name, size_t len) {
+    if (name == NULL || len == 0) {
+        return -1;
+    }
+    
+    int ret = gethostname(name, len);
+    
+    if (ret == 0) {
+        tty_printf("[SYSCALL] gethostname returned: %s\n", name);
+    }
+    
+    return ret;
+}
+
+int64_t sys_gethostid(void) {
+    int ret = gethostid();
+    tty_printf("[SYSCALL] gethostid returned: %d\n", ret);
     return ret;
 }
 
@@ -238,6 +260,14 @@ void syscall_handler(syscall_registers_t *regs) {
         
         case SYSCALL_SYSINFO:
             ret = sys_sysinfo((struct sysinfo*)regs->rdi);
+            break;
+        
+        case SYSCALL_GETHOSTNAME:
+            ret = sys_gethostname((char*)regs->rdi, (size_t)regs->rsi);
+            break;
+
+        case SYSCALL_GETHOSTID:
+            ret = sys_gethostid();
             break;
             
         default:
