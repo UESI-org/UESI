@@ -432,7 +432,7 @@ int blk_buffer_get(blk_device_t *dev, uint64_t block, blk_buffer_t **buf) {
     /* Search in cache */
     blk_buffer_t *buffer = blk_buffer_hash[hash];
     while (buffer != NULL) {
-        if (buffer->bb_dev == dev && buffer->bb_block == block) {
+        if (buffer->bb_dev == dev && buffer->bb_block == (int64_t)block) {
             /* Found in cache */
             spinlock_acquire(&buffer->bb_lock);
             buffer->bb_refcount++;

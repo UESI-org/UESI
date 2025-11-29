@@ -1,4 +1,5 @@
 #include <sys/sysinfo.h>
+#include <sys/systm.h>
 #include <sys/kernel.h>
 #include <sys/types.h>
 #include <string.h>

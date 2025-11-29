@@ -1,7 +1,10 @@
 #include <syscall.h>
+#include <errno.h>
+
+int errno = 0;
 
 /* System call with 0 arguments */
-int64_t syscall0(uint64_t syscall_num) {
+static inline int64_t syscall0(uint64_t syscall_num) {
     int64_t ret;
     asm volatile(
         "int $0x80"
@@ -13,7 +16,7 @@ int64_t syscall0(uint64_t syscall_num) {
 }
 
 /* System call with 1 argument */
-int64_t syscall1(uint64_t syscall_num, uint64_t arg1) {
+static inline int64_t syscall1(uint64_t syscall_num, uint64_t arg1) {
     int64_t ret;
     asm volatile(
         "int $0x80"
@@ -25,7 +28,7 @@ int64_t syscall1(uint64_t syscall_num, uint64_t arg1) {
 }
 
 /* System call with 2 arguments */
-int64_t syscall2(uint64_t syscall_num, uint64_t arg1, uint64_t arg2) {
+static inline int64_t syscall2(uint64_t syscall_num, uint64_t arg1, uint64_t arg2) {
     int64_t ret;
     asm volatile(
         "int $0x80"
@@ -37,7 +40,7 @@ int64_t syscall2(uint64_t syscall_num, uint64_t arg1, uint64_t arg2) {
 }
 
 /* System call with 3 arguments */
-int64_t syscall3(uint64_t syscall_num, uint64_t arg1, uint64_t arg2, uint64_t arg3) {
+static inline int64_t syscall3(uint64_t syscall_num, uint64_t arg1, uint64_t arg2, uint64_t arg3) {
     int64_t ret;
     asm volatile(
         "int $0x80"
@@ -48,20 +51,33 @@ int64_t syscall3(uint64_t syscall_num, uint64_t arg1, uint64_t arg2, uint64_t ar
     return ret;
 }
 
+static inline int64_t handle_syscall_result(int64_t ret) {
+    if (ret < 0) {
+        errno = (int)(-ret);
+        return -1;
+    }
+    errno = 0;
+    return ret;
+}
+
 int64_t open(const char *path, uint32_t flags, mode_t mode) {
-    return syscall3(SYS_OPEN, (uint64_t)path, (uint64_t)flags, (uint64_t)mode);
+    int64_t ret = syscall3(SYS_OPEN, (uint64_t)path, (uint64_t)flags, (uint64_t)mode);
+    return handle_syscall_result(ret);
 }
 
 int64_t close(int fd) {
-    return syscall1(SYS_CLOSE, (uint64_t)fd);
+    int64_t ret = syscall1(SYS_CLOSE, (uint64_t)fd);
+    return handle_syscall_result(ret);
 }
 
 int64_t read(int fd, void *buf, size_t count) {
-    return syscall3(SYS_READ, (uint64_t)fd, (uint64_t)buf, (uint64_t)count);
+    int64_t ret = syscall3(SYS_READ, (uint64_t)fd, (uint64_t)buf, (uint64_t)count);
+    return handle_syscall_result(ret);
 }
 
 int64_t write(int fd, const void *buf, size_t count) {
-    return syscall3(SYS_WRITE, (uint64_t)fd, (uint64_t)buf, (uint64_t)count);
+    int64_t ret = syscall3(SYS_WRITE, (uint64_t)fd, (uint64_t)buf, (uint64_t)count);
+    return handle_syscall_result(ret);
 }
 
 void exit(int status) {
@@ -70,13 +86,16 @@ void exit(int status) {
 }
 
 int sysinfo(struct sysinfo *info) {
-    return (int)syscall1(SYS_SYSINFO, (uint64_t)info);
+    int64_t ret = syscall1(SYS_SYSINFO, (uint64_t)info);
+    return (int)handle_syscall_result(ret);
 }
 
 int gethostname(char *name, size_t len) {
-    return (int)syscall2(SYS_GETHOSTNAME, (uint64_t)name, (uint64_t)len);
+    int64_t ret = syscall2(SYS_GETHOSTNAME, (uint64_t)name, (uint64_t)len);
+    return (int)handle_syscall_result(ret);
 }
 
 int gethostid(void) {
+    /* gethostid returns a host ID value, not an error code */
     return (int)syscall0(SYS_GETHOSTID);
 }

@@ -1,31 +1,38 @@
-.section .text
-.extern isr_handler
-.extern irq_handler
+#include <asm.h>
 
 .macro ISR_NOERRCODE num
-.global isr\num
+    .globl isr\num
+    .type isr\num,@function
 isr\num:
+    endbr64
     cli
-    pushq $0                    // Push dummy error code
-    pushq $\num                 // Push interrupt number
+    pushq $0
+    pushq $\num
     jmp isr_common_stub
+    .size isr\num, . - isr\num
 .endm
 
 .macro ISR_ERRCODE num
-.global isr\num
+    .globl isr\num
+    .type isr\num,@function
 isr\num:
+    endbr64
     cli
-    pushq $\num                 // Push interrupt number (error code already pushed by CPU)
+    pushq $\num
     jmp isr_common_stub
+    .size isr\num, . - isr\num
 .endm
 
 .macro IRQ num, irq_num
-.global irq\num
+    .globl irq\num
+    .type irq\num,@function
 irq\num:
+    endbr64
     cli
-    pushq $0                    // Push dummy error code
-    pushq $\irq_num             // Push IRQ number (32 + irq)
+    pushq $0
+    pushq $\irq_num
     jmp irq_common_stub
+    .size irq\num, . - irq\num
 .endm
 
 ISR_NOERRCODE 0
@@ -78,8 +85,7 @@ IRQ 13, 45
 IRQ 14, 46
 IRQ 15, 47
 
-// Common ISR stub - saves CPU state, calls C handler, restores state
-isr_common_stub:
+ENTRY_NB(isr_common_stub)
     pushq %rax
     pushq %rbx
     pushq %rcx
@@ -98,11 +104,10 @@ isr_common_stub:
     
     movq %rsp, %rdi
     
-    // Align stack to 16-byte boundary (required by System V ABI)
     movq %rsp, %rbp
     andq $-16, %rsp
     
-    call isr_handler
+    call PIC_PLT(isr_handler)
     
     movq %rbp, %rsp
     
@@ -125,8 +130,9 @@ isr_common_stub:
     addq $16, %rsp
     
     iretq
+END(isr_common_stub)
 
-irq_common_stub:
+ENTRY_NB(irq_common_stub)
     pushq %rax
     pushq %rbx
     pushq %rcx
@@ -148,7 +154,7 @@ irq_common_stub:
     movq %rsp, %rbp
     andq $-16, %rsp
     
-    call irq_handler
+    call PIC_PLT(irq_handler)
     
     movq %rbp, %rsp
     
@@ -171,3 +177,4 @@ irq_common_stub:
     addq $16, %rsp
     
     iretq
+END(irq_common_stub)

@@ -31,7 +31,7 @@ INIT_OBJS := $(patsubst init/%.c,obj/init/%.o,$(INIT_C_SRC))
 CPU_C_OBJS := $(patsubst ../../../amd64/cpu/%.c,obj/cpu/%_c.o,$(CPU_C_SRC))
 CPU_ASM_OBJS := $(patsubst ../../../amd64/cpu/%.S,obj/cpu/%_asm.o,$(CPU_ASM_SRC))
 
-OBJS := $(INIT_OBJS) $(CPU_C_OBJS) $(CPU_ASM_OBJS)
+OBJS := $(INIT_OBJS) $(CPU_C_OBJS) $(CPU_ASM_OBJS) obj/vers.o
 
 LIBCHAR      := ../libchar/lib/libchar.a
 LIBKB        := ../libkb/lib/libkb.a
@@ -70,6 +70,14 @@ obj/cpu/%_asm.o: ../../../amd64/cpu/%.S
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
+vers.c: ../conf/newvers.sh version
+	@echo "[*] Generating kernel version..."
+	@sh ../conf/newvers.sh
+
+obj/vers.o: vers.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c vers.c -o $@
+
 $(TARGET): $(OBJS) $(LIBS)
 	$(LD) $(LDFLAGS) -o $@ $(OBJS) $(LIBS)
 	@echo "Kernel built: $(TARGET)"
@@ -79,7 +87,7 @@ $(TARGET): $(OBJS) $(LIBS)
 
 clean:
 	@echo "[*] Cleaning boot build..."
-	@rm -rf obj uesi.elf
+	@rm -rf obj uesi.elf vers.c
 	@echo "[+] Boot build cleaned."
 
 .PHONY: all clean list-sources

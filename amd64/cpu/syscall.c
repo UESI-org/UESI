@@ -5,6 +5,8 @@
 #include <idt.h>
 #include <gdt.h>
 #include <sys/sysinfo.h>
+#include <sys/errno.h>
+#include <string.h>
 
 extern bool keyboard_has_key(void);
 extern char keyboard_getchar(void);
@@ -13,47 +15,88 @@ extern void tty_putchar(char c);
 extern void syscall_stub(void);
 
 extern int kern_sysinfo(struct sysinfo *info);
-extern int kern_sysinfo(struct sysinfo *info);
 extern int gethostname(char *name, size_t len);
 extern int gethostid(void);
 
+#define USER_SPACE_START 0x0000000000400000UL  /* Typical user start */
+#define USER_SPACE_END   0x00007FFFFFFFFFFFUL  /* Canonical user space end */
+
+static inline bool is_user_address(const void *addr) {
+    uint64_t ptr = (uint64_t)addr;
+    return ptr >= USER_SPACE_START && ptr < USER_SPACE_END;
+}
+
+static inline bool is_user_range(const void *addr, size_t len) {
+    if (len == 0) return true;
+    uint64_t start = (uint64_t)addr;
+    uint64_t end = start + len;
+    
+    if (end < start) return false;
+    
+    return is_user_address(addr) && end <= USER_SPACE_END;
+}
+
+static inline int vfs_errno(int vfs_ret) {
+    if (vfs_ret == VFS_SUCCESS) return 0;
+    
+    if (vfs_ret < 0) return -vfs_ret;
+    
+    return EIO;
+}
+
 int64_t sys_sysinfo(struct sysinfo *info) {
-    if (info == NULL) {
-        return -1;
+    if (!is_user_range(info, sizeof(struct sysinfo))) {
+        return -EFAULT;
     }
     
     int ret = kern_sysinfo(info);
-    
-    return ret;
+    return (ret < 0) ? ret : 0;
 }
 
 int64_t sys_gethostname(char *name, size_t len) {
-    if (name == NULL || len == 0) {
-        return -1;
+    if (len == 0) {
+        return -EINVAL;
+    }
+    
+    if (!is_user_range(name, len)) {
+        return -EFAULT;
     }
     
     int ret = gethostname(name, len);
-    
-    if (ret == 0) {
-        tty_printf("[SYSCALL] gethostname returned: %s\n", name);
-    }
-    
-    return ret;
+    return (ret < 0) ? ret : 0;
 }
 
 int64_t sys_gethostid(void) {
-    int ret = gethostid();
-    tty_printf("[SYSCALL] gethostid returned: %d\n", ret);
-    return ret;
+    /* gethostid returns a long host identifier, not an error code */
+    return gethostid();
 }
 
 int64_t sys_open(const char *path, uint32_t flags, mode_t mode) {
     task_t *current = scheduler_get_current_task();
-    if (current == NULL || path == NULL) {
-        return -1;
+    if (current == NULL) {
+        return -ESRCH;
     }
     
-    // Find free fd slot (start at 3, skip stdin/stdout/stderr)
+    if (!is_user_address(path)) {
+        return -EFAULT;
+    }
+    
+    size_t path_len = 0;
+    const char *p = path;
+    while (is_user_address(p) && *p != '\0' && path_len < VFS_MAX_PATH) {
+        p++;
+        path_len++;
+    }
+    
+    if (path_len == 0) {
+        return -EINVAL;
+    }
+    
+    if (path_len >= VFS_MAX_PATH) {
+        return -ENAMETOOLONG;
+    }
+    
+    /* Find free fd slot (start at 3, skip stdin/stdout/stderr) */
     int fd = -1;
     for (int i = 3; i < MAX_OPEN_FILES; i++) {
         if (current->fd_table[i] == NULL) {
@@ -63,60 +106,54 @@ int64_t sys_open(const char *path, uint32_t flags, mode_t mode) {
     }
     
     if (fd == -1) {
-        tty_printf("[SYSCALL] No free file descriptors\n");
-        return -1; // No free file descriptors (EMFILE)
+        return -EMFILE;
     }
     
     vfs_file_t *file;
     int ret = vfs_open(path, flags, mode, &file);
-    if (ret != 0) {
-        tty_printf("[SYSCALL] vfs_open failed: %d\n", ret);
-        return ret; // Return VFS error code
+    if (ret != VFS_SUCCESS) {
+        return -vfs_errno(ret);
     }
     
     current->fd_table[fd] = file;
-    
-    tty_printf("[SYSCALL] Task %d opened '%s' as fd %d\n", 
-               current->tid, path, fd);
-    
     return fd;
 }
 
 int64_t sys_close(int fd) {
     task_t *current = scheduler_get_current_task();
     if (current == NULL) {
-        return -1;
+        return -ESRCH;
     }
     
-    // Can't close stdin/stdout/stderr
+    /* Validate fd range - don't allow closing stdin/stdout/stderr */
     if (fd < 3 || fd >= MAX_OPEN_FILES) {
-        return -1; // Invalid fd
+        return -EBADF;
     }
     
     vfs_file_t *file = (vfs_file_t *)current->fd_table[fd];
     if (file == NULL) {
-        return -1; // File not open
+        return -EBADF;
     }
     
     int ret = vfs_close(file);
-    if (ret != 0) {
-        tty_printf("[SYSCALL] vfs_close failed: %d\n", ret);
-        return ret;
+    if (ret != VFS_SUCCESS) {
+        return -vfs_errno(ret);
     }
     
     current->fd_table[fd] = NULL;
-    
-    tty_printf("[SYSCALL] Task %d closed fd %d\n", current->tid, fd);
-    
     return 0;
 }
 
 int64_t sys_read(int fd, void *buf, size_t count) {
-    if (buf == NULL || count == 0) {
-        return -1;
+    if (count == 0) {
+        return 0;
     }
     
-    // Handle stdin (fd 0) - read from keyboard
+    if (!is_user_range(buf, count)) {
+        return -EFAULT;
+    }
+    
+    /* Handle stdin (fd 0) - read from keyboard */
     if (fd == 0) {
         char *buffer = (char *)buf;
         size_t bytes_read = 0;
@@ -158,28 +195,41 @@ int64_t sys_read(int fd, void *buf, size_t count) {
     
     task_t *current = scheduler_get_current_task();
     if (current == NULL) {
-        return -1; // No current task
+        return -ESRCH;
     }
     
     if (fd < 0 || fd >= MAX_OPEN_FILES) {
-        return -1; // Invalid fd
+        return -EBADF;
     }
     
     vfs_file_t *file = (vfs_file_t *)current->fd_table[fd];
     if (file == NULL) {
-        return -1; // File not open
+        return -EBADF;
+    }
+    
+    /* Check if file is open for reading */
+    if ((file->f_flags & VFS_O_WRONLY) == VFS_O_WRONLY) {
+        return -EBADF;
     }
     
     ssize_t result = vfs_read(file, buf, count);
+    if (result < 0) {
+        return -vfs_errno((int)result);
+    }
+    
     return result;
 }
 
 int64_t sys_write(int fd, const void *buf, size_t count) {
-    if (buf == NULL || count == 0) {
-        return -1;
+    if (count == 0) {
+        return 0;
     }
     
-    // Handle stdout/stderr (fd 1 and 2) - direct TTY output
+    if (!is_user_range(buf, count)) {
+        return -EFAULT;
+    }
+    
+    /* Handle stdout/stderr (fd 1 and 2) - direct TTY output */
     if (fd == 1 || fd == 2) {
         const char *str = (const char *)buf;
         for (size_t i = 0; i < count; i++) {
@@ -190,19 +240,28 @@ int64_t sys_write(int fd, const void *buf, size_t count) {
     
     task_t *current = scheduler_get_current_task();
     if (current == NULL) {
-        return -1; // No current task
+        return -ESRCH;
     }
     
     if (fd < 0 || fd >= MAX_OPEN_FILES) {
-        return -1; // Invalid fd
+        return -EBADF;
     }
     
     vfs_file_t *file = (vfs_file_t *)current->fd_table[fd];
     if (file == NULL) {
-        return -1; // File not open
+        return -EBADF;
+    }
+    
+    /* Check if file is open for writing */
+    if ((file->f_flags & VFS_O_RDONLY) == VFS_O_RDONLY) {
+        return -EBADF;
     }
     
     ssize_t result = vfs_write(file, buf, count);
+    if (result < 0) {
+        return -vfs_errno((int)result);
+    }
+    
     return result;
 }
 
@@ -210,6 +269,7 @@ void sys_exit(int status) {
     task_t *current = scheduler_get_current_task();
     
     if (current) {
+        /* Close all open file descriptors */
         for (int i = 0; i < MAX_OPEN_FILES; i++) {
             if (current->fd_table[i] != NULL) {
                 vfs_file_t *file = (vfs_file_t *)current->fd_table[i];
@@ -223,6 +283,7 @@ void sys_exit(int status) {
         
         scheduler_exit_task(status);
         
+        /* Should never return */
         while(1) {
             asm volatile("hlt");
         }
@@ -235,7 +296,7 @@ void sys_exit(int status) {
 
 void syscall_handler(syscall_registers_t *regs) {
     uint64_t syscall_num = regs->rax;
-    int64_t ret = -1;
+    int64_t ret = -ENOSYS;  /* Default: function not implemented */
     
     switch (syscall_num) {
         case SYSCALL_READ:
@@ -248,6 +309,7 @@ void syscall_handler(syscall_registers_t *regs) {
             
         case SYSCALL_EXIT:
             sys_exit((int)regs->rdi);
+            /* Never returns */
             break;
         
         case SYSCALL_OPEN:
@@ -271,8 +333,8 @@ void syscall_handler(syscall_registers_t *regs) {
             break;
             
         default:
-            tty_printf("Unknown syscall: %d\n", (int)syscall_num);
-            ret = -1;
+            tty_printf("[SYSCALL] Unknown syscall: %d\n", (int)syscall_num);
+            ret = -ENOSYS;
             break;
     }
     

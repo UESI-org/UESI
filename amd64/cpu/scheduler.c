@@ -104,9 +104,10 @@ task_t *scheduler_create_task(const char *name, void (*entry_point)(void),
     // Initialize CPU state
     memset(&task->cpu_state, 0, sizeof(cpu_state_t));
     task->cpu_state.rip = (uint64_t)entry_point;
-    task->cpu_state.rflags = 0x202;  // IF=1, IOPL=0
-    task->cpu_state.cs = 0x08;       // Kernel code segment
-    task->cpu_state.ss = 0x10;       // Kernel data segment
+    task->cpu_state.rflags = 0x202;
+    task->cpu_state.cs = 0x08;
+    task->cpu_state.ss = 0x10;
+    task->cpu_state.cr3 = (uint64_t)task->page_directory;
     
     // Set stack pointer to top of kernel stack
     task->cpu_state.rsp = (uint64_t)task->kernel_stack + KERNEL_STACK_SIZE - 16;

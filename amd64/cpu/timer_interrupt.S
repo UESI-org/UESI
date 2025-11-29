@@ -1,8 +1,6 @@
-.section .text
-.global timer_interrupt_handler
-.extern timer_handler
+#include <asm.h>
 
-timer_interrupt_handler:
+ENTRY(timer_interrupt_handler)
     pushq %rax
     pushq %rbx
     pushq %rcx
@@ -21,7 +19,7 @@ timer_interrupt_handler:
     
     cld
     
-    call timer_handler
+    call PIC_PLT(timer_handler)
     
     movb $0x20, %al
     outb %al, $0x20
@@ -43,3 +41,4 @@ timer_interrupt_handler:
     popq %rax
     
     iretq
+END(timer_interrupt_handler)

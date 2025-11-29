@@ -1,9 +1,6 @@
-.global syscall_stub
-.extern syscall_handler
+#include <asm.h>
 
-.section .text
-
-syscall_stub:
+ENTRY(syscall_stub)
     cli
     
     push %r15
@@ -23,11 +20,11 @@ syscall_stub:
     push %rbx
     push %rax
     
-    push $0          # err_code (syscalls don't have error codes)
-    push $0x80       # int_no
+    push $0
+    push $0x80
     
     mov %rsp, %rdi
-    call syscall_handler
+    call PIC_PLT(syscall_handler)
     
     add $16, %rsp
     
@@ -38,7 +35,7 @@ syscall_stub:
     pop %rsi
     pop %rdi
     pop %rbp
-    add $8, %rsp     # Skip saved rsp
+    add $8, %rsp
     pop %r8
     pop %r9
     pop %r10
@@ -50,3 +47,4 @@ syscall_stub:
     
     sti
     iretq
+END(syscall_stub)

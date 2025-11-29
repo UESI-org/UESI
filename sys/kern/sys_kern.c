@@ -85,7 +85,7 @@ int gethostname(char *name, size_t len) {
         return -1;
     }
     
-    size_t copylen = hostnamelen < len ? hostnamelen : len - 1;
+    size_t copylen = (size_t)hostnamelen < len ? (size_t)hostnamelen : len - 1;
     memcpy_local(name, hostname, copylen);
     name[copylen] = '\0';
     
@@ -115,7 +115,8 @@ int getdomainname(char *name, size_t len) {
         return -1;
     }
     
-    size_t copylen = domainnamelen < len ? domainnamelen : len - 1;
+    size_t copylen = (size_t)domainnamelen < len ? (size_t)domainnamelen : len - 1;
+    
     memcpy_local(name, domainname, copylen);
     name[copylen] = '\0';
     

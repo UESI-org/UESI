@@ -1,4 +1,5 @@
-/*	$OpenBSD: strxfrm.c,v 1.7 2015/08/31 02:53:57 guenther Exp $ */
+/*  $OpenBSD: strxfrm.c,v 1.7 2015/08/31 02:53:57 guenther Exp $ */
+
 /*-
  * Copyright (c) 1990 The Regents of the University of California.
  * All rights reserved.
@@ -30,8 +31,14 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  */
-
 #include <string.h>
+#include <namespace.h>
+#include <namespace.h>
+
+/* Forward declaration for strlcpy if not visible */
+#ifndef strlcpy
+size_t strlcpy(char *, const char *, size_t);
+#endif
 
 /*
  * Transform src, storing the result in dst, such that
@@ -41,12 +48,11 @@
 size_t
 strxfrm(char *dst, const char *src, size_t n)
 {
-
-	/*
-	 * Since locales are unimplemented, this is just a copy.
-	 */
-	if (n == 0)
-		return (strlen(src));
-	return (strlcpy(dst, src, n));
+    /*
+     * Since locales are unimplemented, this is just a copy.
+     */
+    if (n == 0)
+        return (strlen(src));
+    return (strlcpy(dst, src, n));
 }
 DEF_STRONG(strxfrm);
