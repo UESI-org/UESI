@@ -5,6 +5,7 @@
 #include <vmm.h>
 #include <vfs.h>
 #include <string.h>
+#include <trap.h>
 
 extern void tty_printf(const char *fmt, ...);
 
@@ -64,8 +65,7 @@ void scheduler_init(uint32_t timer_frequency) {
     scheduler.idle_task = scheduler_create_task("idle", idle_task_entry, 
                                                 TASK_PRIORITY_IDLE, true);
     
-    // Register timer interrupt handler
-    isr_register_handler(32, scheduler_timer_handler);
+    isr_register_handler(T_IRQ0, scheduler_timer_handler);
     
     tty_printf("[SCHED] Scheduler initialized (freq=%dHz, slice=%dms)\n", 
                timer_frequency, SCHEDULER_TIME_SLICE_MS);
@@ -101,15 +101,12 @@ task_t *scheduler_create_task(const char *name, void (*entry_point)(void),
         }
     }
     
-    // Initialize CPU state
     memset(&task->cpu_state, 0, sizeof(cpu_state_t));
     task->cpu_state.rip = (uint64_t)entry_point;
     task->cpu_state.rflags = 0x202;
     task->cpu_state.cs = 0x08;
     task->cpu_state.ss = 0x10;
-    task->cpu_state.cr3 = (uint64_t)task->page_directory;
     
-    // Set stack pointer to top of kernel stack
     task->cpu_state.rsp = (uint64_t)task->kernel_stack + KERNEL_STACK_SIZE - 16;
     task->cpu_state.rbp = task->cpu_state.rsp;
     
@@ -117,6 +114,11 @@ task_t *scheduler_create_task(const char *name, void (*entry_point)(void),
         task->page_directory = vmm_get_kernel_space();
     } else {
         task->page_directory = vmm_create_address_space(false);
+    }
+    
+    if (task->page_directory) {
+        vmm_address_space_t *space = (vmm_address_space_t *)task->page_directory;
+        task->cpu_state.cr3 = (uint64_t)space->page_dir;
     }
 
     for (int i = 0; i < MAX_OPEN_FILES; i++) {
@@ -138,7 +140,6 @@ task_t *scheduler_create_task(const char *name, void (*entry_point)(void),
 void scheduler_destroy_task(task_t *task) {
     if (!task || task == scheduler.idle_task) return;
 
-    // Close all open files - ADD THIS
     for (int i = 0; i < MAX_OPEN_FILES; i++) {
         if (task->fd_table[i] != NULL) {
             vfs_close((vfs_file_t *)task->fd_table[i]);
@@ -146,7 +147,6 @@ void scheduler_destroy_task(task_t *task) {
         }
     }
     
-    // Remove from any queue/list
     switch (task->state) {
         case TASK_STATE_READY:
             queue_remove(&scheduler.ready_queues[task->priority], task);
@@ -170,9 +170,9 @@ void scheduler_destroy_task(task_t *task) {
         pmm_free_contiguous(task->user_stack, USER_STACK_SIZE / PAGE_SIZE);
     }
     
-    // Free address space if not kernel
-    if (task->page_directory && task->page_directory != vmm_get_kernel_space()) {
-        vmm_destroy_address_space(task->page_directory);
+    vmm_address_space_t *kernel_space = vmm_get_kernel_space();
+    if (task->page_directory && task->page_directory != kernel_space) {
+        vmm_destroy_address_space((vmm_address_space_t *)task->page_directory);
     }
     
     pmm_free(task);
@@ -261,8 +261,7 @@ void scheduler_start(void) {
         first_task->state = TASK_STATE_RUNNING;
         scheduler.stats.running_tasks = 1;
         
-        // Switch to first task (this won't return until scheduler stops)
-        vmm_switch_address_space(first_task->page_directory);
+        vmm_switch_address_space((vmm_address_space_t *)first_task->page_directory);
         scheduler_switch_context(NULL, &first_task->cpu_state);
     }
 }
@@ -422,7 +421,7 @@ static void scheduler_switch_to_next(void) {
     scheduler.current_task = new_task;
     scheduler.stats.context_switches++;
     
-    vmm_switch_address_space(new_task->page_directory);
+    vmm_switch_address_space((vmm_address_space_t *)new_task->page_directory);
     
     if (old_task) {
         scheduler_switch_context(&old_task->cpu_state, &new_task->cpu_state);
@@ -432,7 +431,6 @@ static void scheduler_switch_to_next(void) {
 }
 
 static task_t *scheduler_pick_next_task(void) {
-    // Priority-based scheduling: check highest priority queues first
     for (int i = 4; i >= 0; i--) {
         if (scheduler.ready_queues[i].head) {
             return scheduler.ready_queues[i].head;
@@ -504,5 +502,8 @@ static void idle_task_entry(void) {
 
 static void scheduler_timer_handler(registers_t *regs) {
     (void)regs;
+    
+    pit_handler();
+    
     scheduler_tick();
 }
