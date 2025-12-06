@@ -10,6 +10,9 @@
 #define SYSCALL_WRITE       4
 #define SYSCALL_OPEN        5
 #define SYSCALL_CLOSE       6
+#define SYSCALL_MMAP        9
+#define SYSCALL_MUNMAP      11
+#define SYSCALL_MPROTECT    74
 #define SYSCALL_GETHOSTNAME 87
 #define SYSCALL_GETHOSTID   142
 #define SYSCALL_SYSINFO     214

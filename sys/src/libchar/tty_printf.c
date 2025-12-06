@@ -91,9 +91,16 @@ void tty_printf(const char *fmt, ...) {
             fmt++;
             
             bool is_long_long = false;
-            if (*fmt == 'l' && *(fmt + 1) == 'l') {
-                is_long_long = true;
-                fmt += 2;
+            bool is_long = false;
+            
+            if (*fmt == 'l') {
+                if (*(fmt + 1) == 'l') {
+                    is_long_long = true;
+                    fmt += 2;
+                } else {
+                    is_long = true;
+                    fmt++;
+                }
             }
             
             bool zero_pad = false;
@@ -113,6 +120,9 @@ void tty_printf(const char *fmt, ...) {
                     if (is_long_long) {
                         int64_t value = va_arg(args, int64_t);
                         itoa(value, buffer, 10);
+                    } else if (is_long) {
+                        long value = va_arg(args, long);
+                        itoa(value, buffer, 10);
                     } else {
                         int value = va_arg(args, int);
                         itoa(value, buffer, 10);
@@ -124,6 +134,9 @@ void tty_printf(const char *fmt, ...) {
                     if (is_long_long) {
                         uint64_t value = va_arg(args, uint64_t);
                         uitoa(value, buffer, 10);
+                    } else if (is_long) {
+                        unsigned long value = va_arg(args, unsigned long);
+                        uitoa(value, buffer, 10);
                     } else {
                         unsigned int value = va_arg(args, unsigned int);
                         uitoa(value, buffer, 10);
@@ -134,6 +147,9 @@ void tty_printf(const char *fmt, ...) {
                 case 'x': {
                     if (is_long_long) {
                         uint64_t value = va_arg(args, uint64_t);
+                        uitoa(value, buffer, 16);
+                    } else if (is_long) {
+                        unsigned long value = va_arg(args, unsigned long);
                         uitoa(value, buffer, 16);
                     } else {
                         unsigned int value = va_arg(args, unsigned int);
@@ -148,6 +164,9 @@ void tty_printf(const char *fmt, ...) {
                 case 'X': {
                     if (is_long_long) {
                         uint64_t value = va_arg(args, uint64_t);
+                        uitoa(value, buffer, 16);
+                    } else if (is_long) {
+                        unsigned long value = va_arg(args, unsigned long);
                         uitoa(value, buffer, 16);
                     } else {
                         unsigned int value = va_arg(args, unsigned int);
@@ -193,6 +212,8 @@ void tty_printf(const char *fmt, ...) {
                     tty_putchar('%');
                     if (is_long_long) {
                         tty_writestring("ll");
+                    } else if (is_long) {
+                        tty_putchar('l');
                     }
                     tty_putchar(*fmt);
                     break;

@@ -6,6 +6,10 @@
 #include <gdt.h>
 #include <sys/sysinfo.h>
 #include <sys/errno.h>
+#include <sys/mman.h>
+#include <vmm.h>
+#include <pmm.h>
+#include <proc.h>
 #include <string.h>
 
 extern bool keyboard_has_key(void);
@@ -34,6 +38,59 @@ static inline bool is_user_range(const void *addr, size_t len) {
     if (end < start) return false;
     
     return is_user_address(addr) && end <= USER_SPACE_END;
+}
+
+static uint64_t mmap_prot_to_page_flags(int prot, bool is_user) {
+    uint64_t flags = PAGE_PRESENT;
+    
+    if (prot & PROT_WRITE) {
+        flags |= PAGE_WRITE;
+    }
+    
+    if (!(prot & PROT_EXEC)) {
+        flags |= PAGE_NX;
+    }
+    
+    if (is_user) {
+        flags |= PAGE_USER;
+    }
+    
+    return flags;
+}
+
+static uint64_t find_free_region(vmm_address_space_t *space, size_t size) {
+    if (!space) {
+        return 0;
+    }
+    
+    uint64_t search_start = VMM_USER_HEAP_START;
+    uint64_t search_end = VMM_USER_STACK_TOP - VMM_USER_STACK_SIZE;
+    
+    size = (size + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
+    
+    uint64_t current = search_start;
+    
+    while (current + size <= search_end) {
+        bool region_free = true;
+        
+        vmm_region_t *region = space->regions;
+        while (region != NULL) {
+            uint64_t region_end = current + size;
+            
+            if (!(region_end <= region->virt_start || current >= region->virt_end)) {
+                region_free = false;
+                current = (region->virt_end + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
+                break;
+            }
+            region = region->next;
+        }
+        
+        if (region_free) {
+            return current;
+        }
+    }
+    
+    return 0;
 }
 
 static inline int vfs_errno(int vfs_ret) {
@@ -273,6 +330,201 @@ int64_t sys_close(int fd) {
     return 0;
 }
 
+int64_t sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset) {
+    struct proc *p = proc_get_current();
+    
+    tty_printf("[MMAP DEBUG] Called: addr=%p len=%lu prot=%d flags=%d\n", 
+               addr, (unsigned long)length, prot, flags);
+    
+    if (p == NULL) {
+        tty_printf("[MMAP DEBUG] No current proc!\n");
+        return -ESRCH;
+    }
+    
+    struct process *ps = p->p_p;
+    if (ps == NULL || ps->ps_vmspace == NULL) {
+        tty_printf("[MMAP DEBUG] No process or vmspace!\n");
+        return -ESRCH;
+    }
+    
+    tty_printf("[MMAP DEBUG] Process found: pid=%d\n", ps->ps_pid);
+
+    if (length == 0) {
+        return -EINVAL;
+    }
+    
+    if (!(flags & MAP_ANONYMOUS)) {
+        return -ENOTSUP;
+    }
+    
+    if (!(flags & MAP_SHARED) && !(flags & MAP_PRIVATE)) {
+        return -EINVAL;
+    }
+    
+    size_t aligned_length = (length + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
+    size_t num_pages = aligned_length / PAGE_SIZE;
+    uint64_t virt_addr;
+    
+    if (flags & MAP_FIXED) {
+        if (!is_user_address(addr)) {
+            return -EINVAL;
+        }
+        virt_addr = (uint64_t)addr & ~(PAGE_SIZE - 1);
+    } else {
+        virt_addr = (ps->ps_brk + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
+        
+        if (addr != NULL && is_user_address(addr)) {
+            uint64_t hint = (uint64_t)addr & ~(PAGE_SIZE - 1);
+            if (hint >= virt_addr) {
+                virt_addr = hint;
+            }
+        }
+    }
+    
+    tty_printf("[MMAP DEBUG] Mapping at virt=0x%lx, %lu pages\n", virt_addr, (unsigned long)num_pages);
+    
+    uint64_t page_flags = PAGE_PRESENT | PAGE_USER;
+    
+    if (prot & PROT_WRITE) {
+        page_flags |= PAGE_WRITE;
+    }
+    
+    if (!(prot & PROT_EXEC)) {
+        page_flags |= PAGE_NX;
+    }
+    
+    extern struct limine_hhdm_response *boot_get_hhdm(void);
+    struct limine_hhdm_response *hhdm = boot_get_hhdm();
+    uint64_t hhdm_offset = hhdm ? hhdm->offset : 0;
+    
+    for (size_t i = 0; i < num_pages; i++) {
+        uint64_t virt_page = virt_addr + (i * PAGE_SIZE);
+        
+        void *page_virt = pmm_alloc();
+        if (page_virt == NULL) {
+            tty_printf("[MMAP DEBUG] Failed to allocate page %lu\n", (unsigned long)i);
+            
+            for (size_t j = 0; j < i; j++) {
+                paging_unmap_range(ps->ps_vmspace, virt_addr + (j * PAGE_SIZE), 1);
+            }
+            return -ENOMEM;
+        }
+        
+        memset(page_virt, 0, PAGE_SIZE);
+        
+        uint64_t phys_page = (uint64_t)page_virt - hhdm_offset;
+        
+        if (!paging_map_range(ps->ps_vmspace, virt_page, phys_page, 1, page_flags)) {
+            tty_printf("[MMAP DEBUG] Failed to map page at 0x%lx\n", virt_page);
+            pmm_free(page_virt);
+            
+            for (size_t j = 0; j < i; j++) {
+                paging_unmap_range(ps->ps_vmspace, virt_addr + (j * PAGE_SIZE), 1);
+            }
+            return -ENOMEM;
+        }
+        
+        tty_printf("[MMAP DEBUG] Mapped page %lu: virt=0x%lx phys=0x%lx\n", 
+                   (unsigned long)i, virt_page, phys_page);
+    }
+    
+    if (virt_addr + aligned_length > ps->ps_brk) {
+        ps->ps_brk = virt_addr + aligned_length;
+    }
+    
+    tty_printf("[MMAP DEBUG] Success! Returning 0x%lx\n", virt_addr);
+    
+    return (int64_t)virt_addr;
+}
+
+int64_t sys_munmap(void *addr, size_t length) {
+    struct proc *p = proc_get_current();
+    if (p == NULL) {
+        return -ESRCH;
+    }
+    
+    struct process *ps = p->p_p;
+    if (ps == NULL || ps->ps_vmspace == NULL) {
+        return -ESRCH;
+    }
+    
+    if (!is_user_address(addr)) {
+        return -EINVAL;
+    }
+    
+    if (length == 0) {
+        return -EINVAL;
+    }
+    
+    uint64_t virt_addr = (uint64_t)addr & ~(PAGE_SIZE - 1);
+    size_t aligned_length = (length + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
+    size_t num_pages = aligned_length / PAGE_SIZE;
+    
+    tty_printf("[MUNMAP DEBUG] Unmapping virt=0x%lx, %lu pages\n", 
+               virt_addr, (unsigned long)num_pages);
+    
+    extern struct limine_hhdm_response *boot_get_hhdm(void);
+    struct limine_hhdm_response *hhdm = boot_get_hhdm();
+    uint64_t hhdm_offset = hhdm ? hhdm->offset : 0;
+    
+    for (size_t i = 0; i < num_pages; i++) {
+        uint64_t virt_page = virt_addr + (i * PAGE_SIZE);
+        
+        uint64_t phys_addr = mmu_get_physical_address(ps->ps_vmspace, virt_page);
+        
+        paging_unmap_range(ps->ps_vmspace, virt_page, 1);
+        
+        if (phys_addr != 0) {
+            void *page_virt = (void *)(phys_addr + hhdm_offset);
+            pmm_free(page_virt);
+        }
+    }
+    
+    tty_printf("[MUNMAP DEBUG] Success!\n");
+    
+    return 0;
+}
+
+int64_t sys_mprotect(void *addr, size_t len, int prot) {
+    struct proc *p = proc_get_current();
+    if (p == NULL) {
+        return -ESRCH;
+    }
+    
+    struct process *ps = p->p_p;
+    if (ps == NULL || ps->ps_vmspace == NULL) {
+        return -ESRCH;
+    }
+    
+    if (!is_user_address(addr)) {
+        return -EINVAL;
+    }
+    
+    if (len == 0) {
+        return -EINVAL;
+    }
+    
+    uint64_t virt_addr = (uint64_t)addr & ~(PAGE_SIZE - 1);
+    size_t aligned_length = (len + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
+    size_t num_pages = aligned_length / PAGE_SIZE;
+    
+    uint64_t page_flags = PAGE_PRESENT | PAGE_USER;
+    
+    if (prot & PROT_WRITE) {
+        page_flags |= PAGE_WRITE;
+    }
+    
+    if (!(prot & PROT_EXEC)) {
+        page_flags |= PAGE_NX;
+    }
+    
+    if (!paging_protect_range(ps->ps_vmspace, virt_addr, num_pages, page_flags)) {
+        return -ENOMEM;
+    }
+    
+    return 0;
+}
+
 int64_t sys_gethostname(char *name, size_t len) {
     if (len == 0) {
         return -EINVAL;
@@ -322,6 +574,19 @@ void syscall_handler(syscall_registers_t *regs) {
         
         case SYSCALL_CLOSE:
             ret = sys_close((int)regs->rdi);
+            break;
+
+        case SYSCALL_MMAP:
+            ret = sys_mmap((void*)regs->rdi, (size_t)regs->rsi, (int)regs->rdx,
+                       (int)regs->r10, (int)regs->r8, (off_t)regs->r9);
+            break;
+
+        case SYSCALL_MUNMAP:
+            ret = sys_munmap((void*)regs->rdi, (size_t)regs->rsi);
+            break;
+
+        case SYSCALL_MPROTECT:
+            ret = sys_mprotect((void*)regs->rdi, (size_t)regs->rsi, (int)regs->rdx);
             break;
         
         case SYSCALL_GETHOSTNAME:

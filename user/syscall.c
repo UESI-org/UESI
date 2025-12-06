@@ -51,6 +51,24 @@ static inline int64_t syscall3(uint64_t syscall_num, uint64_t arg1, uint64_t arg
     return ret;
 }
 
+/* System call with 6 arguments - needed for mmap */
+static inline int64_t syscall6(uint64_t syscall_num, uint64_t arg1, uint64_t arg2,
+                                uint64_t arg3, uint64_t arg4, uint64_t arg5, uint64_t arg6) {
+    int64_t ret;
+    register uint64_t r10 asm("r10") = arg4;
+    register uint64_t r8 asm("r8") = arg5;
+    register uint64_t r9 asm("r9") = arg6;
+    
+    asm volatile(
+        "int $0x80"
+        : "=a"(ret)
+        : "a"(syscall_num), "D"(arg1), "S"(arg2), "d"(arg3),
+          "r"(r10), "r"(r8), "r"(r9)
+        : "memory", "rcx", "r11"
+    );
+    return ret;
+}
+
 static inline int64_t handle_syscall_result(int64_t ret) {
     if (ret < 0) {
         errno = (int)(-ret);
@@ -78,6 +96,30 @@ int64_t read(int fd, void *buf, size_t count) {
 int64_t write(int fd, const void *buf, size_t count) {
     int64_t ret = syscall3(SYS_WRITE, (uint64_t)fd, (uint64_t)buf, (uint64_t)count);
     return handle_syscall_result(ret);
+}
+
+void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset) {
+    int64_t ret = syscall6(SYS_MMAP, (uint64_t)addr, (uint64_t)length,
+                           (uint64_t)prot, (uint64_t)flags,
+                           (uint64_t)fd, (uint64_t)offset);
+    
+    if (ret < 0 && ret >= -4096) {
+        errno = (int)(-ret);
+        return MAP_FAILED;
+    }
+    
+    errno = 0;
+    return (void *)ret;
+}
+
+int munmap(void *addr, size_t length) {
+    int64_t ret = syscall2(SYS_MUNMAP, (uint64_t)addr, (uint64_t)length);
+    return (int)handle_syscall_result(ret);
+}
+
+int mprotect(void *addr, size_t len, int prot) {
+    int64_t ret = syscall3(SYS_MPROTECT, (uint64_t)addr, (uint64_t)len, (uint64_t)prot);
+    return (int)handle_syscall_result(ret);
 }
 
 void exit(int status) {
