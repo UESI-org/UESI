@@ -5,14 +5,14 @@
 #include <stddef.h>
 #include <sys/types.h>
 
-#define SYSCALL_READ        0
-#define SYSCALL_WRITE       1
-#define SYSCALL_EXIT        2
-#define SYSCALL_OPEN        3
-#define SYSCALL_CLOSE       4
-#define SYSCALL_SYSINFO     5
-#define SYSCALL_GETHOSTNAME 6
-#define SYSCALL_GETHOSTID   7
+#define SYSCALL_EXIT        1
+#define SYSCALL_READ        3
+#define SYSCALL_WRITE       4
+#define SYSCALL_OPEN        5
+#define SYSCALL_CLOSE       6
+#define SYSCALL_GETHOSTNAME 87
+#define SYSCALL_GETHOSTID   142
+#define SYSCALL_SYSINFO     214
 
 #define SYSCALL_INT 0x80
 
@@ -28,13 +28,13 @@ struct sysinfo;
 void syscall_init(void);
 void syscall_handler(syscall_registers_t *regs);
 
+void sys_exit(int status) __attribute__((noreturn));
 int64_t sys_read(int fd, void *buf, size_t count);
 int64_t sys_write(int fd, const void *buf, size_t count);
-void sys_exit(int status) __attribute__((noreturn));
 int64_t sys_open(const char *path, uint32_t flags, mode_t mode);
 int64_t sys_close(int fd);
-int64_t sys_sysinfo(struct sysinfo *info);
 int64_t sys_gethostname(char *name, size_t len);
 int64_t sys_gethostid(void);
+int64_t sys_sysinfo(struct sysinfo *info);
 
 #endif
