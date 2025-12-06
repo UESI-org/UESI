@@ -11,15 +11,27 @@ LIBCINCDIR := ../libc/include
 LIBPRINTFINCDIR := ../libprintf/include
 OBJDIR := obj
 LIBDIR := lib
-TARGET := $(LIBDIR)/libuserland.a
 
-SRCS := elf_loader.c proc.c
+TARGET := $(LIBDIR)/libuserland.a
+SRCS := elf_loader.c proc.c malloc.c
 OBJS := $(SRCS:%.c=$(OBJDIR)/%.o)
+
+FEATURE_FLAGS := -D__POSIX_VISIBLE=200809 \
+                 -D__XPG_VISIBLE=700 \
+                 -D__ISO_C_VISIBLE=2011 \
+                 -D__BSD_VISIBLE=1 \
+                 -D_BSD_SOURCE \
+                 -DNL_TEXTMAX=128 \
+                 -D_KERNEL
+
+CPPFLAGS := $(FEATURE_FLAGS)
 
 CFLAGS := -Wall -Wextra -std=gnu11 -ffreestanding -fno-stack-protector \
           -fno-stack-check -fno-lto -fno-PIC -ffunction-sections -fdata-sections \
           -m64 -march=x86-64 -mabi=sysv -mno-80387 -mno-mmx -mno-sse -mno-sse2 \
-          -mno-red-zone -mcmodel=kernel -O2 -nostdlib -fno-builtin -s
+          -mno-red-zone -mcmodel=kernel -O2 \
+          $(CPPFLAGS) \
+          -nostdlib -fno-builtin -s
 
 INCLUDES := -I$(INCDIR) -I$(BOOTINCDIR) -I$(SYSINCDIR) -I$(ARCHINCDIR) \
             -I$(LIBMEMINCDIR) -I$(LIBCINCDIR) -I$(LIBPRINTFINCDIR)
@@ -36,7 +48,7 @@ $(LIBDIR):
 
 $(TARGET): $(OBJDIR) $(LIBDIR) $(OBJS)
 	$(AR) $(ARFLAGS) $@ $(OBJS)
-	@echo "Built $@"
+	@echo "Built $@ with $(words $(OBJS)) object files"
 
 $(OBJDIR)/%.o: %.c | $(OBJDIR)
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@ -MMD -MP
@@ -64,5 +76,17 @@ help:
 	@echo "  rebuild  - Clean and rebuild"
 	@echo "  install  - Install library to ../../lib and headers to ../../include"
 	@echo "  help     - Show this help message"
+	@echo ""
+	@echo "Feature visibility flags:"
+	@echo "  __POSIX_VISIBLE=200809  - POSIX.1-2008"
+	@echo "  __XPG_VISIBLE=700       - X/Open 7 (XSI)"
+	@echo "  __ISO_C_VISIBLE=2011    - ISO C11"
+	@echo "  __BSD_VISIBLE=1         - BSD extensions"
+	@echo "  _KERNEL                 - Kernel build"
+	@echo ""
+	@echo "Components:"
+	@echo "  - ELF loader"
+	@echo "  - Process management"
+	@echo "  - Memory allocation (malloc)"
 
 -include $(OBJS:.o=.d)
