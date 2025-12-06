@@ -1,8 +1,6 @@
 #include <asm.h>
 
 ENTRY(syscall_stub)
-    cli
-    
     push %r15
     push %r14
     push %r13
@@ -24,7 +22,10 @@ ENTRY(syscall_stub)
     push $0x80
     
     mov %rsp, %rdi
+    
+    sti
     call PIC_PLT(syscall_handler)
+    cli
     
     add $16, %rsp
     
@@ -45,6 +46,5 @@ ENTRY(syscall_stub)
     pop %r14
     pop %r15
     
-    sti
     iretq
 END(syscall_stub)

@@ -37,10 +37,6 @@
 spinlock_t my_lock;
 static blk_allocator_t g_block_alloc;
 
-static void keyboard_handler(char c) {
-    tty_putchar(c);
-}
-
 void init_subsystem(void) {
     spinlock_init(&my_lock, "my_subsystem");
 }
@@ -155,7 +151,6 @@ static void initialize_system_components(void) {
     debug_success("Scheduler initialized");
 
     keyboard_init();
-    keyboard_set_callback(keyboard_handler);
     pic_clear_mask(IRQ_KEYBOARD);
     debug_success("Keyboard initialized");
 }
@@ -225,11 +220,6 @@ void kmain(void) {
     system_print_banner(&cpu);
 
     __asm__ volatile("sti");
-
-    tty_set_color(TTY_COLOR_GREEN, TTY_COLOR_BLACK);
-    printf("System ready. Type something!\n");
-    tty_set_color(TTY_COLOR_WHITE, TTY_COLOR_BLACK);
-    printf("> ");
 
     if (debug_is_enabled()) {
         serial_printf(DEBUG_PORT, "\n=== System Ready ===\n");

@@ -81,22 +81,21 @@ int64_t sys_read(int fd, void *buf, size_t count) {
     if (fd == 0) {
         char *buffer = (char *)buf;
         size_t bytes_read = 0;
+        bool got_newline = false;
         
-        while (bytes_read < count) {
-            if (!keyboard_has_key()) {
-                if (bytes_read > 0) {
-                    break;
-                }
-                while (!keyboard_has_key()) {
-                    asm volatile("hlt");
-                }
+        while (bytes_read < count && !got_newline) {
+            asm volatile("sti");
+            
+            while (!keyboard_has_key()) {
+                asm volatile("sti; hlt");
             }
             
             char c = keyboard_getchar();
             
             if (c == '\n' || c == '\r') {
                 buffer[bytes_read++] = '\n';
-                tty_putchar('\n');
+                tty_putchar('\n');  // Echo newline
+                got_newline = true;
                 break;
             }
             
@@ -110,8 +109,25 @@ int64_t sys_read(int fd, void *buf, size_t count) {
                 continue;
             }
             
-            buffer[bytes_read++] = c;
-            tty_putchar(c);
+            if (c == 3) {
+                tty_putchar('^');
+                tty_putchar('C');
+                tty_putchar('\n');
+                return -EINTR;
+            }
+            
+            if (c == 4) {
+                if (bytes_read == 0) {
+                    return 0; /* EOF on empty read */
+                }
+                got_newline = true;
+                break;
+            }
+            
+            if (bytes_read < count) {
+                buffer[bytes_read++] = c;
+                tty_putchar(c);  // Echo the character since callback is removed
+            }
         }
         
         return bytes_read;
