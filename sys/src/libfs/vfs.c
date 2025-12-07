@@ -408,68 +408,191 @@ const char *vfs_dirname(const char *path, char *buf, size_t bufsize) {
 }
 
 int vfs_lookup(const char *path, vnode_t **result) {
+    return vfs_lookup_internal(path, result, true); /* Follow all symlinks */
+}
+
+static int vfs_lookup_internal(const char *path, vnode_t **result, bool follow_final) {
     if (path == NULL || result == NULL) {
         return -EINVAL;
     }
-    
+
     if (!vfs_is_absolute_path(path)) {
         return -EINVAL; /* TODO: Support relative paths with cwd */
     }
-    
+
     if (root_mount == NULL || root_mount->mnt_root == NULL) {
         VFS_DEBUG("No root filesystem mounted\n");
         return -ENOENT;
     }
-    
+
     /* Handle root directory */
     if (strcmp(path, "/") == 0) {
         *result = root_mount->mnt_root;
         vfs_vnode_ref(*result);
         return VFS_SUCCESS;
     }
-    
-    /* Walk the path */
-    vnode_t *current = root_mount->mnt_root;
-    vfs_vnode_ref(current);
-    
+
+    /* Copy path for tokenization */
     char *path_copy = kmalloc(strlen(path) + 1);
     if (path_copy == NULL) {
-        vfs_vnode_unref(current);
         return -ENOMEM;
     }
     strcpy(path_copy, path);
+
+    /* Parse path into components */
+    char *components[64]; /* Max path depth */
+    int component_count = 0;
     
     char *token = strtok(path_copy + 1, "/"); /* Skip leading / */
-    
-    while (token != NULL) {
+    while (token != NULL && component_count < 64) {
+        components[component_count++] = token;
+        token = strtok(NULL, "/");
+    }
+
+    if (component_count == 0) {
+        kfree(path_copy);
+        *result = root_mount->mnt_root;
+        vfs_vnode_ref(*result);
+        return VFS_SUCCESS;
+    }
+
+    /* Start from root */
+    vnode_t *current = root_mount->mnt_root;
+    vfs_vnode_ref(current);
+
+    /* Track symlink resolution depth */
+    int symlink_depth = 0;
+
+    /* Walk through each component */
+    for (int i = 0; i < component_count; i++) {
+        bool is_final = (i == component_count - 1);
+        char *component = components[i];
+
         /* Check if current is a directory */
         if ((current->v_mode & VFS_IFMT) != VFS_IFDIR) {
             vfs_vnode_unref(current);
             kfree(path_copy);
             return -ENOTDIR;
         }
-        
+
         /* Lookup next component */
         if (current->v_ops == NULL || current->v_ops->lookup == NULL) {
             vfs_vnode_unref(current);
             kfree(path_copy);
             return -ENOSYS;
         }
-        
+
         vnode_t *next = NULL;
-        int ret = current->v_ops->lookup(current, token, &next);
-        
+        int ret = current->v_ops->lookup(current, component, &next);
+
         vfs_vnode_unref(current);
-        
+
         if (ret != 0) {
             kfree(path_copy);
             return ret;
         }
-        
+
         current = next;
-        token = strtok(NULL, "/");
+
+        /* Check if this is a symlink */
+        if ((current->v_mode & VFS_IFMT) == VFS_IFLNK) {
+            /* If this is the final component and we shouldn't follow, stop here */
+            if (is_final && !follow_final) {
+                break;
+            }
+
+            /* Check symlink depth to prevent infinite loops */
+            if (symlink_depth >= VFS_MAX_SYMLINK_DEPTH) {
+                vfs_vnode_unref(current);
+                kfree(path_copy);
+                return -ELOOP;
+            }
+            symlink_depth++;
+
+            /* Read the symlink target */
+            char target[VFS_MAX_PATH];
+            if (current->v_ops == NULL || current->v_ops->readlink == NULL) {
+                vfs_vnode_unref(current);
+                kfree(path_copy);
+                return -EINVAL;
+            }
+
+            ret = current->v_ops->readlink(current, target, sizeof(target));
+            if (ret < 0) {
+                vfs_vnode_unref(current);
+                kfree(path_copy);
+                return ret;
+            }
+
+            /* Release the symlink vnode */
+            vfs_vnode_unref(current);
+
+            /* If the target is absolute, start from root */
+            if (target[0] == '/') {
+                current = root_mount->mnt_root;
+                vfs_vnode_ref(current);
+            } else {
+                /* Relative symlink - need to resolve from parent directory */
+                /* This is complex: we need to rebuild the path up to the parent
+                   and then resolve the relative target from there */
+                
+                /* For now, return error - proper implementation requires
+                   tracking the parent directory or rebuilding the path */
+                kfree(path_copy);
+                return -ENOTSUP;
+            }
+
+            /* Parse symlink target and resolve it */
+            char *symlink_path_copy = kmalloc(strlen(target) + 1);
+            if (symlink_path_copy == NULL) {
+                vfs_vnode_unref(current);
+                kfree(path_copy);
+                return -ENOMEM;
+            }
+            strcpy(symlink_path_copy, target);
+
+            /* Tokenize symlink target */
+            char *sym_token = strtok(symlink_path_copy + 1, "/");
+            while (sym_token != NULL) {
+                /* Check if current is a directory */
+                if ((current->v_mode & VFS_IFMT) != VFS_IFDIR) {
+                    vfs_vnode_unref(current);
+                    kfree(symlink_path_copy);
+                    kfree(path_copy);
+                    return -ENOTDIR;
+                }
+
+                /* Lookup component */
+                if (current->v_ops == NULL || current->v_ops->lookup == NULL) {
+                    vfs_vnode_unref(current);
+                    kfree(symlink_path_copy);
+                    kfree(path_copy);
+                    return -ENOSYS;
+                }
+
+                vnode_t *sym_next = NULL;
+                ret = current->v_ops->lookup(current, sym_token, &sym_next);
+
+                vfs_vnode_unref(current);
+
+                if (ret != 0) {
+                    kfree(symlink_path_copy);
+                    kfree(path_copy);
+                    return ret;
+                }
+
+                current = sym_next;
+                sym_token = strtok(NULL, "/");
+            }
+
+            kfree(symlink_path_copy);
+
+            /* If there are more components in the original path after this symlink,
+               we need to continue walking from the symlink target */
+            /* This is already handled by the main loop continuing */
+        }
     }
-    
+
     kfree(path_copy);
     *result = current;
     return VFS_SUCCESS;
@@ -746,10 +869,31 @@ int vfs_lstat(const char *path, vfs_stat_t *stat) {
         return -EINVAL;
     }
 
-    /* TODO: Implement proper lstat that stops at symlinks
-     */
-    
-    return vfs_stat(path, stat);
+    vnode_t *vnode;
+    int ret = vfs_lookup_internal(path, &vnode, false); /* Don't follow final symlink */
+    if (ret != 0) {
+        return ret;
+    }
+
+    if (vnode->v_ops && vnode->v_ops->getattr) {
+        ret = vnode->v_ops->getattr(vnode, stat);
+    } else {
+        /* Fill in basic info from vnode */
+        memset(stat, 0, sizeof(vfs_stat_t));
+        stat->st_ino = vnode->v_ino;
+        stat->st_mode = vnode->v_mode;
+        stat->st_nlink = vnode->v_nlink;
+        stat->st_uid = vnode->v_uid;
+        stat->st_gid = vnode->v_gid;
+        stat->st_size = vnode->v_size;
+        stat->st_atime = vnode->v_atime;
+        stat->st_mtime = vnode->v_mtime;
+        stat->st_ctime = vnode->v_ctime;
+        ret = VFS_SUCCESS;
+    }
+
+    vfs_vnode_unref(vnode);
+    return ret;
 }
 
 int vfs_access(const char *path, int mode) {
