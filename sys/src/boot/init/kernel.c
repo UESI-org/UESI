@@ -68,10 +68,8 @@ static void initialize_memory(void) {
     inode_cache_init();
     debug_success("inode cache initialized");
 
-    /* Son of a bitch... For some reason the allocation triggers a GPF panic, working on fixing it soon
     blk_alloc_init(&g_block_alloc, 4096, 0, BLK_SIZE_4K);
     debug_success("blk alloc initialized");
-    */
 
     blk_buffer_init();
     debug_success("blk buffer initialized");
