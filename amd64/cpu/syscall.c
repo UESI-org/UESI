@@ -5,6 +5,7 @@
 #include <idt.h>
 #include <gdt.h>
 #include <sys/sysinfo.h>
+#include <sys/stat.h>
 #include <sys/errno.h>
 #include <sys/mman.h>
 #include <vmm.h>
@@ -411,6 +412,172 @@ int64_t sys_close(int fd) {
     }
     
     current->fd_table[fd] = NULL;
+    return 0;
+}
+
+int64_t sys_stat(const char *path, struct stat *statbuf) {
+    if (path == NULL || statbuf == NULL) {
+        return -EINVAL;
+    }
+
+    if (!is_user_address(path)) {
+        return -EFAULT;
+    }
+
+    size_t path_len = 0;
+    const char *p = path;
+    while (is_user_address(p) && *p != '\0' && path_len < VFS_MAX_PATH) {
+        p++;
+        path_len++;
+    }
+
+    if (path_len == 0) {
+        return -EINVAL;
+    }
+
+    if (path_len >= VFS_MAX_PATH) {
+        return -ENAMETOOLONG;
+    }
+
+    if (!is_user_range(statbuf, sizeof(struct stat))) {
+        return -EFAULT;
+    }
+
+    vfs_stat_t kstat;
+    memset(&kstat, 0, sizeof(vfs_stat_t));
+
+    int ret = vfs_stat(path, &kstat);
+    if (ret != VFS_SUCCESS) {
+        return -vfs_errno(ret);
+    }
+
+    statbuf->st_dev = kstat.st_dev;
+    statbuf->st_ino = kstat.st_ino;
+    statbuf->st_mode = kstat.st_mode;
+    statbuf->st_nlink = kstat.st_nlink;
+    statbuf->st_uid = kstat.st_uid;
+    statbuf->st_gid = kstat.st_gid;
+    statbuf->st_rdev = kstat.st_rdev;
+    statbuf->st_size = kstat.st_size;
+    statbuf->st_blksize = kstat.st_blksize;
+    statbuf->st_blocks = kstat.st_blocks;
+    statbuf->st_atime = kstat.st_atime;
+    statbuf->st_mtime = kstat.st_mtime;
+    statbuf->st_ctime = kstat.st_ctime;
+
+    return 0;
+}
+
+int64_t sys_fstat(int fd, struct stat *statbuf) {
+    if (statbuf == NULL) {
+        return -EINVAL;
+    }
+
+    if (!is_user_range(statbuf, sizeof(struct stat))) {
+        return -EFAULT;
+    }
+
+    task_t *current = scheduler_get_current_task();
+    if (current == NULL) {
+        return -ESRCH;
+    }
+
+    if (fd < 0 || fd >= MAX_OPEN_FILES) {
+        return -EBADF;
+    }
+
+    vfs_file_t *file = (vfs_file_t *)current->fd_table[fd];
+    if (file == NULL) {
+        return -EBADF;
+    }
+
+    vfs_stat_t kstat;
+    memset(&kstat, 0, sizeof(vfs_stat_t));
+
+    int ret = vfs_fstat(file, &kstat);
+    if (ret != VFS_SUCCESS) {
+        return -vfs_errno(ret);
+    }
+
+    statbuf->st_dev = kstat.st_dev;
+    statbuf->st_ino = kstat.st_ino;
+    statbuf->st_mode = kstat.st_mode;
+    statbuf->st_nlink = kstat.st_nlink;
+    statbuf->st_uid = kstat.st_uid;
+    statbuf->st_gid = kstat.st_gid;
+    statbuf->st_rdev = kstat.st_rdev;
+    statbuf->st_size = kstat.st_size;
+    statbuf->st_blksize = kstat.st_blksize;
+    statbuf->st_blocks = kstat.st_blocks;
+    statbuf->st_atime = kstat.st_atime;
+    statbuf->st_mtime = kstat.st_mtime;
+    statbuf->st_ctime = kstat.st_ctime;
+
+    return 0;
+}
+
+int64_t sys_lstat(const char *path, struct stat *statbuf) {
+    /* 
+     * lstat() is like stat() but doesn't follow symbolic links.
+     * For now, we implement it the same as stat() since we need
+     * to add proper symlink support to the VFS layer.
+     * 
+     * TODO: Implement proper lstat behavior:
+     * - Check if path is a symlink
+     * - If it is, return stat info about the link itself
+     * - If it isn't, behave like stat()
+     */
+    
+    if (path == NULL || statbuf == NULL) {
+        return -EINVAL;
+    }
+
+    if (!is_user_address(path)) {
+        return -EFAULT;
+    }
+
+    size_t path_len = 0;
+    const char *p = path;
+    while (is_user_address(p) && *p != '\0' && path_len < VFS_MAX_PATH) {
+        p++;
+        path_len++;
+    }
+
+    if (path_len == 0) {
+        return -EINVAL;
+    }
+
+    if (path_len >= VFS_MAX_PATH) {
+        return -ENAMETOOLONG;
+    }
+
+    if (!is_user_range(statbuf, sizeof(struct stat))) {
+        return -EFAULT;
+    }
+
+    vfs_stat_t kstat;
+    memset(&kstat, 0, sizeof(vfs_stat_t));
+
+    /* TODO: for now just use vfs_stat - later add vfs_lstat */
+    int ret = vfs_stat(path, &kstat);
+    if (ret != VFS_SUCCESS) {
+        return -vfs_errno(ret);
+    }
+
+    statbuf->st_dev = kstat.st_dev;
+    statbuf->st_ino = kstat.st_ino;
+    statbuf->st_mode = kstat.st_mode;
+    statbuf->st_nlink = kstat.st_nlink;
+    statbuf->st_uid = kstat.st_uid;
+    statbuf->st_gid = kstat.st_gid;
+    statbuf->st_rdev = kstat.st_rdev;
+    statbuf->st_size = kstat.st_size;
+    statbuf->st_blksize = kstat.st_blksize;
+    statbuf->st_blocks = kstat.st_blocks;
+    statbuf->st_atime = kstat.st_atime;
+    statbuf->st_mtime = kstat.st_mtime;
+    statbuf->st_ctime = kstat.st_ctime;
+
     return 0;
 }
 
@@ -846,6 +1013,18 @@ void syscall_handler(syscall_registers_t *regs) {
         
         case SYSCALL_CLOSE:
             ret = sys_close((int)regs->rdi);
+            break;
+
+        case SYSCALL_STAT:
+            ret = sys_stat((const char*)regs->rdi, (struct stat*)regs->rsi);
+            break;
+
+        case SYSCALL_FSTAT:
+            ret = sys_fstat((int)regs->rdi, (struct stat*)regs->rsi);
+            break;
+
+        case SYSCALL_LSTAT:
+            ret = sys_lstat((const char*)regs->rdi, (struct stat*)regs->rsi);
             break;
 
         case SYSCALL_FORK:

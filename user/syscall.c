@@ -79,27 +79,42 @@ static inline int64_t handle_syscall_result(int64_t ret) {
 }
 
 int64_t open(const char *path, uint32_t flags, mode_t mode) {
-    int64_t ret = syscall3(SYS_OPEN, (uint64_t)path, (uint64_t)flags, (uint64_t)mode);
+    int64_t ret = syscall3(SYSCALL_OPEN, (uint64_t)path, (uint64_t)flags, (uint64_t)mode);
     return handle_syscall_result(ret);
 }
 
 int64_t close(int fd) {
-    int64_t ret = syscall1(SYS_CLOSE, (uint64_t)fd);
+    int64_t ret = syscall1(SYSCALL_CLOSE, (uint64_t)fd);
     return handle_syscall_result(ret);
 }
 
 int64_t read(int fd, void *buf, size_t count) {
-    int64_t ret = syscall3(SYS_READ, (uint64_t)fd, (uint64_t)buf, (uint64_t)count);
+    int64_t ret = syscall3(SYSCALL_READ, (uint64_t)fd, (uint64_t)buf, (uint64_t)count);
     return handle_syscall_result(ret);
 }
 
 int64_t write(int fd, const void *buf, size_t count) {
-    int64_t ret = syscall3(SYS_WRITE, (uint64_t)fd, (uint64_t)buf, (uint64_t)count);
+    int64_t ret = syscall3(SYSCALL_WRITE, (uint64_t)fd, (uint64_t)buf, (uint64_t)count);
     return handle_syscall_result(ret);
 }
 
+int stat(const char *path, struct stat *buf) {
+    int64_t ret = syscall2(SYSCALL_STAT, (uint64_t)path, (uint64_t)buf);
+    return (int)handle_syscall_result(ret);
+}
+
+int fstat(int fd, struct stat *buf) {
+    int64_t ret = syscall2(SYSCALL_FSTAT, (uint64_t)fd, (uint64_t)buf);
+    return (int)handle_syscall_result(ret);
+}
+
+int lstat(const char *path, struct stat *buf) {
+    int64_t ret = syscall2(SYSCALL_LSTAT, (uint64_t)path, (uint64_t)buf);
+    return (int)handle_syscall_result(ret);
+}
+
 pid_t fork(void) {
-    int64_t ret = syscall0(SYS_FORK);
+    int64_t ret = syscall0(SYSCALL_FORK);
     
     if (ret < 0) {
         errno = (int)(-ret);
@@ -110,7 +125,7 @@ pid_t fork(void) {
 }
 
 void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset) {
-    int64_t ret = syscall6(SYS_MMAP, (uint64_t)addr, (uint64_t)length,
+    int64_t ret = syscall6(SYSCALL_MMAP, (uint64_t)addr, (uint64_t)length,
                            (uint64_t)prot, (uint64_t)flags,
                            (uint64_t)fd, (uint64_t)offset);
     
@@ -124,39 +139,39 @@ void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 }
 
 int munmap(void *addr, size_t length) {
-    int64_t ret = syscall2(SYS_MUNMAP, (uint64_t)addr, (uint64_t)length);
+    int64_t ret = syscall2(SYSCALL_MUNMAP, (uint64_t)addr, (uint64_t)length);
     return (int)handle_syscall_result(ret);
 }
 
 pid_t getpid(void) {
-    return (pid_t)syscall0(SYS_GETPID);
+    return (pid_t)syscall0(SYSCALL_GETPID);
 }
 
 int mprotect(void *addr, size_t len, int prot) {
-    int64_t ret = syscall3(SYS_MPROTECT, (uint64_t)addr, (uint64_t)len, (uint64_t)prot);
+    int64_t ret = syscall3(SYSCALL_MPROTECT, (uint64_t)addr, (uint64_t)len, (uint64_t)prot);
     return (int)handle_syscall_result(ret);
 }
 
 void exit(int status) {
-    syscall1(SYS_EXIT, (uint64_t)status);
+    syscall1(SYSCALL_EXIT, (uint64_t)status);
     __builtin_unreachable();
 }
 
 int sysinfo(struct sysinfo *info) {
-    int64_t ret = syscall1(SYS_SYSINFO, (uint64_t)info);
+    int64_t ret = syscall1(SYSCALL_SYSINFO, (uint64_t)info);
     return (int)handle_syscall_result(ret);
 }
 
 int gethostname(char *name, size_t len) {
-    int64_t ret = syscall2(SYS_GETHOSTNAME, (uint64_t)name, (uint64_t)len);
+    int64_t ret = syscall2(SYSCALL_GETHOSTNAME, (uint64_t)name, (uint64_t)len);
     return (int)handle_syscall_result(ret);
 }
 
 pid_t getppid(void) {
-    return (pid_t)syscall0(SYS_GETPPID);
+    return (pid_t)syscall0(SYSCALL_GETPPID);
 }
 
 int gethostid(void) {
     /* gethostid returns a host ID value, not an error code */
-    return (int)syscall0(SYS_GETHOSTID);
+    return (int)syscall0(SYSCALL_GETHOSTID);
 }

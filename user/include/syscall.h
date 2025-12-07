@@ -7,33 +7,36 @@
 #include <stdint.h>
 #include <sys/types.h>
 
-#define SYS_EXIT        1
-#define SYS_FORK        2
-#define SYS_READ        3
-#define SYS_WRITE       4
-#define SYS_OPEN        5
-#define SYS_CLOSE       6
-#define SYS_MMAP        9
-#define SYS_MUNMAP      11
-#define SYS_GETPID      39
-#define SYS_MPROTECT    74
-#define SYS_GETHOSTNAME 87
-#define SYS_GETPPID     110
-#define SYS_GETHOSTID   142
-#define SYS_SYSINFO     214
+#define SYSCALL_EXIT        1
+#define SYSCALL_FORK        2
+#define SYSCALL_READ        3
+#define SYSCALL_WRITE       4
+#define SYSCALL_OPEN        5
+#define SYSCALL_CLOSE       6
+#define SYSCALL_GETPID      20
+#define SYSCALL_GETPPID     39
+#define SYSCALL_MUNMAP      73
+#define SYSCALL_MPROTECT    74
+#define SYSCALL_GETHOSTNAME 87
+#define SYSCALL_GETHOSTID   142
+#define SYSCALL_MMAP        197
+#define SYSCALL_SYSINFO     214
+#define SYSCALL_STAT        439
+#define SYSCALL_FSTAT       440
+#define SYSCALL_LSTAT       441
 
-#define PROT_NONE       0x00
-#define PROT_READ       0x01
-#define PROT_WRITE      0x02
-#define PROT_EXEC       0x04
+#define PROT_NONE           0x00
+#define PROT_READ           0x01
+#define PROT_WRITE          0x02
+#define PROT_EXEC           0x04
 
-#define MAP_SHARED      0x0001
-#define MAP_PRIVATE     0x0002
-#define MAP_FIXED       0x0010
-#define MAP_ANONYMOUS   0x0020
-#define MAP_ANON        MAP_ANONYMOUS
+#define MAP_SHARED          0x0001
+#define MAP_PRIVATE         0x0002
+#define MAP_FIXED           0x0010
+#define MAP_ANONYMOUS       0x0020
+#define MAP_ANON            MAP_ANONYMOUS
 
-#define MAP_FAILED      ((void *)-1)
+#define MAP_FAILED          ((void *)-1)
 
 struct sysinfo {
     int64_t uptime;
@@ -51,6 +54,7 @@ struct sysinfo {
     char _f[20-2*sizeof(uint64_t)-sizeof(uint32_t)];
 };
 
+struct stat;
 extern int errno;
 
 void exit(int status) __attribute__((noreturn));
@@ -59,6 +63,9 @@ int64_t read(int fd, void *buf, size_t count);
 int64_t write(int fd, const void *buf, size_t count);
 int64_t open(const char *path, uint32_t flags, mode_t mode);
 int64_t close(int fd);
+int stat(const char *path, struct stat *buf);
+int fstat(int fd, struct stat *buf);
+int lstat(const char *path, struct stat *buf);
 void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset);
 int munmap(void *addr, size_t length);
 pid_t getpid(void);
