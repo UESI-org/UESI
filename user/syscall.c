@@ -117,6 +117,10 @@ int munmap(void *addr, size_t length) {
     return (int)handle_syscall_result(ret);
 }
 
+pid_t getpid(void) {
+    return (pid_t)syscall0(SYS_GETPID);
+}
+
 int mprotect(void *addr, size_t len, int prot) {
     int64_t ret = syscall3(SYS_MPROTECT, (uint64_t)addr, (uint64_t)len, (uint64_t)prot);
     return (int)handle_syscall_result(ret);
@@ -135,6 +139,10 @@ int sysinfo(struct sysinfo *info) {
 int gethostname(char *name, size_t len) {
     int64_t ret = syscall2(SYS_GETHOSTNAME, (uint64_t)name, (uint64_t)len);
     return (int)handle_syscall_result(ret);
+}
+
+pid_t getppid(void) {
+    return (pid_t)syscall0(SYS_GETPPID);
 }
 
 int gethostid(void) {

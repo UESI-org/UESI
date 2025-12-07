@@ -12,8 +12,10 @@
 #define SYSCALL_CLOSE       6
 #define SYSCALL_MMAP        9
 #define SYSCALL_MUNMAP      11
+#define SYSCALL_GETPID      39
 #define SYSCALL_MPROTECT    74
 #define SYSCALL_GETHOSTNAME 87
+#define SYSCALL_GETPPID     110
 #define SYSCALL_GETHOSTID   142
 #define SYSCALL_SYSINFO     214
 
@@ -36,7 +38,9 @@ int64_t sys_read(int fd, void *buf, size_t count);
 int64_t sys_write(int fd, const void *buf, size_t count);
 int64_t sys_open(const char *path, uint32_t flags, mode_t mode);
 int64_t sys_close(int fd);
+int64_t sys_getpid(void);
 int64_t sys_gethostname(char *name, size_t len);
+int64_t sys_getppid(void);
 int64_t sys_gethostid(void);
 int64_t sys_sysinfo(struct sysinfo *info);
 

@@ -364,6 +364,30 @@ int64_t sys_close(int fd) {
     return 0;
 }
 
+int64_t sys_getpid(void) {
+    struct proc *p = proc_get_current();
+    if (p == NULL || p->p_p == NULL) {
+        return -ESRCH;
+    }
+    
+    return (int64_t)p->p_p->ps_pid;
+}
+
+int64_t sys_getppid(void) {
+    struct proc *p = proc_get_current();
+    if (p == NULL || p->p_p == NULL) {
+        return -ESRCH;
+    }
+    
+    struct process *ps = p->p_p;
+    
+    if (ps->ps_pptr == NULL) {
+        return 0;
+    }
+    
+    return (int64_t)ps->ps_pptr->ps_pid;
+}
+
 int64_t sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset) {
     struct proc *p = proc_get_current();
     
@@ -608,6 +632,14 @@ void syscall_handler(syscall_registers_t *regs) {
         
         case SYSCALL_CLOSE:
             ret = sys_close((int)regs->rdi);
+            break;
+
+        case SYSCALL_GETPID:
+            ret = sys_getpid();
+            break;
+
+        case SYSCALL_GETPPID:
+            ret = sys_getppid();
             break;
 
         case SYSCALL_MMAP:

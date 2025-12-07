@@ -14,8 +14,10 @@
 #define SYS_CLOSE       6
 #define SYS_MMAP        9
 #define SYS_MUNMAP      11
+#define SYS_GETPID      39
 #define SYS_MPROTECT    74
 #define SYS_GETHOSTNAME 87
+#define SYS_GETPPID     110
 #define SYS_GETHOSTID   142
 #define SYS_SYSINFO     214
 
@@ -57,8 +59,10 @@ int64_t open(const char *path, uint32_t flags, mode_t mode);
 int64_t close(int fd);
 void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset);
 int munmap(void *addr, size_t length);
+pid_t getpid(void);
 int mprotect(void *addr, size_t len, int prot);
 int gethostname(char *name, size_t len);
+pid_t getppid(void);
 int gethostid(void);
 int sysinfo(struct sysinfo *info);
 
