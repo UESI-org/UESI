@@ -113,6 +113,18 @@ int lstat(const char *path, struct stat *buf) {
     return (int)handle_syscall_result(ret);
 }
 
+off_t lseek(int fd, off_t offset, int whence) {
+    int64_t ret = syscall3(SYSCALL_LSEEK, (uint64_t)fd, (uint64_t)offset, (uint64_t)whence);
+    
+    if (ret < 0) {
+        errno = (int)(-ret);
+        return (off_t)-1;
+    }
+    
+    errno = 0;
+    return (off_t)ret;
+}
+
 pid_t fork(void) {
     int64_t ret = syscall0(SYSCALL_FORK);
     

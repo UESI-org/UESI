@@ -20,6 +20,7 @@
 #define SYSCALL_GETHOSTNAME 87
 #define SYSCALL_GETHOSTID   142
 #define SYSCALL_MMAP        197
+#define SYSCALL_LSEEK       199
 #define SYSCALL_SYSINFO     214
 #define SYSCALL_STAT        439
 #define SYSCALL_FSTAT       440
@@ -66,6 +67,7 @@ int64_t close(int fd);
 int stat(const char *path, struct stat *buf);
 int fstat(int fd, struct stat *buf);
 int lstat(const char *path, struct stat *buf);
+off_t lseek(int fd, off_t offset, int whence);
 void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset);
 int munmap(void *addr, size_t length);
 pid_t getpid(void);

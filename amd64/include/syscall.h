@@ -19,6 +19,7 @@
 #define SYSCALL_GETHOSTNAME 87
 #define SYSCALL_GETHOSTID   142
 #define SYSCALL_MMAP        197
+#define SYSCALL_LSEEK       199
 #define SYSCALL_SYSINFO     214
 #define SYSCALL_STAT        439
 #define SYSCALL_FSTAT       440
@@ -47,6 +48,7 @@ int64_t sys_close(int fd);
 int64_t sys_stat(const char *path, struct stat *statbuf);
 int64_t sys_fstat(int fd, struct stat *statbuf);
 int64_t sys_lstat(const char *path, struct stat *statbuf);
+int64_t sys_lseek(int fd, off_t offset, int whence);
 int64_t sys_getpid(void);
 int64_t sys_gethostname(char *name, size_t len);
 int64_t sys_getppid(void);

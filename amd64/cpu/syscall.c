@@ -580,6 +580,34 @@ int64_t sys_lstat(const char *path, struct stat *statbuf) {
     return 0;
 }
 
+int64_t sys_lseek(int fd, off_t offset, int whence) {
+    task_t *current = scheduler_get_current_task();
+    if (current == NULL) {
+        return -ESRCH;
+    }
+
+    if (fd < 0 || fd >= MAX_OPEN_FILES) {
+        return -EBADF;
+    }
+
+    vfs_file_t *file = (vfs_file_t *)current->fd_table[fd];
+    if (file == NULL) {
+        return -EBADF;
+    }
+
+    if (whence != VFS_SEEK_SET && whence != VFS_SEEK_CUR && whence != VFS_SEEK_END) {
+        return -EINVAL;
+    }
+
+    off_t result = vfs_seek(file, offset, whence);
+    
+    if (result < 0) {
+        return -vfs_errno((int)result);
+    }
+
+    return result;
+}
+
 int64_t sys_fork(syscall_registers_t *regs) {
     struct proc *parent_proc = proc_get_current();
     if (!parent_proc || !parent_proc->p_p) {
