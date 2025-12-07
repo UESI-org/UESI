@@ -103,6 +103,40 @@ void sys_exit(int status) {
     task_t *current = scheduler_get_current_task();
     
     if (current) {
+        struct proc *p = proc_get_current();
+        
+        if (p != NULL && p->p_p != NULL && p->p_p->ps_vmspace != NULL) {
+            struct process *ps = p->p_p;
+            
+            tty_printf("[SYSCALL] Cleaning up memory mappings for task %d\n", current->tid);
+            
+            extern struct limine_hhdm_response *boot_get_hhdm(void);
+            struct limine_hhdm_response *hhdm = boot_get_hhdm();
+            uint64_t hhdm_offset = hhdm ? hhdm->offset : 0;
+            
+            uint64_t start = USER_SPACE_START;
+            uint64_t end = ps->ps_brk;
+            
+            if (end > start) {
+                uint64_t current_page = (start + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
+                
+                while (current_page < end) {
+                    uint64_t phys_addr = mmu_get_physical_address(ps->ps_vmspace, current_page);
+                    
+                    if (phys_addr != 0) {
+                        paging_unmap_range(ps->ps_vmspace, current_page, 1);
+                        
+                        void *page_virt = (void *)(phys_addr + hhdm_offset);
+                        pmm_free(page_virt);
+                    }
+                    
+                    current_page += PAGE_SIZE;
+                }
+                
+                tty_printf("[SYSCALL] Unmapped memory range 0x%lx - 0x%lx\n", start, end);
+            }
+        }
+        
         for (int i = 0; i < MAX_OPEN_FILES; i++) {
             if (current->fd_table[i] != NULL) {
                 vfs_file_t *file = (vfs_file_t *)current->fd_table[i];
