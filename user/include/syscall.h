@@ -13,6 +13,7 @@
 #define SYSCALL_WRITE       4
 #define SYSCALL_OPEN        5
 #define SYSCALL_CLOSE       6
+#define SYSCALL_BRK         17
 #define SYSCALL_GETPID      20
 #define SYSCALL_GETPPID     39
 #define SYSCALL_MUNMAP      73
@@ -70,6 +71,8 @@ int lstat(const char *path, struct stat *buf);
 off_t lseek(int fd, off_t offset, int whence);
 void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset);
 int munmap(void *addr, size_t length);
+int brk(void *addr);
+void *sbrk(intptr_t increment);
 pid_t getpid(void);
 int mprotect(void *addr, size_t len, int prot);
 int gethostname(char *name, size_t len);

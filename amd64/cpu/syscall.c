@@ -991,6 +991,104 @@ int64_t sys_mprotect(void *addr, size_t len, int prot) {
     return 0;
 }
 
+int64_t sys_brk(void *addr) {
+    struct proc *p = proc_get_current();
+    if (p == NULL) {
+        return -ESRCH;
+    }
+
+    struct process *ps = p->p_p;
+    if (ps == NULL || ps->ps_vmspace == NULL) {
+        return -ESRCH;
+    }
+
+    uint64_t new_brk = (uint64_t)addr;
+
+    if (new_brk == 0) {
+        return (int64_t)ps->ps_brk;
+    }
+
+    if (!is_user_address((void *)new_brk)) {
+        return -ENOMEM;
+    }
+
+    uint64_t old_brk_page = (ps->ps_brk + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
+    uint64_t new_brk_page = (new_brk + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
+
+    extern struct limine_hhdm_response *boot_get_hhdm(void);
+    struct limine_hhdm_response *hhdm = boot_get_hhdm();
+    uint64_t hhdm_offset = hhdm ? hhdm->offset : 0;
+
+    if (new_brk > ps->ps_brk) {
+        if (new_brk_page > old_brk_page) {
+            size_t num_pages = (new_brk_page - old_brk_page) / PAGE_SIZE;
+            uint64_t page_flags = PAGE_PRESENT | PAGE_USER | PAGE_WRITE;
+
+            for (size_t i = 0; i < num_pages; i++) {
+                uint64_t virt_page = old_brk_page + (i * PAGE_SIZE);
+
+                uint64_t existing = mmu_get_physical_address(ps->ps_vmspace, virt_page);
+                if (existing != 0) {
+                    continue;  /* Page already mapped */
+                }
+
+                void *page_virt = pmm_alloc();
+                if (page_virt == NULL) {
+                    for (size_t j = 0; j < i; j++) {
+                        uint64_t rollback_virt = old_brk_page + (j * PAGE_SIZE);
+                        uint64_t rollback_phys = mmu_get_physical_address(ps->ps_vmspace, rollback_virt);
+                        if (rollback_phys != 0) {
+                            paging_unmap_range(ps->ps_vmspace, rollback_virt, 1);
+                            void *rollback_page = (void *)(rollback_phys + hhdm_offset);
+                            pmm_free(rollback_page);
+                        }
+                    }
+                    return -ENOMEM;
+                }
+
+                memset(page_virt, 0, PAGE_SIZE);
+                uint64_t phys_page = (uint64_t)page_virt - hhdm_offset;
+
+                if (!paging_map_range(ps->ps_vmspace, virt_page, phys_page, 1, page_flags)) {
+                    pmm_free(page_virt);
+                    for (size_t j = 0; j < i; j++) {
+                        uint64_t rollback_virt = old_brk_page + (j * PAGE_SIZE);
+                        uint64_t rollback_phys = mmu_get_physical_address(ps->ps_vmspace, rollback_virt);
+                        if (rollback_phys != 0) {
+                            paging_unmap_range(ps->ps_vmspace, rollback_virt, 1);
+                            void *rollback_page = (void *)(rollback_phys + hhdm_offset);
+                            pmm_free(rollback_page);
+                        }
+                    }
+                    return -ENOMEM;
+                }
+            }
+        }
+        ps->ps_brk = new_brk;
+        return (int64_t)new_brk;
+    }
+    else if (new_brk < ps->ps_brk) {
+        if (new_brk_page < old_brk_page) {
+            size_t num_pages = (old_brk_page - new_brk_page) / PAGE_SIZE;
+
+            for (size_t i = 0; i < num_pages; i++) {
+                uint64_t virt_page = new_brk_page + (i * PAGE_SIZE);
+                uint64_t phys_addr = mmu_get_physical_address(ps->ps_vmspace, virt_page);
+
+                if (phys_addr != 0) {
+                    paging_unmap_range(ps->ps_vmspace, virt_page, 1);
+                    void *page_virt = (void *)(phys_addr + hhdm_offset);
+                    pmm_free(page_virt);
+                }
+            }
+        }
+        ps->ps_brk = new_brk;
+        return (int64_t)new_brk;
+    }
+
+    return (int64_t)ps->ps_brk;
+}
+
 int64_t sys_gethostname(char *name, size_t len) {
     if (len == 0) {
         return -EINVAL;
@@ -1056,6 +1154,10 @@ void syscall_handler(syscall_registers_t *regs) {
 
         case SYSCALL_FORK:
             ret = sys_fork(regs);
+            break;
+
+        case SYSCALL_BRK:
+            ret = sys_brk((void*)regs->rdi);
             break;
 
         case SYSCALL_GETPID:

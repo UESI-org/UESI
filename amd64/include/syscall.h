@@ -12,6 +12,7 @@
 #define SYSCALL_WRITE       4
 #define SYSCALL_OPEN        5
 #define SYSCALL_CLOSE       6
+#define SYSCALL_BRK         17
 #define SYSCALL_GETPID      20
 #define SYSCALL_GETPPID     39
 #define SYSCALL_MUNMAP      73
@@ -49,6 +50,7 @@ int64_t sys_stat(const char *path, struct stat *statbuf);
 int64_t sys_fstat(int fd, struct stat *statbuf);
 int64_t sys_lstat(const char *path, struct stat *statbuf);
 int64_t sys_lseek(int fd, off_t offset, int whence);
+int64_t sys_brk(void *addr);
 int64_t sys_getpid(void);
 int64_t sys_gethostname(char *name, size_t len);
 int64_t sys_getppid(void);

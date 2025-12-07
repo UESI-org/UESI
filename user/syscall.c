@@ -155,6 +155,42 @@ int munmap(void *addr, size_t length) {
     return (int)handle_syscall_result(ret);
 }
 
+int brk(void *addr) {
+    int64_t ret = syscall1(SYSCALL_BRK, (uint64_t)addr);
+    
+    if (ret < 0) {
+        errno = (int)(-ret);
+        return -1;
+    }
+    
+    errno = 0;
+    return 0;
+}
+
+void *sbrk(intptr_t increment) {
+    int64_t current = syscall1(SYSCALL_BRK, 0);
+    
+    if (current < 0) {
+        errno = (int)(-current);
+        return (void *)-1;
+    }
+    
+    if (increment == 0) {
+        return (void *)current;
+    }
+    
+    uint64_t new_brk = (uint64_t)current + increment;
+    
+    int64_t ret = syscall1(SYSCALL_BRK, new_brk);
+    
+    if (ret < 0) {
+        errno = (int)(-ret);
+        return (void *)-1;
+    }
+    
+    return (void *)current;
+}
+
 pid_t getpid(void) {
     return (pid_t)syscall0(SYSCALL_GETPID);
 }
