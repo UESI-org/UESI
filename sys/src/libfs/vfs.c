@@ -11,32 +11,26 @@ extern void serial_printf(uint16_t port, const char *fmt, ...);
 #define DEBUG_PORT 0x3F8
 #define VFS_DEBUG(fmt, ...) serial_printf(DEBUG_PORT, "[VFS] " fmt, ##__VA_ARGS__)
 
-/* VFS global state */
 static vfs_mount_t *mount_list = NULL;
 static spinlock_t mount_list_lock = SPINLOCK_INITIALIZER("mount_list");
 
 static vfs_ops_t *fs_types = NULL;
 static spinlock_t fs_types_lock = SPINLOCK_INITIALIZER("fs_types");
 
-/* VNode hash table for cache */
 #define VNODE_HASH_SIZE 256
 static vnode_t *vnode_hash[VNODE_HASH_SIZE];
 static spinlock_t vnode_hash_lock = SPINLOCK_INITIALIZER("vnode_hash");
 
-/* Dentry cache */
 #define DENTRY_HASH_SIZE 512
 static vfs_dentry_t *dentry_hash[DENTRY_HASH_SIZE];
 static spinlock_t dentry_hash_lock = SPINLOCK_INITIALIZER("dentry_hash");
 
-/* Root mount point */
 static vfs_mount_t *root_mount = NULL;
 
-/* Hash function for vnode cache */
 static inline uint32_t vnode_hash_func(dev_t dev, ino_t ino) {
     return ((uint32_t)dev ^ (uint32_t)ino) % VNODE_HASH_SIZE;
 }
 
-/* Hash function for dentry cache */
 static uint32_t dentry_hash_func(const char *path) {
     uint32_t hash = 5381;
     int c;
@@ -45,9 +39,6 @@ static uint32_t dentry_hash_func(const char *path) {
     return hash % DENTRY_HASH_SIZE;
 }
 
-/*
- * Initialize the VFS subsystem
- */
 int vfs_init(void) {
     VFS_DEBUG("Initializing Virtual File System\n");
     
@@ -63,9 +54,6 @@ int vfs_init(void) {
     return VFS_SUCCESS;
 }
 
-/*
- * Register a filesystem type
- */
 int vfs_register_filesystem(vfs_ops_t *ops) {
     if (ops == NULL || ops->fs_name == NULL) {
         return -EINVAL;
@@ -95,9 +83,6 @@ int vfs_register_filesystem(vfs_ops_t *ops) {
     return VFS_SUCCESS;
 }
 
-/*
- * Unregister a filesystem type
- */
 int vfs_unregister_filesystem(const char *fs_name) {
     if (fs_name == NULL) {
         return -EINVAL;
@@ -121,9 +106,6 @@ int vfs_unregister_filesystem(const char *fs_name) {
     return -ENOENT;
 }
 
-/*
- * Find a registered filesystem type
- */
 static vfs_ops_t *vfs_find_filesystem(const char *fs_name) {
     uint64_t flags;
     spinlock_acquire_irqsave(&fs_types_lock, &flags);
@@ -141,9 +123,6 @@ static vfs_ops_t *vfs_find_filesystem(const char *fs_name) {
     return NULL;
 }
 
-/*
- * Mount a filesystem
- */
 int vfs_mount(const char *device, const char *mountpoint, 
               const char *fstype, uint32_t flags, void *data) {
     if (mountpoint == NULL || fstype == NULL) {
@@ -190,9 +169,6 @@ int vfs_mount(const char *device, const char *mountpoint,
     return VFS_SUCCESS;
 }
 
-/*
- * Unmount a filesystem
- */
 int vfs_unmount(const char *mountpoint, uint32_t flags) {
     if (mountpoint == NULL) {
         return -EINVAL;
@@ -240,9 +216,6 @@ int vfs_unmount(const char *mountpoint, uint32_t flags) {
     return -ENOENT;
 }
 
-/*
- * Allocate a new vnode
- */
 vnode_t *vfs_vnode_alloc(vfs_mount_t *mnt, ino_t ino) {
     vnode_t *vnode = kmalloc(sizeof(vnode_t));
     if (vnode == NULL) {
@@ -268,9 +241,6 @@ vnode_t *vfs_vnode_alloc(vfs_mount_t *mnt, ino_t ino) {
     return vnode;
 }
 
-/*
- * Free a vnode
- */
 void vfs_vnode_free(vnode_t *vnode) {
     if (vnode == NULL) {
         return;
@@ -301,9 +271,6 @@ void vfs_vnode_free(vnode_t *vnode) {
     kfree(vnode);
 }
 
-/*
- * Increment vnode reference count
- */
 void vfs_vnode_ref(vnode_t *vnode) {
     if (vnode == NULL) {
         return;
@@ -315,9 +282,6 @@ void vfs_vnode_ref(vnode_t *vnode) {
     spinlock_release_irqrestore(&vnode->v_lock, flags);
 }
 
-/*
- * Decrement vnode reference count
- */
 void vfs_vnode_unref(vnode_t *vnode) {
     if (vnode == NULL) {
         return;
@@ -339,16 +303,10 @@ void vfs_vnode_unref(vnode_t *vnode) {
     spinlock_release_irqrestore(&vnode->v_lock, flags);
 }
 
-/*
- * Check if path is absolute
- */
 int vfs_is_absolute_path(const char *path) {
     return path != NULL && path[0] == '/';
 }
 
-/*
- * Normalize a path (resolve . and .., remove duplicate /)
- */
 int vfs_normalize_path(const char *path, char *normalized) {
     if (path == NULL || normalized == NULL) {
         return -EINVAL;
@@ -416,9 +374,6 @@ int vfs_normalize_path(const char *path, char *normalized) {
     return VFS_SUCCESS;
 }
 
-/*
- * Get basename of path
- */
 const char *vfs_basename(const char *path) {
     if (path == NULL) {
         return NULL;
@@ -428,9 +383,6 @@ const char *vfs_basename(const char *path) {
     return base ? base + 1 : path;
 }
 
-/*
- * Get dirname of path
- */
 const char *vfs_dirname(const char *path, char *buf, size_t bufsize) {
     if (path == NULL || buf == NULL || bufsize == 0) {
         return NULL;
@@ -455,9 +407,6 @@ const char *vfs_dirname(const char *path, char *buf, size_t bufsize) {
     return buf;
 }
 
-/*
- * Lookup a path and return the vnode
- */
 int vfs_lookup(const char *path, vnode_t **result) {
     if (path == NULL || result == NULL) {
         return -EINVAL;
@@ -526,9 +475,6 @@ int vfs_lookup(const char *path, vnode_t **result) {
     return VFS_SUCCESS;
 }
 
-/*
- * Lookup parent directory and return filename
- */
 int vfs_lookup_parent(const char *path, vnode_t **parent, char **name) {
     if (path == NULL || parent == NULL || name == NULL) {
         return -EINVAL;
@@ -556,9 +502,6 @@ int vfs_lookup_parent(const char *path, vnode_t **parent, char **name) {
     return VFS_SUCCESS;
 }
 
-/*
- * Open a file
- */
 int vfs_open(const char *path, uint32_t flags, mode_t mode, vfs_file_t **file) {
     if (path == NULL || file == NULL) {
         return -EINVAL;
@@ -620,9 +563,6 @@ int vfs_open(const char *path, uint32_t flags, mode_t mode, vfs_file_t **file) {
     return VFS_SUCCESS;
 }
 
-/*
- * Close a file
- */
 int vfs_close(vfs_file_t *file) {
     if (file == NULL) {
         return -EINVAL;
@@ -645,9 +585,6 @@ int vfs_close(vfs_file_t *file) {
     return VFS_SUCCESS;
 }
 
-/*
- * Read from a file
- */
 ssize_t vfs_read(vfs_file_t *file, void *buf, size_t count) {
     if (file == NULL || buf == NULL) {
         return -EINVAL;
@@ -678,9 +615,6 @@ ssize_t vfs_read(vfs_file_t *file, void *buf, size_t count) {
     return bytes;
 }
 
-/*
- * Write to a file
- */
 ssize_t vfs_write(vfs_file_t *file, const void *buf, size_t count) {
     if (file == NULL || buf == NULL) {
         return -EINVAL;
@@ -713,9 +647,6 @@ ssize_t vfs_write(vfs_file_t *file, const void *buf, size_t count) {
     return bytes;
 }
 
-/*
- * Seek in a file
- */
 off_t vfs_seek(vfs_file_t *file, off_t offset, int whence) {
     if (file == NULL) {
         return -EINVAL;
@@ -752,9 +683,6 @@ off_t vfs_seek(vfs_file_t *file, off_t offset, int whence) {
     return new_offset;
 }
 
-/*
- * Get file status
- */
 int vfs_stat(const char *path, vfs_stat_t *stat) {
     if (path == NULL || stat == NULL) {
         return -EINVAL;
@@ -787,9 +715,6 @@ int vfs_stat(const char *path, vfs_stat_t *stat) {
     return ret;
 }
 
-/*
- * Get file status from file descriptor
- */
 int vfs_fstat(vfs_file_t *file, vfs_stat_t *stat) {
     if (file == NULL || stat == NULL) {
         return -EINVAL;
@@ -816,9 +741,17 @@ int vfs_fstat(vfs_file_t *file, vfs_stat_t *stat) {
     return VFS_SUCCESS;
 }
 
-/*
- * Check file access permissions
- */
+int vfs_lstat(const char *path, vfs_stat_t *stat) {
+    if (path == NULL || stat == NULL) {
+        return -EINVAL;
+    }
+
+    /* TODO: Implement proper lstat that stops at symlinks
+     */
+    
+    return vfs_stat(path, stat);
+}
+
 int vfs_access(const char *path, int mode) {
     vnode_t *vnode;
     int ret = vfs_lookup(path, &vnode);
@@ -832,9 +765,6 @@ int vfs_access(const char *path, int mode) {
     return VFS_SUCCESS;
 }
 
-/*
- * Change file mode
- */
 int vfs_chmod(const char *path, mode_t mode) {
     vnode_t *vnode;
     int ret = vfs_lookup(path, &vnode);
@@ -852,9 +782,6 @@ int vfs_chmod(const char *path, mode_t mode) {
     return VFS_SUCCESS;
 }
 
-/*
- * Change file ownership
- */
 int vfs_chown(const char *path, uid_t uid, gid_t gid) {
     vnode_t *vnode;
     int ret = vfs_lookup(path, &vnode);
@@ -873,9 +800,6 @@ int vfs_chown(const char *path, uid_t uid, gid_t gid) {
     return VFS_SUCCESS;
 }
 
-/*
- * Rename a file
- */
 int vfs_rename(const char *oldpath, const char *newpath) {
     if (oldpath == NULL || newpath == NULL) {
         return -EINVAL;
@@ -891,9 +815,6 @@ int vfs_rename(const char *oldpath, const char *newpath) {
     return -ENOSYS;
 }
 
-/*
- * Create a directory
- */
 int vfs_mkdir(const char *path, mode_t mode) {
     if (path == NULL) {
         return -EINVAL;
@@ -921,9 +842,6 @@ int vfs_mkdir(const char *path, mode_t mode) {
     return ret;
 }
 
-/*
- * Remove a file
- */
 int vfs_unlink(const char *path) {
     if (path == NULL) {
         return -EINVAL;
@@ -951,9 +869,6 @@ int vfs_unlink(const char *path) {
     return ret;
 }
 
-/*
- * Create a hard link
- */
 int vfs_link(const char *oldpath, const char *newpath) {
     if (oldpath == NULL || newpath == NULL) {
         return -EINVAL;
@@ -991,9 +906,6 @@ int vfs_link(const char *oldpath, const char *newpath) {
     return ret;
 }
 
-/*
- * Create a symbolic link
- */
 int vfs_symlink(const char *target, const char *linkpath) {
     if (target == NULL || linkpath == NULL) {
         return -EINVAL;
@@ -1021,9 +933,6 @@ int vfs_symlink(const char *target, const char *linkpath) {
     return ret;
 }
 
-/*
- * Read a symbolic link
- */
 int vfs_readlink(const char *path, char *buf, size_t bufsize) {
     if (path == NULL || buf == NULL || bufsize == 0) {
         return -EINVAL;
@@ -1051,9 +960,6 @@ int vfs_readlink(const char *path, char *buf, size_t bufsize) {
     return ret;
 }
 
-/*
- * Truncate a file
- */
 int vfs_truncate(const char *path, off_t length) {
     if (path == NULL) {
         return -EINVAL;
@@ -1076,9 +982,6 @@ int vfs_truncate(const char *path, off_t length) {
     return ret;
 }
 
-/*
- * Sync all filesystems
- */
 int vfs_sync(void) {
     uint64_t flags;
     spinlock_acquire_irqsave(&mount_list_lock, &flags);
@@ -1096,9 +999,6 @@ int vfs_sync(void) {
     return VFS_SUCCESS;
 }
 
-/*
- * Sync a single file
- */
 int vfs_fsync(vfs_file_t *file) {
     if (file == NULL) {
         return -EINVAL;
@@ -1112,10 +1012,6 @@ int vfs_fsync(vfs_file_t *file) {
     
     return vnode->v_ops->sync(vnode);
 }
-
-/*
- * Dentry cache operations
- */
 
 vfs_dentry_t *vfs_dentry_lookup(const char *path) {
     if (path == NULL) {
@@ -1227,10 +1123,6 @@ void vfs_dentry_purge(void) {
     VFS_DEBUG("Dentry cache purged\n");
 }
 
-/*
- * Debug functions
- */
-
 void vfs_dump_mounts(void) {
     VFS_DEBUG("=== Mounted Filesystems ===\n");
     
@@ -1286,9 +1178,6 @@ void vfs_dump_vnodes(void) {
     VFS_DEBUG("===================\n");
 }
 
-/*
- * Remove a directory
- */
 int vfs_rmdir(const char *path) {
     if (path == NULL) {
         return -EINVAL;
@@ -1316,9 +1205,6 @@ int vfs_rmdir(const char *path) {
     return ret;
 }
 
-/*
- * Read directory entries
- */
 int vfs_readdir(vfs_file_t *file, vfs_dirent_t *dirent) {
     if (file == NULL || dirent == NULL) {
         return -EINVAL;
@@ -1350,9 +1236,6 @@ int vfs_readdir(vfs_file_t *file, vfs_dirent_t *dirent) {
     return ret;
 }
 
-/*
- * Create a file
- */
 int vfs_create(const char *path, mode_t mode) {
     if (path == NULL) {
         return -EINVAL;

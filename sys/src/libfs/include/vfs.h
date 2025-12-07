@@ -194,6 +194,7 @@ ssize_t vfs_write(vfs_file_t *file, const void *buf, size_t count);
 off_t vfs_seek(vfs_file_t *file, off_t offset, int whence);
 int vfs_stat(const char *path, vfs_stat_t *stat);
 int vfs_fstat(vfs_file_t *file, vfs_stat_t *stat);
+int vfs_lstat(const char *path, vfs_stat_t *stat);
 
 int vfs_access(const char *path, int mode);
 int vfs_chmod(const char *path, mode_t mode);

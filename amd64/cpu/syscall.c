@@ -558,8 +558,7 @@ int64_t sys_lstat(const char *path, struct stat *statbuf) {
     vfs_stat_t kstat;
     memset(&kstat, 0, sizeof(vfs_stat_t));
 
-    /* TODO: for now just use vfs_stat - later add vfs_lstat */
-    int ret = vfs_stat(path, &kstat);
+    int ret = vfs_lstat(path, &kstat);
     if (ret != VFS_SUCCESS) {
         return -vfs_errno(ret);
     }
