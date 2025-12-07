@@ -377,3 +377,72 @@ proc_enter_usermode(struct proc *p, uint64_t entry_point, uint64_t stack_top)
     
     __builtin_unreachable();
 }
+
+void
+proc_fork_child_entry(void *arg)
+{
+    struct proc *p = (struct proc *)arg;
+    struct trapframe *tf = (struct trapframe *)p->p_md.md_regs;
+    
+    if (!p || !tf) {
+        printf_("proc_fork_child_entry: invalid arguments\n");
+        while (1) asm("hlt");
+    }
+    
+    struct process *ps = p->p_p;
+    printf_("Child process %d (thread %d) starting\n", ps->ps_pid, p->p_tid);
+    
+    proc_set_current(p);
+    p->p_stat = SONPROC;
+    
+    uint64_t user_cr3 = ps->ps_vmspace->phys_addr;
+    
+    tss_set_rsp0(p->p_kstack_top);
+    
+    /* Return to userspace using the saved trapframe */
+    asm volatile(
+        "cli\n"
+        
+        /* Load registers from trapframe */
+        "movq %0, %%rsp\n"          /* Point RSP to trapframe */
+        
+        /* Load general purpose registers */
+        "movq 0(%%rsp), %%r15\n"
+        "movq 8(%%rsp), %%r14\n"
+        "movq 16(%%rsp), %%r13\n"
+        "movq 24(%%rsp), %%r12\n"
+        "movq 32(%%rsp), %%r11\n"
+        "movq 40(%%rsp), %%r10\n"
+        "movq 48(%%rsp), %%r9\n"
+        "movq 56(%%rsp), %%r8\n"
+        "movq 64(%%rsp), %%rbp\n"
+        "movq 72(%%rsp), %%rdi\n"
+        "movq 80(%%rsp), %%rsi\n"
+        "movq 88(%%rsp), %%rdx\n"
+        "movq 96(%%rsp), %%rcx\n"
+        "movq 104(%%rsp), %%rbx\n"
+        "movq 112(%%rsp), %%rax\n"   /* RAX=0 for child */
+        
+        /* Skip trapno and err (already processed) */
+        /* Load user CR3 */
+        "movq %1, %%cr3\n"
+        
+        /* Set up data segments for user mode */
+        "movw $0x23, %%ax\n"         /* User data selector */
+        "movw %%ax, %%ds\n"
+        "movw %%ax, %%es\n"
+        "movw %%ax, %%fs\n"
+        "movw %%ax, %%gs\n"
+        
+        /* Point to iret frame */
+        "addq $136, %%rsp\n"         /* Skip to tf_rip */
+        
+        /* Stack now has: RIP, CS, RFLAGS, RSP, SS */
+        "iretq\n"
+        :
+        : "r"(tf), "r"(user_cr3)
+        : "memory"
+    );
+    
+    __builtin_unreachable();
+}

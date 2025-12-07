@@ -98,6 +98,17 @@ int64_t write(int fd, const void *buf, size_t count) {
     return handle_syscall_result(ret);
 }
 
+pid_t fork(void) {
+    int64_t ret = syscall0(SYS_FORK);
+    
+    if (ret < 0) {
+        errno = (int)(-ret);
+        return -1;
+    }
+    
+    return (pid_t)ret;
+}
+
 void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset) {
     int64_t ret = syscall6(SYS_MMAP, (uint64_t)addr, (uint64_t)length,
                            (uint64_t)prot, (uint64_t)flags,

@@ -304,6 +304,19 @@ task_t *scheduler_get_current_task(void) {
     return scheduler.current_task;
 }
 
+task_t *scheduler_add_forked_task(task_t *task) {
+    if (!task) return NULL;
+    
+    queue_add(&scheduler.ready_queues[task->priority], task);
+    scheduler.stats.total_tasks++;
+    scheduler.stats.ready_tasks++;
+    
+    tty_printf("[SCHED] Added forked task %d: %s to ready queue\n",
+               task->tid, task->name);
+    
+    return task;
+}
+
 task_t *scheduler_get_task_by_tid(uint32_t tid) {
     for (int i = 0; i < 5; i++) {
         task_t *task = scheduler.ready_queues[i].head;

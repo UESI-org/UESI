@@ -75,6 +75,7 @@ void scheduler_init(uint32_t timer_frequency);
 
 task_t *scheduler_create_task(const char *name, void (*entry_point)(void), 
                                task_priority_t priority, bool is_kernel);
+task_t *scheduler_add_forked_task(task_t *task);
 void scheduler_destroy_task(task_t *task);
 void scheduler_exit_task(uint32_t exit_code);
 

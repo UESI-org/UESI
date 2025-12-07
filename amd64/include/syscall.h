@@ -6,6 +6,7 @@
 #include <sys/types.h>
 
 #define SYSCALL_EXIT        1
+#define SYSCALL_FORK        2
 #define SYSCALL_READ        3
 #define SYSCALL_WRITE       4
 #define SYSCALL_OPEN        5
@@ -34,6 +35,7 @@ void syscall_init(void);
 void syscall_handler(syscall_registers_t *regs);
 
 void sys_exit(int status) __attribute__((noreturn));
+int64_t sys_fork(syscall_registers_t *regs);
 int64_t sys_read(int fd, void *buf, size_t count);
 int64_t sys_write(int fd, const void *buf, size_t count);
 int64_t sys_open(const char *path, uint32_t flags, mode_t mode);

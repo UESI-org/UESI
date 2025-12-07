@@ -11,6 +11,9 @@
 #include <pmm.h>
 #include <proc.h>
 #include <string.h>
+#include <tapframe.h>
+#include <kmalloc.h>
+#include <kfree.h>
 
 extern bool keyboard_has_key(void);
 extern char keyboard_getchar(void);
@@ -38,6 +41,53 @@ static inline bool is_user_range(const void *addr, size_t len) {
     if (end < start) return false;
     
     return is_user_address(addr) && end <= USER_SPACE_END;
+}
+
+static task_t *scheduler_create_forked_task(struct proc *p) {
+    if (!p || !p->p_p) {
+        return NULL;
+    }
+    
+    struct process *ps = p->p_p;
+    
+    task_t *task = pmm_alloc();
+    if (!task) {
+        return NULL;
+    }
+    
+    memset(task, 0, sizeof(task_t));
+    
+    task->tid = ps->ps_pid;  /* Use process PID as task ID */
+    strncpy(task->name, ps->ps_comm, sizeof(task->name) - 1);
+    task->name[sizeof(task->name) - 1] = '\0';
+    task->state = TASK_STATE_READY;
+    task->priority = TASK_PRIORITY_NORMAL;
+    
+    task->kernel_stack = p->p_kstack;
+    task->kernel_stack_size = PROCESS_KERNEL_STACK_SIZE;
+    task->user_stack = (void *)p->p_ustack_top;
+    task->user_stack_size = PROCESS_USER_STACK_SIZE;
+    
+    memset(&task->cpu_state, 0, sizeof(cpu_state_t));
+    
+    extern void proc_fork_child_entry(void *arg);
+    task->cpu_state.rip = (uint64_t)proc_fork_child_entry;
+    task->cpu_state.rdi = (uint64_t)p;  /* Pass proc as argument */
+    task->cpu_state.rflags = 0x202;     /* IF=1 */
+    task->cpu_state.cs = 0x08;          /* Kernel code segment */
+    task->cpu_state.ss = 0x10;          /* Kernel data segment */
+    
+    task->cpu_state.rsp = (uint64_t)p->p_kstack + PROCESS_KERNEL_STACK_SIZE - 16;
+    task->cpu_state.rbp = task->cpu_state.rsp;
+    
+    task->page_directory = (void *)ps->ps_vmspace;
+    task->cpu_state.cr3 = ps->ps_vmspace->phys_addr;
+
+    /* FD table will be copied in sys_fork from parent task */
+    
+    p->p_cpu = (void *)task;  /* Store task pointer in proc */
+    
+    return task;
 }
 
 static uint64_t mmap_prot_to_page_flags(int prot, bool is_user) {
@@ -364,6 +414,170 @@ int64_t sys_close(int fd) {
     return 0;
 }
 
+int64_t sys_fork(syscall_registers_t *regs) {
+    struct proc *parent_proc = proc_get_current();
+    if (!parent_proc || !parent_proc->p_p) {
+        return -ESRCH;
+    }
+
+    struct process *parent_ps = parent_proc->p_p;
+    
+    tty_printf("[FORK] Process %d (%s) calling fork()\n", 
+               parent_ps->ps_pid, parent_ps->ps_comm);
+
+    struct process *child_ps = process_alloc(parent_ps->ps_comm);
+    if (!child_ps) {
+        tty_printf("[FORK] Failed to allocate child process\n");
+        return -ENOMEM;
+    }
+
+    struct proc *child_proc = proc_alloc(child_ps, parent_proc->p_name);
+    if (!child_proc) {
+        tty_printf("[FORK] Failed to allocate child thread\n");
+        process_free(child_ps);
+        return -ENOMEM;
+    }
+
+    child_ps->ps_pptr = parent_ps;
+    LIST_INSERT_HEAD(&parent_ps->ps_children, child_ps, ps_sibling);
+
+    extern struct limine_hhdm_response *boot_get_hhdm(void);
+    struct limine_hhdm_response *hhdm = boot_get_hhdm();
+    uint64_t hhdm_offset = hhdm ? hhdm->offset : 0;
+
+    page_directory_t *parent_pd = parent_ps->ps_vmspace;
+    page_directory_t *child_pd = child_ps->ps_vmspace;
+
+    pml4e_t *parent_pml4 = parent_pd->pml4;
+    uint64_t pages_copied = 0;
+    
+    for (int pml4_idx = 0; pml4_idx < 256; pml4_idx++) {  /* Only user space */
+        if (!(parent_pml4[pml4_idx] & PAGE_PRESENT)) continue;
+
+        uint64_t pdpt_phys = parent_pml4[pml4_idx] & PAGE_ADDR_MASK;
+        pdpte_t *pdpt = (pdpte_t *)mmu_phys_to_virt(pdpt_phys);
+
+        for (int pdpt_idx = 0; pdpt_idx < 512; pdpt_idx++) {
+            if (!(pdpt[pdpt_idx] & PAGE_PRESENT)) continue;
+            if (pdpt[pdpt_idx] & PAGE_HUGE) continue;
+
+            uint64_t pd_phys = pdpt[pdpt_idx] & PAGE_ADDR_MASK;
+            pde_t *pd_table = (pde_t *)mmu_phys_to_virt(pd_phys);
+
+            for (int pd_idx = 0; pd_idx < 512; pd_idx++) {
+                if (!(pd_table[pd_idx] & PAGE_PRESENT)) continue;
+                if (pd_table[pd_idx] & PAGE_HUGE) continue;
+
+                uint64_t pt_phys = pd_table[pd_idx] & PAGE_ADDR_MASK;
+                pte_t *pt = (pte_t *)mmu_phys_to_virt(pt_phys);
+
+                for (int pt_idx = 0; pt_idx < 512; pt_idx++) {
+                    if (!(pt[pt_idx] & PAGE_PRESENT)) continue;
+
+                    uint64_t src_phys = pt[pt_idx] & PAGE_ADDR_MASK;
+                    uint64_t flags = pt[pt_idx] & ~PAGE_ADDR_MASK;
+
+                    void *new_page = pmm_alloc();
+                    if (!new_page) {
+                        tty_printf("[FORK] Out of memory during fork\n");
+                        /* TODO: Clean up partial copy */
+                        proc_free(child_proc);
+                        process_free(child_ps);
+                        return -ENOMEM;
+                    }
+
+                    void *src_page = (void *)(src_phys + hhdm_offset);
+                    memcpy(new_page, src_page, PAGE_SIZE);
+
+                    uint64_t new_phys = (uint64_t)new_page - hhdm_offset;
+                    uint64_t virt = ((uint64_t)pml4_idx << PML4_SHIFT) |
+                                   ((uint64_t)pdpt_idx << PDPT_SHIFT) |
+                                   ((uint64_t)pd_idx << PD_SHIFT) |
+                                   ((uint64_t)pt_idx << PT_SHIFT);
+
+                    if (!mmu_map_page(child_pd, virt, new_phys, flags)) {
+                        pmm_free(new_page);
+                        /* TODO: Clean up partial copy */
+                        proc_free(child_proc);
+                        process_free(child_ps);
+                        return -ENOMEM;
+                    }
+                    
+                    pages_copied++;
+                }
+            }
+        }
+    }
+
+    tty_printf("[FORK] Copied %llu pages (%llu KB)\n", pages_copied, pages_copied * 4);
+
+    child_ps->ps_brk = parent_ps->ps_brk;
+    child_ps->ps_flags = (parent_ps->ps_flags & ~PS_EMBRYO);
+
+    struct trapframe *child_tf = (struct trapframe *)pmm_alloc();
+    if (!child_tf) {
+        proc_free(child_proc);
+        process_free(child_ps);
+        return -ENOMEM;
+    }
+    
+    memset(child_tf, 0, PAGE_SIZE);
+    
+    child_tf->tf_rax = 0;  /* Child returns 0 from fork() */
+    child_tf->tf_rbx = regs->rbx;
+    child_tf->tf_rcx = regs->rcx;
+    child_tf->tf_rdx = regs->rdx;
+    child_tf->tf_rsi = regs->rsi;
+    child_tf->tf_rdi = regs->rdi;
+    child_tf->tf_rbp = regs->rbp;
+    child_tf->tf_r8 = regs->r8;
+    child_tf->tf_r9 = regs->r9;
+    child_tf->tf_r10 = regs->r10;
+    child_tf->tf_r11 = regs->r11;
+    child_tf->tf_r12 = regs->r12;
+    child_tf->tf_r13 = regs->r13;
+    child_tf->tf_r14 = regs->r14;
+    child_tf->tf_r15 = regs->r15;
+    child_tf->tf_rip = regs->rip;
+    child_tf->tf_cs = regs->cs;
+    child_tf->tf_rflags = regs->rflags;
+    child_tf->tf_rsp = regs->userrsp;
+    child_tf->tf_ss = regs->ss;
+    child_tf->tf_trapno = 0;
+    child_tf->tf_err = 0;
+
+    child_proc->p_md.md_regs = child_tf;
+    child_proc->p_md.md_flags = 0;
+
+    child_proc->p_stat = SRUN;
+    child_ps->ps_flags &= ~PS_EMBRYO;
+
+    task_t *child_task = scheduler_create_forked_task(child_proc);
+    if (!child_task) {
+        tty_printf("[FORK] Failed to create scheduler task\n");
+        pmm_free(child_tf);
+        proc_free(child_proc);
+        process_free(child_ps);
+        return -ENOMEM;
+    }
+
+    if (!scheduler_add_forked_task(child_task)) {
+        tty_printf("[FORK] Failed to add task to scheduler\n");
+        pmm_free(child_task);
+        pmm_free(child_tf);
+        proc_free(child_proc);
+        process_free(child_ps);
+        return -ENOMEM;
+    }
+    
+    tty_printf("[FORK] Created child process %d (task %d) from parent %d\n",
+               child_ps->ps_pid, child_task->tid, parent_ps->ps_pid);
+    tty_printf("[FORK] Child will return to RIP=0x%lx RSP=0x%lx\n",
+               child_tf->tf_rip, child_tf->tf_rsp);
+
+    return (int64_t)child_ps->ps_pid;
+}
+
 int64_t sys_getpid(void) {
     struct proc *p = proc_get_current();
     if (p == NULL || p->p_p == NULL) {
@@ -632,6 +846,10 @@ void syscall_handler(syscall_registers_t *regs) {
         
         case SYSCALL_CLOSE:
             ret = sys_close((int)regs->rdi);
+            break;
+
+        case SYSCALL_FORK:
+            ret = sys_fork(regs);
             break;
 
         case SYSCALL_GETPID:
