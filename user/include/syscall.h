@@ -71,7 +71,7 @@ int lstat(const char *path, struct stat *buf);
 off_t lseek(int fd, off_t offset, int whence);
 void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset);
 int munmap(void *addr, size_t length);
-int brk(void *addr);
+void *brk(void *addr);
 void *sbrk(intptr_t increment);
 pid_t getpid(void);
 int mprotect(void *addr, size_t len, int prot);

@@ -1002,91 +1002,107 @@ int64_t sys_brk(void *addr) {
         return -ESRCH;
     }
 
-    uint64_t new_brk = (uint64_t)addr;
+    tty_printf("[BRK] Called with addr=0x%lx, current brk=0x%lx\n", 
+               (uint64_t)addr, ps->ps_brk);
 
-    if (new_brk == 0) {
+    if (addr == NULL || addr == 0) {
         return (int64_t)ps->ps_brk;
     }
 
-    if (!is_user_address((void *)new_brk)) {
+    uint64_t new_brk = (uint64_t)addr;
+
+    if (!is_user_address(addr)) {
+        tty_printf("[BRK] Invalid address (not in user space)\n");
         return -ENOMEM;
     }
 
-    uint64_t old_brk_page = (ps->ps_brk + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
-    uint64_t new_brk_page = (new_brk + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
+    if (new_brk < USER_CODE_BASE || new_brk >= (USER_STACK_TOP - PROCESS_USER_STACK_SIZE)) {
+        tty_printf("[BRK] Address out of valid range\n");
+        return -ENOMEM;
+    }
+
+    uint64_t old_brk = ps->ps_brk;
+
+    if (old_brk == 0) {
+        old_brk = (USER_CODE_BASE + 0x100000) & ~(PAGE_SIZE - 1);  /* Start heap 1MB after code */
+        ps->ps_brk = old_brk;
+        tty_printf("[BRK] Initializing brk to 0x%lx\n", old_brk);
+    }
+
+    if (new_brk == old_brk) {
+        return (int64_t)old_brk;
+    }
 
     extern struct limine_hhdm_response *boot_get_hhdm(void);
     struct limine_hhdm_response *hhdm = boot_get_hhdm();
     uint64_t hhdm_offset = hhdm ? hhdm->offset : 0;
 
-    if (new_brk > ps->ps_brk) {
-        if (new_brk_page > old_brk_page) {
-            size_t num_pages = (new_brk_page - old_brk_page) / PAGE_SIZE;
-            uint64_t page_flags = PAGE_PRESENT | PAGE_USER | PAGE_WRITE;
+    if (new_brk > old_brk) {
+        uint64_t old_page = (old_brk + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
+        uint64_t new_page = (new_brk + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
 
-            for (size_t i = 0; i < num_pages; i++) {
-                uint64_t virt_page = old_brk_page + (i * PAGE_SIZE);
+        tty_printf("[BRK] Expanding from 0x%lx to 0x%lx\n", old_page, new_page);
 
-                uint64_t existing = mmu_get_physical_address(ps->ps_vmspace, virt_page);
-                if (existing != 0) {
-                    continue;  /* Page already mapped */
-                }
-
+        uint64_t current_page = old_page;
+        while (current_page < new_page) {
+            uint64_t phys_addr = mmu_get_physical_address(ps->ps_vmspace, current_page);
+            
+            if (phys_addr == 0) {
                 void *page_virt = pmm_alloc();
                 if (page_virt == NULL) {
-                    for (size_t j = 0; j < i; j++) {
-                        uint64_t rollback_virt = old_brk_page + (j * PAGE_SIZE);
-                        uint64_t rollback_phys = mmu_get_physical_address(ps->ps_vmspace, rollback_virt);
-                        if (rollback_phys != 0) {
-                            paging_unmap_range(ps->ps_vmspace, rollback_virt, 1);
-                            void *rollback_page = (void *)(rollback_phys + hhdm_offset);
-                            pmm_free(rollback_page);
-                        }
-                    }
+                    tty_printf("[BRK] Out of memory\n");
                     return -ENOMEM;
                 }
 
                 memset(page_virt, 0, PAGE_SIZE);
                 uint64_t phys_page = (uint64_t)page_virt - hhdm_offset;
 
-                if (!paging_map_range(ps->ps_vmspace, virt_page, phys_page, 1, page_flags)) {
+                uint64_t flags = PAGE_PRESENT | PAGE_WRITE | PAGE_USER;
+                if (!paging_map_range(ps->ps_vmspace, current_page, phys_page, 1, flags)) {
+                    tty_printf("[BRK] Failed to map page at 0x%lx\n", current_page);
                     pmm_free(page_virt);
-                    for (size_t j = 0; j < i; j++) {
-                        uint64_t rollback_virt = old_brk_page + (j * PAGE_SIZE);
-                        uint64_t rollback_phys = mmu_get_physical_address(ps->ps_vmspace, rollback_virt);
-                        if (rollback_phys != 0) {
-                            paging_unmap_range(ps->ps_vmspace, rollback_virt, 1);
-                            void *rollback_page = (void *)(rollback_phys + hhdm_offset);
-                            pmm_free(rollback_page);
-                        }
-                    }
                     return -ENOMEM;
                 }
+
+                tty_printf("[BRK] Mapped new page: virt=0x%lx phys=0x%lx\n", 
+                           current_page, phys_page);
             }
+
+            current_page += PAGE_SIZE;
         }
+
         ps->ps_brk = new_brk;
+        tty_printf("[BRK] New brk set to 0x%lx\n", new_brk);
         return (int64_t)new_brk;
     }
-    else if (new_brk < ps->ps_brk) {
-        if (new_brk_page < old_brk_page) {
-            size_t num_pages = (old_brk_page - new_brk_page) / PAGE_SIZE;
+    
+    else {
+        uint64_t new_page = (new_brk + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
+        uint64_t old_page = (old_brk + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
 
-            for (size_t i = 0; i < num_pages; i++) {
-                uint64_t virt_page = new_brk_page + (i * PAGE_SIZE);
-                uint64_t phys_addr = mmu_get_physical_address(ps->ps_vmspace, virt_page);
+        tty_printf("[BRK] Shrinking from 0x%lx to 0x%lx\n", old_page, new_page);
 
-                if (phys_addr != 0) {
-                    paging_unmap_range(ps->ps_vmspace, virt_page, 1);
-                    void *page_virt = (void *)(phys_addr + hhdm_offset);
-                    pmm_free(page_virt);
-                }
+        uint64_t current_page = new_page;
+        while (current_page < old_page) {
+            uint64_t phys_addr = mmu_get_physical_address(ps->ps_vmspace, current_page);
+            
+            if (phys_addr != 0) {
+                paging_unmap_range(ps->ps_vmspace, current_page, 1);
+                
+                void *page_virt = (void *)(phys_addr + hhdm_offset);
+                pmm_free(page_virt);
+
+                tty_printf("[BRK] Unmapped page: virt=0x%lx phys=0x%lx\n", 
+                           current_page, phys_addr);
             }
+
+            current_page += PAGE_SIZE;
         }
+
         ps->ps_brk = new_brk;
+        tty_printf("[BRK] New brk set to 0x%lx\n", new_brk);
         return (int64_t)new_brk;
     }
-
-    return (int64_t)ps->ps_brk;
 }
 
 int64_t sys_gethostname(char *name, size_t len) {
