@@ -517,17 +517,6 @@ int64_t sys_fstat(int fd, struct stat *statbuf) {
 }
 
 int64_t sys_lstat(const char *path, struct stat *statbuf) {
-    /* 
-     * lstat() is like stat() but doesn't follow symbolic links.
-     * For now, we implement it the same as stat() since we need
-     * to add proper symlink support to the VFS layer.
-     * 
-     * TODO: Implement proper lstat behavior:
-     * - Check if path is a symlink
-     * - If it is, return stat info about the link itself
-     * - If it isn't, behave like stat()
-     */
-    
     if (path == NULL || statbuf == NULL) {
         return -EINVAL;
     }
