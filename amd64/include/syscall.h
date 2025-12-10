@@ -19,10 +19,10 @@
 #define SYSCALL_MPROTECT    74
 #define SYSCALL_GETHOSTNAME 87
 #define SYSCALL_GETHOSTID   142
+#define SYSCALL_UNAME       164
 #define SYSCALL_MMAP        197
 #define SYSCALL_LSEEK       199
 #define SYSCALL_SYSINFO     214
-#define SYSCALL_UNAME       215
 #define SYSCALL_STAT        439
 #define SYSCALL_FSTAT       440
 #define SYSCALL_LSTAT       441
