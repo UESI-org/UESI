@@ -5,6 +5,7 @@
 #include <idt.h>
 #include <gdt.h>
 #include <sys/sysinfo.h>
+#include <sys/utsname.h>
 #include <sys/stat.h>
 #include <sys/errno.h>
 #include <sys/mman.h>
@@ -1120,6 +1121,16 @@ int64_t sys_sysinfo(struct sysinfo *info) {
     return (ret < 0) ? ret : 0;
 }
 
+int64_t sys_uname(struct utsname *buf) {
+    if (!is_user_range(buf, sizeof(struct utsname))) {
+        return -EFAULT;
+    }
+
+    extern int kern_uname(struct utsname *name);
+    int ret = kern_uname(buf);
+    return (ret < 0) ? ret : 0;
+}
+
 void syscall_handler(syscall_registers_t *regs) {
     uint64_t syscall_num = regs->rax;
     int64_t ret = -ENOSYS;
@@ -1196,6 +1207,10 @@ void syscall_handler(syscall_registers_t *regs) {
         
         case SYSCALL_SYSINFO:
             ret = sys_sysinfo((struct sysinfo*)regs->rdi);
+            break;
+
+         case SYSCALL_UNAME:
+            ret = sys_uname((struct utsname*)regs->rdi);
             break;
             
         default:

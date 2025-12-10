@@ -28,7 +28,8 @@ ASFLAGS := --64
 ARFLAGS := rcs
 
 SRCS := sys_kern.c \
-        sysinfo.c
+		sys_uname.c \
+        sysinfo.c 
 
 LIBKERN_SRCS := $(wildcard $(LIBKERNDIR)/*.c) $(LIBKERNDIR)/softfloat-support.c
 

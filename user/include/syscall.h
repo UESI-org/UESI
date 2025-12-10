@@ -23,6 +23,7 @@
 #define SYSCALL_MMAP        197
 #define SYSCALL_LSEEK       199
 #define SYSCALL_SYSINFO     214
+#define SYSCALL_UNAME       215
 #define SYSCALL_STAT        439
 #define SYSCALL_FSTAT       440
 #define SYSCALL_LSTAT       441
@@ -57,6 +58,7 @@ struct sysinfo {
 };
 
 struct stat;
+struct utsname;
 extern int errno;
 
 void exit(int status) __attribute__((noreturn));

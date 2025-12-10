@@ -204,6 +204,11 @@ int sysinfo(struct sysinfo *info) {
     return (int)handle_syscall_result(ret);
 }
 
+int uname(struct utsname *buf) {
+    int64_t ret = syscall1(SYSCALL_UNAME, (uint64_t)buf);
+    return (int)handle_syscall_result(ret);
+}
+
 int gethostname(char *name, size_t len) {
     int64_t ret = syscall2(SYSCALL_GETHOSTNAME, (uint64_t)name, (uint64_t)len);
     return (int)handle_syscall_result(ret);

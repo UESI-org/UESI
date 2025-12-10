@@ -22,6 +22,7 @@
 #define SYSCALL_MMAP        197
 #define SYSCALL_LSEEK       199
 #define SYSCALL_SYSINFO     214
+#define SYSCALL_UNAME       215
 #define SYSCALL_STAT        439
 #define SYSCALL_FSTAT       440
 #define SYSCALL_LSTAT       441
@@ -36,6 +37,7 @@ typedef struct {
 } syscall_registers_t;
 
 struct sysinfo;
+struct utsname;
 
 void syscall_init(void);
 void syscall_handler(syscall_registers_t *regs);
@@ -56,5 +58,6 @@ int64_t sys_gethostname(char *name, size_t len);
 int64_t sys_getppid(void);
 int64_t sys_gethostid(void);
 int64_t sys_sysinfo(struct sysinfo *info);
+int uname(struct utsname *buf);
 
 #endif
