@@ -416,6 +416,83 @@ int64_t sys_close(int fd) {
     return 0;
 }
 
+int64_t sys_dup(int oldfd) {
+    task_t *current = scheduler_get_current_task();
+    if (current == NULL) {
+        return -ESRCH;
+    }
+
+    if (oldfd < 0 || oldfd >= MAX_OPEN_FILES) {
+        return -EBADF;
+    }
+
+    vfs_file_t *file = (vfs_file_t *)current->fd_table[oldfd];
+    if (file == NULL) {
+        return -EBADF;
+    }
+
+    int newfd = -1;
+    for (int i = 0; i < MAX_OPEN_FILES; i++) {
+        if (current->fd_table[i] == NULL) {
+            newfd = i;
+            break;
+        }
+    }
+
+    if (newfd == -1) {
+        return -EMFILE;
+    }
+
+    current->fd_table[newfd] = file;
+
+    uint64_t flags;
+    spinlock_acquire_irqsave(&file->f_lock, &flags);
+    file->f_refcount++;
+    spinlock_release_irqrestore(&file->f_lock, flags);
+
+    tty_printf("[DUP] Duplicated fd %d -> fd %d\n", oldfd, newfd);
+    return newfd;
+}
+
+int64_t sys_dup2(int oldfd, int newfd) {
+    task_t *current = scheduler_get_current_task();
+    if (current == NULL) {
+        return -ESRCH;
+    }
+
+    if (oldfd < 0 || oldfd >= MAX_OPEN_FILES) {
+        return -EBADF;
+    }
+
+    vfs_file_t *file = (vfs_file_t *)current->fd_table[oldfd];
+    if (file == NULL) {
+        return -EBADF;
+    }
+
+    if (newfd < 0 || newfd >= MAX_OPEN_FILES) {
+        return -EBADF;
+    }
+
+    if (oldfd == newfd) {
+        return newfd;
+    }
+
+    if (current->fd_table[newfd] != NULL) {
+        vfs_file_t *old_file = (vfs_file_t *)current->fd_table[newfd];
+        vfs_close(old_file);
+    }
+
+    current->fd_table[newfd] = file;
+
+    uint64_t flags;
+    spinlock_acquire_irqsave(&file->f_lock, &flags);
+    file->f_refcount++;
+    spinlock_release_irqrestore(&file->f_lock, flags);
+
+    tty_printf("[DUP2] Duplicated fd %d -> fd %d\n", oldfd, newfd);
+    return newfd;
+}
+
 int64_t sys_stat(const char *path, struct stat *statbuf) {
     if (path == NULL || statbuf == NULL) {
         return -EINVAL;
@@ -1154,6 +1231,14 @@ void syscall_handler(syscall_registers_t *regs) {
         
         case SYSCALL_CLOSE:
             ret = sys_close((int)regs->rdi);
+            break;
+
+        case SYSCALL_DUP:
+            ret = sys_dup((int)regs->rdi);
+            break;
+
+        case SYSCALL_DUP2:
+            ret = sys_dup2((int)regs->rdi, (int)regs->rsi);
             break;
 
         case SYSCALL_STAT:

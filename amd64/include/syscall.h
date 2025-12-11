@@ -15,9 +15,11 @@
 #define SYSCALL_BRK         17
 #define SYSCALL_GETPID      20
 #define SYSCALL_GETPPID     39
+#define SYSCALL_DUP         41
 #define SYSCALL_MUNMAP      73
 #define SYSCALL_MPROTECT    74
 #define SYSCALL_GETHOSTNAME 87
+#define SYSCALL_DUP2        90
 #define SYSCALL_GETHOSTID   142
 #define SYSCALL_UNAME       164
 #define SYSCALL_MMAP        197
@@ -48,6 +50,8 @@ int64_t sys_read(int fd, void *buf, size_t count);
 int64_t sys_write(int fd, const void *buf, size_t count);
 int64_t sys_open(const char *path, uint32_t flags, mode_t mode);
 int64_t sys_close(int fd);
+int64_t sys_dup(int oldfd);
+int64_t sys_dup2(int oldfd, int newfd);
 int64_t sys_stat(const char *path, struct stat *statbuf);
 int64_t sys_fstat(int fd, struct stat *statbuf);
 int64_t sys_lstat(const char *path, struct stat *statbuf);

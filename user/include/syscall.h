@@ -16,9 +16,11 @@
 #define SYSCALL_BRK         17
 #define SYSCALL_GETPID      20
 #define SYSCALL_GETPPID     39
+#define SYSCALL_DUP         41
 #define SYSCALL_MUNMAP      73
 #define SYSCALL_MPROTECT    74
 #define SYSCALL_GETHOSTNAME 87
+#define SYSCALL_DUP2        90
 #define SYSCALL_GETHOSTID   142
 #define SYSCALL_UNAME       164
 #define SYSCALL_MMAP        197

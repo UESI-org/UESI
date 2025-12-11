@@ -98,6 +98,16 @@ int64_t write(int fd, const void *buf, size_t count) {
     return handle_syscall_result(ret);
 }
 
+int dup(int oldfd) {
+    int64_t ret = syscall1(SYSCALL_DUP, (uint64_t)oldfd);
+    return (int)handle_syscall_result(ret);
+}
+
+int dup2(int oldfd, int newfd) {
+    int64_t ret = syscall2(SYSCALL_DUP2, (uint64_t)oldfd, (uint64_t)newfd);
+    return (int)handle_syscall_result(ret);
+}
+
 int stat(const char *path, struct stat *buf) {
     int64_t ret = syscall2(SYSCALL_STAT, (uint64_t)path, (uint64_t)buf);
     return (int)handle_syscall_result(ret);
