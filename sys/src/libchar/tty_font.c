@@ -105,12 +105,26 @@ void tty_draw_char(char c, uint64_t x, uint64_t y, uint32_t fg, uint32_t bg) {
         return;
 
     const uint8_t *glyph = font_8x14[c - 32];
-
+    tty_t *tty = tty_get();
+    
+    if (!tty->buffer) return;
+    
+    if (x + 8 > tty->width || y + 14 > tty->height)
+        return;
+    
+    uint64_t pixels_per_row = tty->pitch / 4;
+    
     for (uint64_t cy = 0; cy < 14; cy++) {
-        for (uint64_t cx = 0; cx < 8; cx++) {
-            bool pixel = (glyph[cy] >> (7 - cx)) & 1;
-            uint32_t color = pixel ? fg : bg;
-            tty_putpixel(x + cx, y + cy, color);
-        }
+        uint32_t *row = &tty->buffer[(y + cy) * pixels_per_row + x];
+        uint8_t line = glyph[cy];
+        
+        row[0] = ((line >> 7) & 1) ? fg : bg;
+        row[1] = ((line >> 6) & 1) ? fg : bg;
+        row[2] = ((line >> 5) & 1) ? fg : bg;
+        row[3] = ((line >> 4) & 1) ? fg : bg;
+        row[4] = ((line >> 3) & 1) ? fg : bg;
+        row[5] = ((line >> 2) & 1) ? fg : bg;
+        row[6] = ((line >> 1) & 1) ? fg : bg;
+        row[7] = ((line >> 0) & 1) ? fg : bg;
     }
 }

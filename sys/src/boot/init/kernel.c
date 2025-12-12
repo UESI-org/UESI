@@ -33,6 +33,7 @@
 #include <serial.h>
 #include <sys/spinlock.h>
 #include <sys/sysinfo.h>
+#include <sys/ahci.h>
 
 spinlock_t my_lock;
 static blk_allocator_t g_block_alloc;
@@ -155,6 +156,7 @@ static void initialize_system_components(void) {
 
 static void run_tests(void) {
     test_kmalloc();
+    test_ahci();
     test_rtc();
     
     struct limine_module_response *modules = boot_get_modules();
@@ -204,7 +206,13 @@ void kmain(void) {
 
     debug_section("Initializing PCI");
     pci_init();
-    pci_print_devices();
+
+    debug_section("Initializing AHCI");
+    if (ahci_init() == 0) {
+        debug_success("AHCI initialized");
+    } else {
+        debug_error("No AHCI controllers found (non-fatal)");
+    }
 
     initialize_system_components();
 

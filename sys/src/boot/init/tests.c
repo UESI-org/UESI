@@ -1,3 +1,4 @@
+#include <sys/ahci.h>
 #include <tests.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -62,6 +63,47 @@ void test_kmalloc(void) {
     }
     
     debug_success("kmalloc tests passed");
+}
+
+void test_ahci(void) {
+    extern ahci_controller_t *ahci_controllers;
+    
+    if (!ahci_controllers) {
+        printf("No AHCI controllers to test\n");
+        return;
+    }
+    
+    printf("Testing AHCI...\n");
+    
+    ahci_controller_t *ctrl = ahci_controllers;
+    
+    for (int i = 0; i < AHCI_MAX_PORTS; i++) {
+        if (ctrl->ports[i].implemented &&
+            ctrl->ports[i].device_type == AHCI_DEV_SATA) {
+            
+            void *buffer = kmalloc(512);
+            if (!buffer) {
+                printf("Failed to allocate buffer\n");
+                return;
+            }
+            
+            printf("Reading sector 0 from port %d...\n", i);
+            if (ahci_port_read(&ctrl->ports[i], 0, 1, buffer) == 0) {
+                printf("Successfully read sector 0\n");
+                uint8_t *data = (uint8_t *)buffer;
+                printf("First 16 bytes: ");
+                for (int j = 0; j < 16; j++) {
+                    printf("%02x ", data[j]);
+                }
+                printf("\n");
+            } else {
+                printf("Failed to read sector 0\n");
+            }
+            
+            kfree(buffer);
+            break;
+        }
+    }
 }
 
 void test_rtc(void) {

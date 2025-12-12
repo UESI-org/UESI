@@ -49,12 +49,12 @@ uint32_t tty_getpixel(uint64_t x, uint64_t y) {
 
 void tty_fill_rect(uint64_t x, uint64_t y, uint64_t w, uint64_t h, uint32_t color) {
     tty_t *tty = tty_get();
-    
+
     // Clamp rectangle to screen bounds
     if (x >= tty->width || y >= tty->height) {
         return;
     }
-    
+
     // Clamp width and height
     if (x + w > tty->width) {
         w = tty->width - x;
@@ -62,20 +62,14 @@ void tty_fill_rect(uint64_t x, uint64_t y, uint64_t w, uint64_t h, uint32_t colo
     if (y + h > tty->height) {
         h = tty->height - y;
     }
-    
-    if (w == tty->width && x == 0) {
-        uint64_t pixels_per_row = tty->pitch / 4;
-        for (uint64_t dy = 0; dy < h; dy++) {
-            uint64_t row_offset = (y + dy) * pixels_per_row;
-            for (uint64_t dx = 0; dx < w; dx++) {
-                tty->buffer[row_offset + dx] = color;
-            }
-        }
-    } else {
-        for (uint64_t dy = 0; dy < h; dy++) {
-            for (uint64_t dx = 0; dx < w; dx++) {
-                tty_putpixel(x + dx, y + dy, color);
-            }
+
+    uint64_t pixels_per_row = tty->pitch / 4;
+
+    for (uint64_t dy = 0; dy < h; dy++) {
+        uint32_t *row = &tty->buffer[(y + dy) * pixels_per_row + x];
+        
+        for (uint64_t dx = 0; dx < w; dx++) {
+            row[dx] = color;
         }
     }
 }
