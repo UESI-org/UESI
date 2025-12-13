@@ -62,6 +62,7 @@ int64_t sys_stat(const char *path, struct stat *statbuf);
 int64_t sys_fstat(int fd, struct stat *statbuf);
 int64_t sys_lstat(const char *path, struct stat *statbuf);
 int64_t sys_lseek(int fd, off_t offset, int whence);
+void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset);
 int64_t sys_brk(void *addr);
 int64_t sys_getpid(void);
 int64_t sys_gethostname(char *name, size_t len);

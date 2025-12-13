@@ -28,6 +28,8 @@ extern int kern_sysinfo(struct sysinfo *info);
 extern int gethostname(char *name, size_t len);
 extern int gethostid(void);
 
+extern int errno;
+
 #define USER_SPACE_START 0x0000000000400000UL
 #define USER_SPACE_END   0x00007FFFFFFFFFFFUL
 
@@ -401,7 +403,7 @@ int64_t sys_close(int fd) {
         return -ESRCH;
     }
     
-    if (fd < 3 || fd >= MAX_OPEN_FILES) {
+    if (fd < 0 || fd >= MAX_OPEN_FILES) {
         return -EBADF;
     }
     
@@ -1124,7 +1126,7 @@ int64_t sys_getppid(void) {
     return (int64_t)ps->ps_pptr->ps_pid;
 }
 
-int64_t sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset) {
+void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset) {
     struct proc *p = proc_get_current();
     
     tty_printf("[MMAP DEBUG] Called: addr=%p len=%lu prot=%d flags=%d\n", 
@@ -1132,48 +1134,54 @@ int64_t sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t o
     
     if (p == NULL) {
         tty_printf("[MMAP DEBUG] No current proc!\n");
-        return -ESRCH;
+        errno = ESRCH;
+        return MAP_FAILED;
     }
     
     struct process *ps = p->p_p;
     if (ps == NULL || ps->ps_vmspace == NULL) {
         tty_printf("[MMAP DEBUG] No process or vmspace!\n");
-        return -ESRCH;
+        errno = ESRCH;
+        return MAP_FAILED;
     }
     
     tty_printf("[MMAP DEBUG] Process found: pid=%d\n", ps->ps_pid);
 
     if (length == 0) {
-        return -EINVAL;
+        errno = EINVAL;
+        return MAP_FAILED;
     }
     
     if (!(flags & MAP_ANONYMOUS)) {
-        return -ENOTSUP;
+        errno = ENOTSUP;
+        return MAP_FAILED;
     }
     
     if (!(flags & MAP_SHARED) && !(flags & MAP_PRIVATE)) {
-        return -EINVAL;
+        errno = EINVAL;
+        return MAP_FAILED;
     }
     
     size_t aligned_length = (length + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
     size_t num_pages = aligned_length / PAGE_SIZE;
     uint64_t virt_addr;
-    
+
     if (flags & MAP_FIXED) {
         if (!is_user_address(addr)) {
-            return -EINVAL;
+            errno = EINVAL;
+            return MAP_FAILED;
         }
         virt_addr = (uint64_t)addr & ~(PAGE_SIZE - 1);
     } else {
         virt_addr = (ps->ps_brk + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
-        
+
         if (addr != NULL && is_user_address(addr)) {
             uint64_t hint = (uint64_t)addr & ~(PAGE_SIZE - 1);
             if (hint >= virt_addr) {
                 virt_addr = hint;
             }
         }
-    }
+}
     
     tty_printf("[MMAP DEBUG] Mapping at virt=0x%lx, %lu pages\n", virt_addr, (unsigned long)num_pages);
     
@@ -1197,26 +1205,26 @@ int64_t sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t o
         void *page_virt = pmm_alloc();
         if (page_virt == NULL) {
             tty_printf("[MMAP DEBUG] Failed to allocate page %lu\n", (unsigned long)i);
-            
-            for (size_t j = 0; j < i; j++) {
-                paging_unmap_range(ps->ps_vmspace, virt_addr + (j * PAGE_SIZE), 1);
-            }
-            return -ENOMEM;
+        for (size_t j = 0; j < i; j++) {
+            paging_unmap_range(ps->ps_vmspace, virt_addr + (j * PAGE_SIZE), 1);
         }
+        errno = ENOMEM;
+        return MAP_FAILED;
+}
         
         memset(page_virt, 0, PAGE_SIZE);
         
         uint64_t phys_page = (uint64_t)page_virt - hhdm_offset;
         
-        if (!paging_map_range(ps->ps_vmspace, virt_page, phys_page, 1, page_flags)) {
-            tty_printf("[MMAP DEBUG] Failed to map page at 0x%lx\n", virt_page);
-            pmm_free(page_virt);
-            
-            for (size_t j = 0; j < i; j++) {
-                paging_unmap_range(ps->ps_vmspace, virt_addr + (j * PAGE_SIZE), 1);
-            }
-            return -ENOMEM;
-        }
+    if (!paging_map_range(ps->ps_vmspace, virt_page, phys_page, 1, page_flags)) {
+        tty_printf("[MMAP DEBUG] Failed to map page at 0x%lx\n", virt_page);
+        pmm_free(page_virt);
+        for (size_t j = 0; j < i; j++) {
+            paging_unmap_range(ps->ps_vmspace, virt_addr + (j * PAGE_SIZE), 1);
+    }
+    errno = ENOMEM;
+    return MAP_FAILED;
+}
         
         tty_printf("[MMAP DEBUG] Mapped page %lu: virt=0x%lx phys=0x%lx\n", 
                    (unsigned long)i, virt_page, phys_page);
@@ -1228,7 +1236,7 @@ int64_t sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t o
     
     tty_printf("[MMAP DEBUG] Success! Returning 0x%lx\n", virt_addr);
     
-    return (int64_t)virt_addr;
+    return (void *)virt_addr;
 }
 
 int64_t sys_munmap(void *addr, size_t length) {
@@ -1543,10 +1551,16 @@ void syscall_handler(syscall_registers_t *regs) {
             ret = sys_getppid();
             break;
 
-        case SYSCALL_MMAP:
-            ret = sys_mmap((void*)regs->rdi, (size_t)regs->rsi, (int)regs->rdx,
-                       (int)regs->r10, (int)regs->r8, (off_t)regs->r9);
-            break;
+        case SYSCALL_MMAP: {
+            void *result = sys_mmap((void*)regs->rdi, (size_t)regs->rsi, (int)regs->rdx,
+                            (int)regs->r10, (int)regs->r8, (off_t)regs->r9);
+        if (result == MAP_FAILED) {
+            ret = -errno;  // Return negative errno on failure
+        } else {
+            ret = (int64_t)(uintptr_t)result;  // Return address on success
+        }
+        break;
+}
 
         case SYSCALL_MUNMAP:
             ret = sys_munmap((void*)regs->rdi, (size_t)regs->rsi);
