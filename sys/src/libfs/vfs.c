@@ -14,7 +14,12 @@ extern void serial_printf(uint16_t port, const char *fmt, ...);
 static vfs_mount_t *mount_list = NULL;
 static spinlock_t mount_list_lock = SPINLOCK_INITIALIZER("mount_list");
 
-static vfs_ops_t *fs_types = NULL;
+typedef struct fs_type_node {
+    struct vfs_operations *ops;
+    struct fs_type_node *next;
+} fs_type_node_t;
+
+static fs_type_node_t *fs_types = NULL;
 static spinlock_t fs_types_lock = SPINLOCK_INITIALIZER("fs_types");
 
 #define VNODE_HASH_SIZE 256
@@ -58,27 +63,35 @@ int vfs_register_filesystem(vfs_ops_t *ops) {
     if (ops == NULL || ops->fs_name == NULL) {
         return -EINVAL;
     }
-    
+
     uint64_t flags;
     spinlock_acquire_irqsave(&fs_types_lock, &flags);
-    
+
     /* Check if already registered */
-    vfs_ops_t *current = fs_types;
+    fs_type_node_t *current = fs_types;
     while (current != NULL) {
-        if (strcmp(current->fs_name, ops->fs_name) == 0) {
+        if (strcmp(current->ops->fs_name, ops->fs_name) == 0) {
             spinlock_release_irqrestore(&fs_types_lock, flags);
             VFS_DEBUG("Filesystem '%s' already registered\n", ops->fs_name);
             return -EEXIST;
         }
-        current = (vfs_ops_t *)current->mount; /* Reuse mount field as next pointer */
+        current = current->next;
     }
-    
+
+    /* Allocate new node */
+    fs_type_node_t *node = kmalloc(sizeof(fs_type_node_t));
+    if (node == NULL) {
+        spinlock_release_irqrestore(&fs_types_lock, flags);
+        return -ENOMEM;
+    }
+
     /* Add to list */
-    ops->mount = (void *)fs_types; /* Hack: reuse mount as next pointer */
-    fs_types = ops;
-    
+    node->ops = ops;
+    node->next = fs_types;
+    fs_types = node;
+
     spinlock_release_irqrestore(&fs_types_lock, flags);
-    
+
     VFS_DEBUG("Registered filesystem: %s\n", ops->fs_name);
     return VFS_SUCCESS;
 }
@@ -87,21 +100,23 @@ int vfs_unregister_filesystem(const char *fs_name) {
     if (fs_name == NULL) {
         return -EINVAL;
     }
-    
+
     uint64_t flags;
     spinlock_acquire_irqsave(&fs_types_lock, &flags);
-    
-    vfs_ops_t **current = &fs_types;
+
+    fs_type_node_t **current = &fs_types;
     while (*current != NULL) {
-        if (strcmp((*current)->fs_name, fs_name) == 0) {
-            *current = (vfs_ops_t *)(*current)->mount;
+        if (strcmp((*current)->ops->fs_name, fs_name) == 0) {
+            fs_type_node_t *to_free = *current;
+            *current = (*current)->next;
+            kfree(to_free);
             spinlock_release_irqrestore(&fs_types_lock, flags);
             VFS_DEBUG("Unregistered filesystem: %s\n", fs_name);
             return VFS_SUCCESS;
         }
-        current = (vfs_ops_t **)&(*current)->mount;
+        current = &(*current)->next;
     }
-    
+
     spinlock_release_irqrestore(&fs_types_lock, flags);
     return -ENOENT;
 }
@@ -109,25 +124,28 @@ int vfs_unregister_filesystem(const char *fs_name) {
 static vfs_ops_t *vfs_find_filesystem(const char *fs_name) {
     uint64_t flags;
     spinlock_acquire_irqsave(&fs_types_lock, &flags);
-    
-    vfs_ops_t *current = fs_types;
+
+    fs_type_node_t *current = fs_types;
     while (current != NULL) {
-        if (strcmp(current->fs_name, fs_name) == 0) {
+        if (strcmp(current->ops->fs_name, fs_name) == 0) {
             spinlock_release_irqrestore(&fs_types_lock, flags);
-            return current;
+            return current->ops;
         }
-        current = (vfs_ops_t *)current->mount;
+        current = current->next;
     }
-    
+
     spinlock_release_irqrestore(&fs_types_lock, flags);
     return NULL;
 }
 
-int vfs_mount(const char *device, const char *mountpoint, 
+int vfs_mount(const char *device, const char *mountpoint,
               const char *fstype, uint32_t flags, void *data) {
     if (mountpoint == NULL || fstype == NULL) {
         return -EINVAL;
     }
+
+    /* Special case: mounting root filesystem */
+    bool is_root = (strcmp(mountpoint, "/") == 0);
     
     /* Find filesystem type */
     vfs_ops_t *ops = vfs_find_filesystem(fstype);
@@ -135,11 +153,30 @@ int vfs_mount(const char *device, const char *mountpoint,
         VFS_DEBUG("Unknown filesystem type: %s\n", fstype);
         return -ENODEV;
     }
-    
+
+    /* For non-root mounts, verify mount point exists */
+    if (!is_root && root_mount != NULL) {
+        vnode_t *mp_vnode;
+        int ret = vfs_lookup(mountpoint, &mp_vnode);
+        if (ret != 0) {
+            VFS_DEBUG("Mount point %s does not exist\n", mountpoint);
+            return -ENOENT;
+        }
+        
+        /* Verify it's a directory */
+        if ((mp_vnode->v_mode & VFS_IFMT) != VFS_IFDIR) {
+            vfs_vnode_unref(mp_vnode);
+            VFS_DEBUG("Mount point %s is not a directory\n", mountpoint);
+            return -ENOTDIR;
+        }
+        
+        vfs_vnode_unref(mp_vnode);
+    }
+
     if (ops->mount == NULL) {
         return -ENOSYS;
     }
-    
+
     /* Call filesystem-specific mount */
     vfs_mount_t *mnt = NULL;
     int ret = ops->mount(device, mountpoint, flags, data, &mnt);
@@ -147,25 +184,25 @@ int vfs_mount(const char *device, const char *mountpoint,
         VFS_DEBUG("Mount failed: %d\n", ret);
         return ret;
     }
-    
+
     /* Add to mount list */
     uint64_t irq_flags;
     spinlock_acquire_irqsave(&mount_list_lock, &irq_flags);
-    
+
     mnt->mnt_next = mount_list;
     mount_list = mnt;
-    
-    /* Set as root if this is the first mount */
-    if (root_mount == NULL && strcmp(mountpoint, "/") == 0) {
+
+    /* Set as root if this is the first mount or explicitly mounting at / */
+    if (root_mount == NULL && is_root) {
         root_mount = mnt;
         VFS_DEBUG("Set root mount\n");
     }
-    
+
     spinlock_release_irqrestore(&mount_list_lock, irq_flags);
-    
-    VFS_DEBUG("Mounted %s at %s (type: %s)\n", 
+
+    VFS_DEBUG("Mounted %s at %s (type: %s)\n",
               device ? device : "(none)", mountpoint, fstype);
-    
+
     return VFS_SUCCESS;
 }
 

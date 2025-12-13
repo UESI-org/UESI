@@ -12,7 +12,7 @@ OBJDIR := obj
 LIBDIR := lib
 TARGET := $(LIBDIR)/libfs.a
 
-SRCS := vfs.c inode.c blk.c blkalloc.c
+SRCS := vfs.c inode.c blk.c blkalloc.c tmpfs.c
 OBJS := $(SRCS:%.c=$(OBJDIR)/%.o)
 
 CFLAGS := -Wall -Wextra -std=gnu11 -ffreestanding -fno-stack-protector \

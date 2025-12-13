@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <limine.h>
 #include <tty.h>
+#include <tmpfs.h>
 #include <gdt.h>
 #include <isr.h>
 #include <idt.h>
@@ -66,6 +67,7 @@ static void initialize_memory(void) {
     
     vfs_init();
     debug_success("VFS initialized");
+    
     inode_cache_init();
     debug_success("inode cache initialized");
 
@@ -74,8 +76,18 @@ static void initialize_memory(void) {
 
     blk_buffer_init();
     debug_success("blk buffer initialized");
+    
+    tmpfs_init();
+    debug_success("tmpfs initialized");
+    
+    int ret = vfs_mount(NULL, "/", "tmpfs", 0, NULL);
+    if (ret != 0) {
+        printf("vfs_mount returned error code: %d\n", ret);
+        debug_error("Failed to mount tmpfs at /");
+    } else {
+        debug_success("tmpfs mounted at / (root)");
+    }
 }
-
 
 static void initialize_cpu(cpu_info_t *cpu) {
     debug_section("Detecting CPU");
