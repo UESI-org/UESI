@@ -21,7 +21,6 @@ typedef enum {
     TASK_PRIORITY_REALTIME = 4
 } task_priority_t;
 
-// CPU register state for context switching
 typedef struct {
     uint64_t rax, rbx, rcx, rdx;
     uint64_t rsi, rdi, rbp, rsp;
@@ -33,7 +32,12 @@ typedef struct {
     uint64_t cr3;  // Page directory base
 } cpu_state_t;
 
-// Task Control Block (TCB)
+typedef struct fd_entry {
+    void *file;           /* Pointer to vfs_file_t */
+    int flags;            /* FD_CLOEXEC and other per-FD flags */
+} fd_entry_t;
+
+
 typedef struct task {
     uint32_t tid;
     char name[64];
@@ -56,7 +60,7 @@ typedef struct task {
     uint32_t exit_code;
     
     #define MAX_OPEN_FILES 32
-    void *fd_table[MAX_OPEN_FILES];
+    fd_entry_t fd_table[MAX_OPEN_FILES];
     
     struct task *next;
     struct task *prev;

@@ -1,3 +1,5 @@
+#include <stdarg.h>
+#include <fcntl.h>
 #include <syscall.h>
 #include <errno.h>
 
@@ -96,6 +98,57 @@ int64_t read(int fd, void *buf, size_t count) {
 int64_t write(int fd, const void *buf, size_t count) {
     int64_t ret = syscall3(SYSCALL_WRITE, (uint64_t)fd, (uint64_t)buf, (uint64_t)count);
     return handle_syscall_result(ret);
+}
+
+int64_t creat(const char *path, mode_t mode) {
+    int64_t ret = syscall2(SYSCALL_CREAT, (uint64_t)path, (uint64_t)mode);
+    return handle_syscall_result(ret);
+}
+
+int64_t openat(int dirfd, const char *pathname, uint32_t flags, mode_t mode) {
+    /* System call with 4 arguments */
+    int64_t ret;
+    asm volatile(
+        "int $0x80"
+        : "=a"(ret)
+        : "a"((uint64_t)SYSCALL_OPENAT), 
+          "D"((uint64_t)dirfd), 
+          "S"((uint64_t)pathname),
+          "d"((uint64_t)flags),
+          "r"((uint64_t)mode) /* This will go in r10 */
+        : "memory", "rcx", "r11"
+    );
+    return handle_syscall_result(ret);
+}
+
+int fcntl(int fd, int cmd, ...) {
+    va_list args;
+    va_start(args, cmd);
+    
+    /* fcntl can take 0, 1, or more arguments depending on cmd */
+    uint64_t arg = 0;
+    
+    /* Commands that take an argument */
+    switch (cmd) {
+        case F_DUPFD:
+        case F_DUPFD_CLOEXEC:
+        case F_SETFD:
+        case F_SETFL:
+        case F_SETOWN:
+        case F_SETLK:
+        case F_SETLKW:
+        case F_GETLK:
+            arg = va_arg(args, uint64_t);
+            break;
+        default:
+            arg = 0;
+            break;
+    }
+    
+    va_end(args);
+    
+    int64_t ret = syscall3(SYSCALL_FCNTL, (uint64_t)fd, (uint64_t)cmd, arg);
+    return (int)handle_syscall_result(ret);
 }
 
 int dup(int oldfd) {

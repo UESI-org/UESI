@@ -13,6 +13,7 @@
 #define SYSCALL_WRITE       4
 #define SYSCALL_OPEN        5
 #define SYSCALL_CLOSE       6
+#define SYSCALL_CREAT       8
 #define SYSCALL_BRK         17
 #define SYSCALL_GETPID      20
 #define SYSCALL_GETPPID     39
@@ -21,6 +22,7 @@
 #define SYSCALL_MPROTECT    74
 #define SYSCALL_GETHOSTNAME 87
 #define SYSCALL_DUP2        90
+#define SYSCALL_FCNTL       92
 #define SYSCALL_GETHOSTID   142
 #define SYSCALL_UNAME       164
 #define SYSCALL_MMAP        197
@@ -29,6 +31,7 @@
 #define SYSCALL_STAT        439
 #define SYSCALL_FSTAT       440
 #define SYSCALL_LSTAT       441
+#define SYSCALL_OPENAT      468
 
 #define PROT_NONE           0x00
 #define PROT_READ           0x01
@@ -69,6 +72,9 @@ int64_t read(int fd, void *buf, size_t count);
 int64_t write(int fd, const void *buf, size_t count);
 int64_t open(const char *path, uint32_t flags, mode_t mode);
 int64_t close(int fd);
+int64_t creat(const char *path, mode_t mode);
+int64_t openat(int dirfd, const char *pathname, uint32_t flags, mode_t mode);
+int fcntl(int fd, int cmd, ...);
 int stat(const char *path, struct stat *buf);
 int fstat(int fd, struct stat *buf);
 int lstat(const char *path, struct stat *buf);

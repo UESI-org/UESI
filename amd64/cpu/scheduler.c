@@ -122,7 +122,8 @@ task_t *scheduler_create_task(const char *name, void (*entry_point)(void),
     }
 
     for (int i = 0; i < MAX_OPEN_FILES; i++) {
-        task->fd_table[i] = NULL;
+        task->fd_table[i].file = NULL;
+        task->fd_table[i].flags = 0;
     }
     
     if (task != scheduler.idle_task) {
@@ -141,9 +142,10 @@ void scheduler_destroy_task(task_t *task) {
     if (!task || task == scheduler.idle_task) return;
 
     for (int i = 0; i < MAX_OPEN_FILES; i++) {
-        if (task->fd_table[i] != NULL) {
-            vfs_close((vfs_file_t *)task->fd_table[i]);
-            task->fd_table[i] = NULL;
+        if (task->fd_table[i].file != NULL) {
+            vfs_close((vfs_file_t *)task->fd_table[i].file);
+            task->fd_table[i].file = NULL;
+            task->fd_table[i].flags = 0;
         }
     }
     

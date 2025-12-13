@@ -3,6 +3,7 @@
 #include <scheduler.h>
 #include <vfs.h>
 #include <idt.h>
+#include <fcntl.h>
 #include <gdt.h>
 #include <sys/sysinfo.h>
 #include <sys/utsname.h>
@@ -190,10 +191,11 @@ void sys_exit(int status) {
         }
         
         for (int i = 0; i < MAX_OPEN_FILES; i++) {
-            if (current->fd_table[i] != NULL) {
-                vfs_file_t *file = (vfs_file_t *)current->fd_table[i];
+            if (current->fd_table[i].file != NULL) {
+                vfs_file_t *file = (vfs_file_t *)current->fd_table[i].file;
                 vfs_close(file);
-                current->fd_table[i] = NULL;
+                current->fd_table[i].file = NULL;
+                current->fd_table[i].flags = 0;
             }
         }
         
@@ -285,7 +287,7 @@ int64_t sys_read(int fd, void *buf, size_t count) {
         return -EBADF;
     }
     
-    vfs_file_t *file = (vfs_file_t *)current->fd_table[fd];
+    vfs_file_t *file = (vfs_file_t *)current->fd_table[fd].file;
     if (file == NULL) {
         return -EBADF;
     }
@@ -328,7 +330,7 @@ int64_t sys_write(int fd, const void *buf, size_t count) {
         return -EBADF;
     }
     
-    vfs_file_t *file = (vfs_file_t *)current->fd_table[fd];
+    vfs_file_t *file = (vfs_file_t *)current->fd_table[fd].file;
     if (file == NULL) {
         return -EBADF;
     }
@@ -372,7 +374,7 @@ int64_t sys_open(const char *path, uint32_t flags, mode_t mode) {
     
     int fd = -1;
     for (int i = 3; i < MAX_OPEN_FILES; i++) {
-        if (current->fd_table[i] == NULL) {
+        if (current->fd_table[i].file == NULL) {
             fd = i;
             break;
         }
@@ -388,7 +390,8 @@ int64_t sys_open(const char *path, uint32_t flags, mode_t mode) {
         return -vfs_errno(ret);
     }
     
-    current->fd_table[fd] = file;
+    current->fd_table[fd].file = file;
+    current->fd_table[fd].flags = 0;
     return fd;
 }
 
@@ -402,7 +405,7 @@ int64_t sys_close(int fd) {
         return -EBADF;
     }
     
-    vfs_file_t *file = (vfs_file_t *)current->fd_table[fd];
+    vfs_file_t *file = (vfs_file_t *)current->fd_table[fd].file;
     if (file == NULL) {
         return -EBADF;
     }
@@ -412,8 +415,264 @@ int64_t sys_close(int fd) {
         return -vfs_errno(ret);
     }
     
-    current->fd_table[fd] = NULL;
+    current->fd_table[fd].file = NULL;
+    current->fd_table[fd].flags = 0;
     return 0;
+}
+
+int64_t sys_creat(const char *path, mode_t mode) {
+    /* creat() is equivalent to open() with O_CREAT|O_WRONLY|O_TRUNC */
+    return sys_open(path, O_CREAT | O_WRONLY | O_TRUNC, mode);
+}
+
+int64_t sys_openat(int dirfd, const char *pathname, uint32_t flags, mode_t mode) {
+    task_t *current = scheduler_get_current_task();
+    if (current == NULL) {
+        return -ESRCH;
+    }
+
+    if (!is_user_address(pathname)) {
+        return -EFAULT;
+    }
+
+    size_t path_len = 0;
+    const char *p = pathname;
+    while (is_user_address(p) && *p != '\0' && path_len < VFS_MAX_PATH) {
+        p++;
+        path_len++;
+    }
+
+    if (path_len == 0) {
+        return -EINVAL;
+    }
+
+    if (path_len >= VFS_MAX_PATH) {
+        return -ENAMETOOLONG;
+    }
+
+    if (pathname[0] == '/') {
+        return sys_open(pathname, flags, mode);
+    }
+
+    /* Handle AT_FDCWD - use current working directory */
+    if (dirfd == AT_FDCWD) {
+        /* For now, treat relative paths as if they're from root */
+        /* TODO: Implement proper current working directory support */
+        tty_printf("[OPENAT] Warning: AT_FDCWD not fully implemented, treating as relative to root\n");
+        
+        char *abs_path = kmalloc(path_len + 2);
+        if (abs_path == NULL) {
+            return -ENOMEM;
+        }
+        
+        abs_path[0] = '/';
+        memcpy(abs_path + 1, pathname, path_len + 1);
+        
+        int64_t ret = sys_open(abs_path, flags, mode);
+        kfree(abs_path);
+        return ret;
+    }
+
+    if (dirfd < 0 || dirfd >= MAX_OPEN_FILES) {
+        return -EBADF;
+    }
+
+    vfs_file_t *dir_file = (vfs_file_t *)current->fd_table[dirfd].file;
+    if (dir_file == NULL) {
+        return -EBADF;
+    }
+
+    vnode_t *dir_vnode = dir_file->f_vnode;
+    if ((dir_vnode->v_mode & VFS_IFMT) != VFS_IFDIR) {
+        return -ENOTDIR;
+    }
+
+    /* TODO: Implement proper path resolution relative to dirfd */
+    
+    tty_printf("[OPENAT] Warning: dirfd-relative paths not fully implemented\n");
+    return -ENOTSUP;
+}
+
+int64_t sys_fcntl(int fd, int cmd, uint64_t arg) {
+    task_t *current = scheduler_get_current_task();
+    if (current == NULL) {
+        return -ESRCH;
+    }
+
+    /* Validate fd range */
+    if (fd < 0 || fd >= MAX_OPEN_FILES) {
+        return -EBADF;
+    }
+
+    fd_entry_t *fd_entry = &current->fd_table[fd];
+    
+    switch (cmd) {
+        case F_DUPFD: {
+            /* Duplicate fd to lowest available fd >= arg */
+            int minfd = (int)arg;
+            if (minfd < 0 || minfd >= MAX_OPEN_FILES) {
+                return -EINVAL;
+            }
+            
+            if (fd_entry->file == NULL) {
+                return -EBADF;
+            }
+            
+            /* Find lowest available fd >= minfd */
+            int newfd = -1;
+            for (int i = minfd; i < MAX_OPEN_FILES; i++) {
+                if (current->fd_table[i].file == NULL) {
+                    newfd = i;
+                    break;
+                }
+            }
+            
+            if (newfd == -1) {
+                return -EMFILE;
+            }
+            
+            /* Duplicate the file */
+            vfs_file_t *file = (vfs_file_t *)fd_entry->file;
+            current->fd_table[newfd].file = file;
+            current->fd_table[newfd].flags = 0;  /* FD_CLOEXEC not inherited */
+            
+            /* Increment refcount */
+            uint64_t flags;
+            spinlock_acquire_irqsave(&file->f_lock, &flags);
+            file->f_refcount++;
+            spinlock_release_irqrestore(&file->f_lock, flags);
+            
+            tty_printf("[FCNTL] F_DUPFD: duplicated fd %d -> fd %d\n", fd, newfd);
+            return newfd;
+        }
+        
+        case F_DUPFD_CLOEXEC: {
+            /* Duplicate fd with FD_CLOEXEC set */
+            int minfd = (int)arg;
+            if (minfd < 0 || minfd >= MAX_OPEN_FILES) {
+                return -EINVAL;
+            }
+            
+            if (fd_entry->file == NULL) {
+                return -EBADF;
+            }
+            
+            /* Find lowest available fd >= minfd */
+            int newfd = -1;
+            for (int i = minfd; i < MAX_OPEN_FILES; i++) {
+                if (current->fd_table[i].file == NULL) {
+                    newfd = i;
+                    break;
+                }
+            }
+            
+            if (newfd == -1) {
+                return -EMFILE;
+            }
+            
+            /* Duplicate the file with CLOEXEC */
+            vfs_file_t *file = (vfs_file_t *)fd_entry->file;
+            current->fd_table[newfd].file = file;
+            current->fd_table[newfd].flags = FD_CLOEXEC;
+            
+            /* Increment refcount */
+            uint64_t flags;
+            spinlock_acquire_irqsave(&file->f_lock, &flags);
+            file->f_refcount++;
+            spinlock_release_irqrestore(&file->f_lock, flags);
+            
+            tty_printf("[FCNTL] F_DUPFD_CLOEXEC: duplicated fd %d -> fd %d\n", fd, newfd);
+            return newfd;
+        }
+        
+        case F_GETFD:
+            /* Get file descriptor flags */
+            if (fd_entry->file == NULL) {
+                return -EBADF;
+            }
+            return fd_entry->flags;
+        
+        case F_SETFD:
+            /* Set file descriptor flags */
+            if (fd_entry->file == NULL) {
+                return -EBADF;
+            }
+            /* Only FD_CLOEXEC is valid */
+            fd_entry->flags = (int)arg & FD_CLOEXEC;
+            return 0;
+        
+        case F_GETFL: {
+            /* Get file status flags */
+            if (fd_entry->file == NULL) {
+                return -EBADF;
+            }
+            
+            vfs_file_t *file = (vfs_file_t *)fd_entry->file;
+            
+            /* Convert VFS flags to O_* flags */
+            int flags = 0;
+            
+            /* Access mode */
+            if ((file->f_flags & VFS_O_RDWR) == VFS_O_RDWR) {
+                flags |= O_RDWR;
+            } else if (file->f_flags & VFS_O_WRONLY) {
+                flags |= O_WRONLY;
+            } else {
+                flags |= O_RDONLY;
+            }
+            
+            /* Other flags */
+            if (file->f_flags & VFS_O_APPEND) flags |= O_APPEND;
+            if (file->f_flags & VFS_O_CREAT) flags |= O_CREAT;
+            if (file->f_flags & VFS_O_TRUNC) flags |= O_TRUNC;
+            if (file->f_flags & VFS_O_EXCL) flags |= O_EXCL;
+            
+            return flags;
+        }
+        
+        case F_SETFL: {
+            /* Set file status flags (only certain flags can be changed) */
+            if (fd_entry->file == NULL) {
+                return -EBADF;
+            }
+            
+            vfs_file_t *file = (vfs_file_t *)fd_entry->file;
+            
+            /* Only O_APPEND, O_NONBLOCK, O_SYNC can be changed */
+            uint64_t flags;
+            spinlock_acquire_irqsave(&file->f_lock, &flags);
+            
+            /* Clear modifiable flags */
+            file->f_flags &= ~(VFS_O_APPEND);
+            
+            /* Set new flags */
+            if (arg & O_APPEND) file->f_flags |= VFS_O_APPEND;
+            /* Note: O_NONBLOCK and O_SYNC not implemented in VFS yet */
+            
+            spinlock_release_irqrestore(&file->f_lock, flags);
+            return 0;
+        }
+        
+        case F_GETOWN:
+            /* Get process/thread ID for SIGIO/SIGURG */
+            /* Not implemented - signals not supported yet */
+            return -ENOSYS;
+        
+        case F_SETOWN:
+            /* Set process/thread ID for SIGIO/SIGURG */
+            /* Not implemented - signals not supported yet */
+            return -ENOSYS;
+        
+        case F_GETLK:
+        case F_SETLK:
+        case F_SETLKW:
+            /* File locking - not implemented */
+            return -ENOSYS;
+        
+        default:
+            tty_printf("[FCNTL] Unknown command: %d\n", cmd);
+            return -EINVAL;
+    }
 }
 
 int64_t sys_dup(int oldfd) {
@@ -426,14 +685,14 @@ int64_t sys_dup(int oldfd) {
         return -EBADF;
     }
 
-    vfs_file_t *file = (vfs_file_t *)current->fd_table[oldfd];
+    vfs_file_t *file = (vfs_file_t *)current->fd_table[oldfd].file;
     if (file == NULL) {
         return -EBADF;
     }
 
     int newfd = -1;
     for (int i = 0; i < MAX_OPEN_FILES; i++) {
-        if (current->fd_table[i] == NULL) {
+        if (current->fd_table[i].file == NULL) {
             newfd = i;
             break;
         }
@@ -443,7 +702,8 @@ int64_t sys_dup(int oldfd) {
         return -EMFILE;
     }
 
-    current->fd_table[newfd] = file;
+    current->fd_table[newfd].file = file;
+    current->fd_table[newfd].flags = 0;  /* Don't inherit FD_CLOEXEC */
 
     uint64_t flags;
     spinlock_acquire_irqsave(&file->f_lock, &flags);
@@ -464,7 +724,7 @@ int64_t sys_dup2(int oldfd, int newfd) {
         return -EBADF;
     }
 
-    vfs_file_t *file = (vfs_file_t *)current->fd_table[oldfd];
+    vfs_file_t *file = (vfs_file_t *)current->fd_table[oldfd].file;
     if (file == NULL) {
         return -EBADF;
     }
@@ -477,12 +737,13 @@ int64_t sys_dup2(int oldfd, int newfd) {
         return newfd;
     }
 
-    if (current->fd_table[newfd] != NULL) {
-        vfs_file_t *old_file = (vfs_file_t *)current->fd_table[newfd];
+    if (current->fd_table[newfd].file != NULL) {
+        vfs_file_t *old_file = (vfs_file_t *)current->fd_table[newfd].file;
         vfs_close(old_file);
     }
 
-    current->fd_table[newfd] = file;
+    current->fd_table[newfd].file = file;
+    current->fd_table[newfd].flags = 0;  /* Don't inherit FD_CLOEXEC */
 
     uint64_t flags;
     spinlock_acquire_irqsave(&file->f_lock, &flags);
@@ -564,7 +825,7 @@ int64_t sys_fstat(int fd, struct stat *statbuf) {
         return -EBADF;
     }
 
-    vfs_file_t *file = (vfs_file_t *)current->fd_table[fd];
+    vfs_file_t *file = (vfs_file_t *)current->fd_table[fd].file;
     if (file == NULL) {
         return -EBADF;
     }
@@ -657,7 +918,7 @@ int64_t sys_lseek(int fd, off_t offset, int whence) {
         return -EBADF;
     }
 
-    vfs_file_t *file = (vfs_file_t *)current->fd_table[fd];
+    vfs_file_t *file = (vfs_file_t *)current->fd_table[fd].file;
     if (file == NULL) {
         return -EBADF;
     }
@@ -1233,6 +1494,19 @@ void syscall_handler(syscall_registers_t *regs) {
             ret = sys_close((int)regs->rdi);
             break;
 
+        case SYSCALL_CREAT:
+            ret = sys_creat((const char*)regs->rdi, (mode_t)regs->rsi);
+            break;
+
+        case SYSCALL_OPENAT:
+            ret = sys_openat((int)regs->rdi, (const char*)regs->rsi, 
+                           (uint32_t)regs->rdx, (mode_t)regs->r10);
+            break;  
+
+        case SYSCALL_FCNTL:
+            ret = sys_fcntl((int)regs->rdi, (int)regs->rsi, regs->rdx);
+            break;
+        
         case SYSCALL_DUP:
             ret = sys_dup((int)regs->rdi);
             break;
