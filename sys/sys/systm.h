@@ -37,36 +37,36 @@ __BEGIN_DECLS
 /*
  * Kernel identity and versioning
  */
-extern const char ostype[];       /* "UESI" */
-extern const char osrelease[];    /* "0.1" */
-extern const char osversion[];    /* Full version string */
-extern const char sccs[];         /* SCCS version string */
-extern const char version[];      /* Complete build version */
+extern const char ostype[];    /* "UESI" */
+extern const char osrelease[]; /* "0.1" */
+extern const char osversion[]; /* Full version string */
+extern const char sccs[];      /* SCCS version string */
+extern const char version[];   /* Complete build version */
 
 /*
  * System state
  */
-extern int cold;                  /* System still in early boot */
-extern const char *panicstr;      /* Set when panic() is called */
+extern int cold;             /* System still in early boot */
+extern const char *panicstr; /* Set when panic() is called */
 
 /*
  * Hardware information (from bootloader/ACPI)
  */
-extern char *hw_vendor;           /* Hardware vendor string */
-extern char *hw_prod;             /* Hardware product string */
-extern char *hw_uuid;             /* System UUID */
-extern char *hw_serial;           /* System serial number */
-extern char *hw_ver;              /* Hardware version */
+extern char *hw_vendor; /* Hardware vendor string */
+extern char *hw_prod;   /* Hardware product string */
+extern char *hw_uuid;   /* System UUID */
+extern char *hw_serial; /* System serial number */
+extern char *hw_ver;    /* Hardware version */
 
 /*
  * CPU information
  */
-extern int ncpus;                 /* Number of CPUs in use */
-extern int ncpusfound;            /* Number of CPUs detected */
+extern int ncpus;      /* Number of CPUs in use */
+extern int ncpusfound; /* Number of CPUs detected */
 
 struct cpu_info {
-    volatile u_int ci_randseed;   /* Per-CPU random seed */
-    /* TODO: Add more CPU-specific fields as needed */
+	volatile u_int ci_randseed; /* Per-CPU random seed */
+	/* TODO: Add more CPU-specific fields as needed */
 };
 
 /* TODO: Implement proper per-CPU data structure */
@@ -75,8 +75,8 @@ extern struct cpu_info cpu_info_primary;
 static inline struct cpu_info *
 curcpu(void)
 {
-    /* For now, single-CPU system - return primary CPU */
-    return &cpu_info_primary;
+	/* For now, single-CPU system - return primary CPU */
+	return &cpu_info_primary;
 }
 
 /*
@@ -105,28 +105,28 @@ curcpu(void)
  * Restore MIN/MAX/min/max macros from param.h
  */
 #ifndef MIN
-#define MIN(a,b)        (((a)<(b))?(a):(b))
+#define MIN(a, b) (((a) < (b)) ? (a) : (b))
 #endif
 #ifndef MAX
-#define MAX(a,b)        (((a)>(b))?(a):(b))
+#define MAX(a, b) (((a) > (b)) ? (a) : (b))
 #endif
 #ifndef min
-#define min(a,b)        MIN(a,b)
+#define min(a, b) MIN(a, b)
 #endif
 #ifndef max
-#define max(a,b)        MAX(a,b)
+#define max(a, b) MAX(a, b)
 #endif
 
 /*
  * Memory information
  */
-extern uint64_t physmem;          /* Total physical memory (bytes) */
+extern uint64_t physmem; /* Total physical memory (bytes) */
 
 /*
  * Device information
  */
-extern int nblkdev;               /* Number of block devices */
-extern int nchrdev;               /* Number of character devices */
+extern int nblkdev; /* Number of block devices */
+extern int nchrdev; /* Number of character devices */
 
 /*
  * Root and swap devices (TODO: implement)
@@ -143,8 +143,8 @@ struct proc;
 struct process;
 
 /* Current process/thread accessor */
-#define curproc         (proc_get_current())
-#define curprocess      (curproc ? curproc->p_p : NULL)
+#define curproc (proc_get_current())
+#define curprocess (curproc ? curproc->p_p : NULL)
 
 /*
  * Panic and assertion functions
@@ -157,25 +157,26 @@ __dead void panic_fmt(const char *fmt, ...)
 
 #ifndef KASSERT
 #ifndef NDEBUG
-#define KASSERT(expr)                                                   \
-    do {                                                                \
-        if (!(expr))                                                    \
-            panic("assertion \"%s\" failed: file \"%s\", line %d",     \
-                #expr, __FILE__, __LINE__);                             \
-    } while (0)
+#define KASSERT(expr)                                                          \
+	do {                                                                   \
+		if (!(expr))                                                   \
+			panic("assertion \"%s\" failed: file \"%s\", line %d", \
+			      #expr,                                           \
+			      __FILE__,                                        \
+			      __LINE__);                                       \
+	} while (0)
 #else
-#define KASSERT(expr)   ((void)0)
+#define KASSERT(expr) ((void)0)
 #endif
 #endif
 
-void    __assert(const char *, const char *, int, const char *)
+void __assert(const char *, const char *, int, const char *)
     __attribute__((__noreturn__));
 
 /*
  * Printf-like functions
  */
-int printf(const char *fmt, ...)
-    __attribute__((__format__(__printf__, 1, 2)));
+int printf(const char *fmt, ...) __attribute__((__format__(__printf__, 1, 2)));
 
 int vprintf(const char *fmt, va_list ap)
     __attribute__((__format__(__printf__, 1, 0)));
@@ -193,38 +194,40 @@ void ttyprintf(struct tty *tp, const char *fmt, ...)
 /*
  * Kernel memory functions (from libkern)
  */
-void    bcopy(const void *src, void *dst, size_t len)
+void bcopy(const void *src, void *dst, size_t len)
     __attribute__((__bounded__(__buffer__, 1, 3)))
     __attribute__((__bounded__(__buffer__, 2, 3)));
 
-void    bzero(void *buf, size_t len)
+void bzero(void *buf, size_t len)
     __attribute__((__bounded__(__buffer__, 1, 2)));
 
-void    explicit_bzero(void *buf, size_t len)
+void explicit_bzero(void *buf, size_t len)
     __attribute__((__bounded__(__buffer__, 1, 2)));
 
-int     bcmp(const void *b1, const void *b2, size_t len);
+int bcmp(const void *b1, const void *b2, size_t len);
 
-void   *memcpy(void *dst, const void *src, size_t len)
+void *memcpy(void *dst, const void *src, size_t len)
     __attribute__((__bounded__(__buffer__, 1, 3)))
     __attribute__((__bounded__(__buffer__, 2, 3)));
 
-void   *memmove(void *dst, const void *src, size_t len)
+void *memmove(void *dst, const void *src, size_t len)
     __attribute__((__bounded__(__buffer__, 1, 3)))
     __attribute__((__bounded__(__buffer__, 2, 3)));
 
-void   *memset(void *buf, int c, size_t len)
+void *memset(void *buf, int c, size_t len)
     __attribute__((__bounded__(__buffer__, 1, 3)));
 
-int     memcmp(const void *b1, const void *b2, size_t len);
+int memcmp(const void *b1, const void *b2, size_t len);
 
 /*
  * User/kernel space copy functions (TODO: implement)
  */
 /* int     copyin(const void *uaddr, void *kaddr, size_t len); */
 /* int     copyout(const void *kaddr, void *uaddr, size_t len); */
-/* int     copyinstr(const void *uaddr, void *kaddr, size_t len, size_t *done); */
-/* int     copyoutstr(const void *kaddr, void *uaddr, size_t len, size_t *done); */
+/* int     copyinstr(const void *uaddr, void *kaddr, size_t len, size_t *done);
+ */
+/* int     copyoutstr(const void *kaddr, void *uaddr, size_t len, size_t *done);
+ */
 /* int     kcopy(const void *src, void *dst, size_t len); */
 
 /*
@@ -249,11 +252,11 @@ struct spinlock;
 /* int     msleep_nsec(const volatile void *chan, struct mutex *mtx, */
 /*             int priority, const char *wmesg, uint64_t nsecs); */
 
-void    yield(void);  /* Already implemented via scheduler_yield() */
+void yield(void); /* Already implemented via scheduler_yield() */
 
 /* Infinite and maximum sleep times */
-#define INFSLP          UINT64_MAX
-#define MAXTSLP         (UINT64_MAX - 1)
+#define INFSLP UINT64_MAX
+#define MAXTSLP (UINT64_MAX - 1)
 
 /*
  * Time conversion utilities (TODO: implement)
@@ -293,12 +296,12 @@ void    yield(void);  /* Already implemented via scheduler_yield() */
 /*
  * Stub functions for unimplemented operations
  */
-int     nullop(void *);
-int     enodev(void);
-int     enosys(void);
-int     enoioctl(void);
-int     enxio(void);
-int     eopnotsupp(void *);
+int nullop(void *);
+int enodev(void);
+int enosys(void);
+int enoioctl(void);
+int enxio(void);
+int eopnotsupp(void *);
 
 /*
  * Hash table allocation (TODO: implement)
@@ -362,15 +365,15 @@ int     eopnotsupp(void *);
  * Boot configuration
  */
 #ifdef BOOT_CONFIG
-void    user_config(void);
+void user_config(void);
 #endif
 
 /*
  * Kernel debugger (kdebug)
  */
 #ifdef KDEBUG
-void    kdebug_enter(void);
-int     kdebug_active(void);
+void kdebug_enter(void);
+int kdebug_active(void);
 #endif
 
 /*
@@ -399,16 +402,16 @@ int     kdebug_active(void);
  * Restore MIN/MAX/min/max macros from param.h
  */
 #ifndef MIN
-#define MIN(a,b)        (((a)<(b))?(a):(b))
+#define MIN(a, b) (((a) < (b)) ? (a) : (b))
 #endif
 #ifndef MAX
-#define MAX(a,b)        (((a)>(b))?(a):(b))
+#define MAX(a, b) (((a) > (b)) ? (a) : (b))
 #endif
 #ifndef min
-#define min(a,b)        MIN(a,b)
+#define min(a, b) MIN(a, b)
 #endif
 #ifndef max
-#define max(a,b)        MAX(a,b)
+#define max(a, b) MAX(a, b)
 #endif
 
 __END_DECLS

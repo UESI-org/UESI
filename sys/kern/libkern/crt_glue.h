@@ -15,17 +15,17 @@
  */
 
 #ifndef _CRT_INT_LIB_H_
-#define  _CRT_INT_LIB_H_
+#define _CRT_INT_LIB_H_
 
 #include <sys/limits.h>
 #include <sys/endian.h>
 
-typedef int      si_int;
+typedef int si_int;
 typedef unsigned int su_int;
-typedef          long long di_int;
+typedef long long di_int;
 typedef unsigned long long du_int;
-typedef int      ti_int __attribute__ ((mode (TI)));
-typedef int      tu_int __attribute__ ((mode (TI)));
+typedef int ti_int __attribute__((mode(TI)));
+typedef int tu_int __attribute__((mode(TI)));
 
 #if BYTE_ORDER == LITTLE_ENDIAN
 #define _YUGA_LITTLE_ENDIAN 0
@@ -33,26 +33,22 @@ typedef int      tu_int __attribute__ ((mode (TI)));
 #define _YUGA_LITTLE_ENDIAN 1
 #endif
 
-typedef union
-{
-    ti_int all;
-    struct
-    {
+typedef union {
+	ti_int all;
+	struct {
 #if _YUGA_LITTLE_ENDIAN
-        du_int low;
-        di_int high;
+		du_int low;
+		di_int high;
 #else
-        di_int high;
-        du_int low;
+		di_int high;
+		du_int low;
 #endif /* _YUGA_LITTLE_ENDIAN */
-    }s;
+	} s;
 } twords;
 
-typedef union
-{
+typedef union {
 	tu_int all;
-	struct
-	{
+	struct {
 #if _YUGA_LITTLE_ENDIAN
 		du_int low;
 		du_int high;
@@ -60,7 +56,7 @@ typedef union
 		du_int high;
 		du_int low;
 #endif /* _YUGA_LITTLE_ENDIAN */
-	}s;
+	} s;
 } utwords;
 
 #endif /* _CRT_INT_LIB_H_ */

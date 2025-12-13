@@ -31,21 +31,21 @@
  *	@(#)limits.h	7.2 (Berkeley) 6/28/90
  */
 
-#ifndef	_MACHINE_LIMITS_H_
-#define	_MACHINE_LIMITS_H_
+#ifndef _MACHINE_LIMITS_H_
+#define _MACHINE_LIMITS_H_
 
 #include <sys/cdefs.h>
 
 #if __POSIX_VISIBLE || __XPG_VISIBLE
-#define SSIZE_MAX	LONG_MAX	/* max value for a ssize_t */
+#define SSIZE_MAX LONG_MAX /* max value for a ssize_t */
 #endif
 
 #if __BSD_VISIBLE
-#define	SIZE_T_MAX	ULONG_MAX	/* max value for a size_t (historic) */
+#define SIZE_T_MAX ULONG_MAX /* max value for a size_t (historic) */
 
-#define	UQUAD_MAX	0xffffffffffffffffULL		/* max unsigned quad */
-#define	QUAD_MAX	0x7fffffffffffffffLL		/* max signed quad */
-#define	QUAD_MIN	(-0x7fffffffffffffffLL-1)	/* min signed quad */
+#define UQUAD_MAX 0xffffffffffffffffULL      /* max unsigned quad */
+#define QUAD_MAX 0x7fffffffffffffffLL        /* max signed quad */
+#define QUAD_MIN (-0x7fffffffffffffffLL - 1) /* min signed quad */
 
 #endif /* __BSD_VISIBLE */
 

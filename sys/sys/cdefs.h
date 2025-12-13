@@ -35,8 +35,8 @@
  *	@(#)cdefs.h	8.7 (Berkeley) 1/21/94
  */
 
-#ifndef	_SYS_CDEFS_H_
-#define	_SYS_CDEFS_H_
+#ifndef _SYS_CDEFS_H_
+#define _SYS_CDEFS_H_
 
 #include <mcdefs.h>
 
@@ -44,7 +44,7 @@
  * Macro to test if we're using a specific version of gcc or later.
  */
 #ifdef __GNUC__
-#define __GNUC_PREREQ__(ma, mi) \
+#define __GNUC_PREREQ__(ma, mi)                                                \
 	((__GNUC__ > (ma)) || (__GNUC__ == (ma) && __GNUC_MINOR__ >= (mi)))
 #else
 #define __GNUC_PREREQ__(ma, mi) 0
@@ -59,33 +59,33 @@
  * them next to each other.
  */
 #if defined(__STDC__) || defined(__cplusplus)
-#define	__P(protos)	protos		/* full-blown ANSI C */
-#define	__CONCAT(x,y)	x ## y
-#define	__STRING(x)	#x
+#define __P(protos) protos /* full-blown ANSI C */
+#define __CONCAT(x, y) x##y
+#define __STRING(x) #x
 
-#define	__const		const		/* define reserved names to standard */
-#define	__signed	signed
-#define	__volatile	volatile
+#define __const const /* define reserved names to standard */
+#define __signed signed
+#define __volatile volatile
 #if defined(__cplusplus) || defined(__PCC__)
-#define	__inline	inline		/* convert to C++ keyword */
+#define __inline inline /* convert to C++ keyword */
 #else
 #if !defined(__GNUC__)
-#define	__inline			/* delete GCC keyword */
-#endif /* !__GNUC__ */
-#endif /* !__cplusplus */
+#define __inline /* delete GCC keyword */
+#endif           /* !__GNUC__ */
+#endif           /* !__cplusplus */
 
-#else	/* !(__STDC__ || __cplusplus) */
-#define	__P(protos)	()		/* traditional C preprocessor */
-#define	__CONCAT(x,y)	x/**/y
-#define	__STRING(x)	"x"
+#else                  /* !(__STDC__ || __cplusplus) */
+#define __P(protos) () /* traditional C preprocessor */
+#define __CONCAT(x, y) x /**/ y
+#define __STRING(x) "x"
 
 #if !defined(__GNUC__)
-#define	__const				/* delete pseudo-ANSI C keywords */
-#define	__inline
-#define	__signed
-#define	__volatile
-#endif	/* !__GNUC__ */
-#endif	/* !(__STDC__ || __cplusplus) */
+#define __const /* delete pseudo-ANSI C keywords */
+#define __inline
+#define __signed
+#define __volatile
+#endif /* !__GNUC__ */
+#endif /* !(__STDC__ || __cplusplus) */
 
 /*
  * GCC1 and some versions of GCC2 declare dead (non-returning) and
@@ -100,45 +100,46 @@
  */
 
 #if !__GNUC_PREREQ__(2, 5) && !defined(__PCC__)
-#define	__attribute__(x)	/* delete __attribute__ if non-gcc or gcc1 */
+#define __attribute__(x) /* delete __attribute__ if non-gcc or gcc1 */
 #endif
 
 #if __GNUC_PREREQ__(2, 5)
-#define __dead		__attribute__((__noreturn__))
+#define __dead __attribute__((__noreturn__))
 #elif defined(__GNUC__)
-#define	__dead		__volatile
+#define __dead __volatile
 #else
-#define	__dead		/* delete */
+#define __dead /* delete */
 #endif
 
 #if __GNUC_PREREQ__(2, 96)
-#define	__pure		__attribute__((__pure__))
+#define __pure __attribute__((__pure__))
 #elif defined(__GNUC__)
-#define	__pure		__const
+#define __pure __const
 #else
-#define	__pure		/* delete */
+#define __pure /* delete */
 #endif
 
 #if __GNUC_PREREQ__(2, 7)
-#define	__unused	__attribute__((__unused__))
+#define __unused __attribute__((__unused__))
 #else
-#define	__unused	/* delete */
+#define __unused /* delete */
 #endif
 
 #if __GNUC_PREREQ__(3, 1)
-#define	__used		__attribute__((__used__))
+#define __used __attribute__((__used__))
 #else
-#define	__used		__unused	/* suppress -Wunused warnings */
+#define __used __unused /* suppress -Wunused warnings */
 #endif
 
-#if __GNUC_PREREQ__(3,4)
-# define __warn_unused_result	__attribute__((__warn_unused_result__))
+#if __GNUC_PREREQ__(3, 4)
+#define __warn_unused_result __attribute__((__warn_unused_result__))
 #else
-# define __warn_unused_result	/* delete */
+#define __warn_unused_result /* delete */
 #endif
 
-/* GCC doesn't support OpenBSD's __bounded__ attribute, so for our kernel we have to adapt */
-#define __bounded__(x, y, z)	/* delete */
+/* GCC doesn't support OpenBSD's __bounded__ attribute, so for our kernel we
+ * have to adapt */
+#define __bounded__(x, y, z) /* delete */
 
 /*
  * __returns_twice makes the compiler not assume the function
@@ -147,7 +148,7 @@
  * Example: setjmp()
  */
 #if __GNUC_PREREQ__(4, 1)
-#define __returns_twice	__attribute__((returns_twice))
+#define __returns_twice __attribute__((returns_twice))
 #else
 #define __returns_twice
 #endif
@@ -160,13 +161,13 @@
  * the function to handle those references.  c.f. ctype.h
  */
 #ifdef __GNUC__
-#  if __GNUC_PREREQ__(4, 2)
-#define __only_inline	extern __inline __attribute__((__gnu_inline__))
-#  else
-#define __only_inline	extern __inline
-#  endif
+#if __GNUC_PREREQ__(4, 2)
+#define __only_inline extern __inline __attribute__((__gnu_inline__))
 #else
-#define __only_inline	static __inline
+#define __only_inline extern __inline
+#endif
+#else
+#define __only_inline static __inline
 #endif
 
 /*
@@ -198,17 +199,17 @@
  *	  larger code.
  */
 #if __GNUC_PREREQ__(2, 96)
-#define __predict_true(exp)	__builtin_expect(((exp) != 0), 1)
-#define __predict_false(exp)	__builtin_expect(((exp) != 0), 0)
+#define __predict_true(exp) __builtin_expect(((exp) != 0), 1)
+#define __predict_false(exp) __builtin_expect(((exp) != 0), 0)
 #else
-#define __predict_true(exp)	((exp) != 0)
-#define __predict_false(exp)	((exp) != 0)
+#define __predict_true(exp) ((exp) != 0)
+#define __predict_false(exp) ((exp) != 0)
 #endif
 
 /* Delete pseudo-keywords wherever they are not available or needed. */
 #ifndef __dead
-#define	__dead
-#define	__pure
+#define __dead
+#define __pure
 #endif
 
 /*
@@ -224,59 +225,57 @@
  */
 
 #if __GNUC_PREREQ__(2, 7) || defined(__PCC__)
-#define	__packed	__attribute__((__packed__))
-#define	__aligned(x)	__attribute__((__aligned__(x)))
+#define __packed __attribute__((__packed__))
+#define __aligned(x) __attribute__((__aligned__(x)))
 #endif
 
 #if !__GNUC_PREREQ__(2, 8)
-#define	__extension__
+#define __extension__
 #endif
 
 #if __GNUC_PREREQ__(3, 0)
-#define	__malloc	__attribute__((__malloc__))
+#define __malloc __attribute__((__malloc__))
 #else
-#define	__malloc
+#define __malloc
 #endif
 
 #if defined(__cplusplus)
-#define	__BEGIN_EXTERN_C	extern "C" {
-#define	__END_EXTERN_C		}
+#define __BEGIN_EXTERN_C extern "C" {
+#define __END_EXTERN_C }
 #else
-#define	__BEGIN_EXTERN_C
-#define	__END_EXTERN_C
+#define __BEGIN_EXTERN_C
+#define __END_EXTERN_C
 #endif
 
 #if __GNUC_PREREQ__(4, 0)
-#define	__dso_public	__attribute__((__visibility__("default")))
-#define	__dso_hidden	__attribute__((__visibility__("hidden")))
-#define	__BEGIN_PUBLIC_DECLS \
+#define __dso_public __attribute__((__visibility__("default")))
+#define __dso_hidden __attribute__((__visibility__("hidden")))
+#define __BEGIN_PUBLIC_DECLS                                                   \
 	_Pragma("GCC visibility push(default)") __BEGIN_EXTERN_C
-#define	__END_PUBLIC_DECLS	__END_EXTERN_C _Pragma("GCC visibility pop")
-#define	__BEGIN_HIDDEN_DECLS \
+#define __END_PUBLIC_DECLS __END_EXTERN_C _Pragma("GCC visibility pop")
+#define __BEGIN_HIDDEN_DECLS                                                   \
 	_Pragma("GCC visibility push(hidden)") __BEGIN_EXTERN_C
-#define	__END_HIDDEN_DECLS	__END_EXTERN_C _Pragma("GCC visibility pop")
+#define __END_HIDDEN_DECLS __END_EXTERN_C _Pragma("GCC visibility pop")
 #else
-#define	__dso_public
-#define	__dso_hidden
-#define	__BEGIN_PUBLIC_DECLS	__BEGIN_EXTERN_C
-#define	__END_PUBLIC_DECLS	__END_EXTERN_C
-#define	__BEGIN_HIDDEN_DECLS	__BEGIN_EXTERN_C
-#define	__END_HIDDEN_DECLS	__END_EXTERN_C
+#define __dso_public
+#define __dso_hidden
+#define __BEGIN_PUBLIC_DECLS __BEGIN_EXTERN_C
+#define __END_PUBLIC_DECLS __END_EXTERN_C
+#define __BEGIN_HIDDEN_DECLS __BEGIN_EXTERN_C
+#define __END_HIDDEN_DECLS __END_EXTERN_C
 #endif
 
-#define	__BEGIN_DECLS	__BEGIN_EXTERN_C
-#define	__END_DECLS	__END_EXTERN_C
+#define __BEGIN_DECLS __BEGIN_EXTERN_C
+#define __END_DECLS __END_EXTERN_C
 
 #if __GNUC_PREREQ__(3, 3)
 
 #ifndef __strong_alias
-#define __strong_alias(new, old) \
-        __asm__(".global " #new "\n" #new " = " #old);
+#define __strong_alias(new, old) __asm__(".global " #new "\n" #new " = " #old);
 #endif
 
 #ifndef __weak_alias
-#define __weak_alias(new, old) \
-        __asm__(".weak " #new "\n" #new " = " #old);
+#define __weak_alias(new, old) __asm__(".weak " #new "\n" #new " = " #old);
 #endif
 
 #endif
@@ -315,33 +314,33 @@
  * The XPG spec implies a specific value for _POSIX_C_SOURCE.
  */
 #ifdef _XOPEN_SOURCE
-# if (_XOPEN_SOURCE - 0 >= 800)
-#  define __XPG_VISIBLE		800
-#  undef _POSIX_C_SOURCE
-#  define _POSIX_C_SOURCE	202405L
-# elif (_XOPEN_SOURCE - 0 >= 700)
-#  define __XPG_VISIBLE		700
-#  undef _POSIX_C_SOURCE
-#  define _POSIX_C_SOURCE	200809L
-# elif (_XOPEN_SOURCE - 0 >= 600)
-#  define __XPG_VISIBLE		600
-#  undef _POSIX_C_SOURCE
-#  define _POSIX_C_SOURCE	200112L
-# elif (_XOPEN_SOURCE - 0 >= 520)
-#  define __XPG_VISIBLE		520
-#  undef _POSIX_C_SOURCE
-#  define _POSIX_C_SOURCE	199506L
-# elif (_XOPEN_SOURCE - 0 >= 500)
-#  define __XPG_VISIBLE		500
-#  undef _POSIX_C_SOURCE
-#  define _POSIX_C_SOURCE	199506L
-# elif (_XOPEN_SOURCE_EXTENDED - 0 == 1)
-#  define __XPG_VISIBLE		420
-# elif (_XOPEN_VERSION - 0 >= 4)
-#  define __XPG_VISIBLE		400
-# else
-#  define __XPG_VISIBLE		300
-# endif
+#if (_XOPEN_SOURCE - 0 >= 800)
+#define __XPG_VISIBLE 800
+#undef _POSIX_C_SOURCE
+#define _POSIX_C_SOURCE 202405L
+#elif (_XOPEN_SOURCE - 0 >= 700)
+#define __XPG_VISIBLE 700
+#undef _POSIX_C_SOURCE
+#define _POSIX_C_SOURCE 200809L
+#elif (_XOPEN_SOURCE - 0 >= 600)
+#define __XPG_VISIBLE 600
+#undef _POSIX_C_SOURCE
+#define _POSIX_C_SOURCE 200112L
+#elif (_XOPEN_SOURCE - 0 >= 520)
+#define __XPG_VISIBLE 520
+#undef _POSIX_C_SOURCE
+#define _POSIX_C_SOURCE 199506L
+#elif (_XOPEN_SOURCE - 0 >= 500)
+#define __XPG_VISIBLE 500
+#undef _POSIX_C_SOURCE
+#define _POSIX_C_SOURCE 199506L
+#elif (_XOPEN_SOURCE_EXTENDED - 0 == 1)
+#define __XPG_VISIBLE 420
+#elif (_XOPEN_VERSION - 0 >= 4)
+#define __XPG_VISIBLE 400
+#else
+#define __XPG_VISIBLE 300
+#endif
 #endif
 
 /*
@@ -361,31 +360,31 @@
  * this may be overridden by the _ISOC99_SOURCE macro later.
  */
 #ifdef _POSIX_C_SOURCE
-# if (_POSIX_C_SOURCE - 0 >= 202405)
-#  define __POSIX_VISIBLE	202405
-#  define __ISO_C_VISIBLE	2017
-# elif (_POSIX_C_SOURCE - 0 >= 200809)
-#  define __POSIX_VISIBLE	200809
-#  define __ISO_C_VISIBLE	1999
-# elif (_POSIX_C_SOURCE - 0 >= 200112)
-#  define __POSIX_VISIBLE	200112
-#  define __ISO_C_VISIBLE	1999
-# elif (_POSIX_C_SOURCE - 0 >= 199506)
-#  define __POSIX_VISIBLE	199506
-#  define __ISO_C_VISIBLE	1990
-# elif (_POSIX_C_SOURCE - 0 >= 199309)
-#  define __POSIX_VISIBLE	199309
-#  define __ISO_C_VISIBLE	1990
-# elif (_POSIX_C_SOURCE - 0 >= 2)
-#  define __POSIX_VISIBLE	199209
-#  define __ISO_C_VISIBLE	1990
-# else
-#  define __POSIX_VISIBLE	199009
-#  define __ISO_C_VISIBLE	1990
-# endif
+#if (_POSIX_C_SOURCE - 0 >= 202405)
+#define __POSIX_VISIBLE 202405
+#define __ISO_C_VISIBLE 2017
+#elif (_POSIX_C_SOURCE - 0 >= 200809)
+#define __POSIX_VISIBLE 200809
+#define __ISO_C_VISIBLE 1999
+#elif (_POSIX_C_SOURCE - 0 >= 200112)
+#define __POSIX_VISIBLE 200112
+#define __ISO_C_VISIBLE 1999
+#elif (_POSIX_C_SOURCE - 0 >= 199506)
+#define __POSIX_VISIBLE 199506
+#define __ISO_C_VISIBLE 1990
+#elif (_POSIX_C_SOURCE - 0 >= 199309)
+#define __POSIX_VISIBLE 199309
+#define __ISO_C_VISIBLE 1990
+#elif (_POSIX_C_SOURCE - 0 >= 2)
+#define __POSIX_VISIBLE 199209
+#define __ISO_C_VISIBLE 1990
+#else
+#define __POSIX_VISIBLE 199009
+#define __ISO_C_VISIBLE 1990
+#endif
 #elif defined(_POSIX_SOURCE)
-# define __POSIX_VISIBLE	198808
-#  define __ISO_C_VISIBLE	0
+#define __POSIX_VISIBLE 198808
+#define __ISO_C_VISIBLE 0
 #endif
 
 /*
@@ -393,27 +392,27 @@
  * If the user defines it in addition to one of the POSIX or XOPEN
  * macros, assume the POSIX/XOPEN macro(s) should take precedence.
  */
-#if defined(_ANSI_SOURCE) && !defined(__POSIX_VISIBLE) && \
+#if defined(_ANSI_SOURCE) && !defined(__POSIX_VISIBLE) &&                      \
     !defined(__XPG_VISIBLE)
-# define __POSIX_VISIBLE	0
-# define __XPG_VISIBLE		0
-# define __ISO_C_VISIBLE	1990
+#define __POSIX_VISIBLE 0
+#define __XPG_VISIBLE 0
+#define __ISO_C_VISIBLE 1990
 #endif
 
 /*
  * _ISOC99_SOURCE, _ISOC11_SOURCE, __STDC_VERSION__, and __cplusplus
  * override any of the other macros since they are non-exclusive.
  */
-#if defined(_ISOC11_SOURCE) || \
-    (defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112) || \
+#if defined(_ISOC11_SOURCE) ||                                                 \
+    (defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112) ||               \
     (defined(__cplusplus) && __cplusplus >= 201703)
-# undef __ISO_C_VISIBLE
-# define __ISO_C_VISIBLE	2011
-#elif defined(_ISOC99_SOURCE) || \
-    (defined(__STDC_VERSION__) && __STDC_VERSION__ >= 199901) || \
+#undef __ISO_C_VISIBLE
+#define __ISO_C_VISIBLE 2011
+#elif defined(_ISOC99_SOURCE) ||                                               \
+    (defined(__STDC_VERSION__) && __STDC_VERSION__ >= 199901) ||               \
     (defined(__cplusplus) && __cplusplus >= 201103)
-# undef __ISO_C_VISIBLE
-# define __ISO_C_VISIBLE	1999
+#undef __ISO_C_VISIBLE
+#define __ISO_C_VISIBLE 1999
 #endif
 
 /*
@@ -421,25 +420,26 @@
  * by any standards.  We expose these when none of the POSIX or XPG
  * macros is defined or if the user explicitly asks for them.
  */
-#if !defined(_BSD_SOURCE) && \
-   (defined(_ANSI_SOURCE) || defined(__XPG_VISIBLE) || defined(__POSIX_VISIBLE))
-# define __BSD_VISIBLE		0
+#if !defined(_BSD_SOURCE) &&                                                   \
+    (defined(_ANSI_SOURCE) || defined(__XPG_VISIBLE) ||                        \
+     defined(__POSIX_VISIBLE))
+#define __BSD_VISIBLE 0
 #endif
 
 /*
  * Default values.
  */
 #ifndef __XPG_VISIBLE
-# define __XPG_VISIBLE		800
+#define __XPG_VISIBLE 800
 #endif
 #ifndef __POSIX_VISIBLE
-# define __POSIX_VISIBLE	202405
+#define __POSIX_VISIBLE 202405
 #endif
 #ifndef __ISO_C_VISIBLE
-# define __ISO_C_VISIBLE	2017
+#define __ISO_C_VISIBLE 2017
 #endif
 #ifndef __BSD_VISIBLE
-# define __BSD_VISIBLE		1
+#define __BSD_VISIBLE 1
 #endif
 
 #endif /* !_SYS_CDEFS_H_ */

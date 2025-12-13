@@ -5,27 +5,24 @@
  * Public domain.
  */
 
-#ifndef	_STDBOOL_H_
-#define	_STDBOOL_H_	
+#ifndef _STDBOOL_H_
+#define _STDBOOL_H_
 
 #ifndef __cplusplus
 
-#if defined(__GNUC__) || \
-	(defined(__STDC_VERSION__) && __STDC_VERSION__ >= 199901)
+#if defined(__GNUC__) ||                                                       \
+    (defined(__STDC_VERSION__) && __STDC_VERSION__ >= 199901)
 /* Support for C99: type _Bool is already built-in. */
-#define false	0
-#define true	1
+#define false 0
+#define true 1
 
 #else
 /* `_Bool' type must promote to `int' or `unsigned int'. */
-typedef enum {
-	false = 0,
-	true = 1
-} _Bool;
+typedef enum { false = 0, true = 1 } _Bool;
 
 /* And those constants must also be available as macros. */
-#define	false	false
-#define	true	true
+#define false false
+#define true true
 
 #endif
 
@@ -33,10 +30,10 @@ typedef enum {
 #define bool _Bool
 
 #else /* __cplusplus */
-#define _Bool 	bool
-#define bool 	bool
-#define false 	false
-#define true 	true
+#define _Bool bool
+#define bool bool
+#define false false
+#define true true
 #endif /* __cplusplus */
 
 /* Inform that everything is fine */

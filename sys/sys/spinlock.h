@@ -21,12 +21,17 @@ typedef struct spinlock {
 } spinlock_t;
 
 #ifdef SPINLOCK_DEBUG
-#define SPINLOCK_INITIALIZER(lockname) \
-	{ .locked = 0, .cpu = -1, .name = (lockname), \
-	  .last_pc = NULL, .last_file = NULL, .last_line = 0, \
-	  .acquire_time = 0, .hold_count = 0 }
+#define SPINLOCK_INITIALIZER(lockname)                                         \
+	{ .locked = 0,                                                         \
+	  .cpu = -1,                                                           \
+	  .name = (lockname),                                                  \
+	  .last_pc = NULL,                                                     \
+	  .last_file = NULL,                                                   \
+	  .last_line = 0,                                                      \
+	  .acquire_time = 0,                                                   \
+	  .hold_count = 0 }
 #else
-#define SPINLOCK_INITIALIZER(lockname) \
+#define SPINLOCK_INITIALIZER(lockname)                                         \
 	{ .locked = 0, .cpu = -1, .name = (lockname) }
 #endif
 
@@ -44,23 +49,29 @@ void spinlock_acquire_irqsave(spinlock_t *lock, uint64_t *flags);
 
 void spinlock_release_irqrestore(spinlock_t *lock, uint64_t flags);
 
-static inline int spinlock_get_cpu(const spinlock_t *lock) {
+static inline int
+spinlock_get_cpu(const spinlock_t *lock)
+{
 	return lock->cpu;
 }
 
-static inline const char *spinlock_get_name(const spinlock_t *lock) {
+static inline const char *
+spinlock_get_name(const spinlock_t *lock)
+{
 	return lock->name ? lock->name : "(unnamed)";
 }
 
 #ifdef SPINLOCK_DEBUG
 
 void spinlock_acquire_debug(spinlock_t *lock, const char *file, int line);
-void spinlock_acquire_irqsave_debug(spinlock_t *lock, uint64_t *flags, 
-                                    const char *file, int line);
+void spinlock_acquire_irqsave_debug(spinlock_t *lock,
+                                    uint64_t *flags,
+                                    const char *file,
+                                    int line);
 
-#define spinlock_acquire(lock) \
+#define spinlock_acquire(lock)                                                 \
 	spinlock_acquire_debug((lock), __FILE__, __LINE__)
-#define spinlock_acquire_irqsave(lock, flags) \
+#define spinlock_acquire_irqsave(lock, flags)                                  \
 	spinlock_acquire_irqsave_debug((lock), (flags), __FILE__, __LINE__)
 
 void spinlock_print_stats(const spinlock_t *lock);

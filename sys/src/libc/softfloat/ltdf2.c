@@ -14,7 +14,6 @@ flag __ltdf2(float64, float64) __dso_protected;
 flag
 __ltdf2(float64 a, float64 b)
 {
-
 	/* libgcc1.c says -(a < b) */
 	return -float64_lt(a, b);
 }

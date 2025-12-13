@@ -58,7 +58,7 @@ cont:
 			goto cont;
 	}
 
-	if (c == 0) {		/* no non-delimiter characters */
+	if (c == 0) { /* no non-delimiter characters */
 		*last = NULL;
 		return (NULL);
 	}

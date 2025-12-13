@@ -32,7 +32,7 @@
 
 #include <sys/types.h>
 #include <libkern.h>
-#define NULL	((char *)0)
+#define NULL ((char *)0)
 
 char *
 strchr(const char *s, int c)

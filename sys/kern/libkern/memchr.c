@@ -33,7 +33,7 @@
  */
 
 #include <libkern.h>
-#define	NULL	((char *)0)
+#define NULL ((char *)0)
 
 void *
 memchr(const void *s, int c, size_t n)

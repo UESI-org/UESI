@@ -1,4 +1,5 @@
-/*	$OpenBSD: fpgetsticky.c,v 1.6 2016/07/18 19:05:22 guenther Exp $	*/
+/*	$OpenBSD: fpgetsticky.c,v 1.6 2016/07/18 19:05:22 guenther Exp $
+ */
 /* $NetBSD: fpgetsticky.c,v 1.2 2002/01/13 21:45:53 thorpej Exp $ */
 
 /*-
@@ -37,11 +38,10 @@
 #include "milieu.h"
 #include <softfloat.h>
 
-__weak_alias(_fpgetsticky,fpgetsticky);
+__weak_alias(_fpgetsticky, fpgetsticky);
 
 fp_except
 fpgetsticky(void)
 {
-
 	return float_exception_flags;
 }

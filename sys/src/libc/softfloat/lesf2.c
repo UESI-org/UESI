@@ -14,7 +14,6 @@ flag __lesf2(float32, float32) __dso_protected;
 flag
 __lesf2(float32 a, float32 b)
 {
-
 	/* libgcc1.c says 1 - (a <= b) */
 	return 1 - float32_le(a, b);
 }

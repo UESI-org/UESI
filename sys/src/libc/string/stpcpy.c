@@ -32,13 +32,13 @@
 #include <string.h>
 
 #if defined(APIWARN)
-__warn_references(stpcpy,
-    "stpcpy() is dangerous; do not use it");
+__warn_references(stpcpy, "stpcpy() is dangerous; do not use it");
 #endif
 
 char *
 stpcpy(char *to, const char *from)
 {
-	for (; (*to = *from) != '\0'; ++from, ++to);
-	return(to);
+	for (; (*to = *from) != '\0'; ++from, ++to)
+		;
+	return (to);
 }

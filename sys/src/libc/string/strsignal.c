@@ -33,18 +33,28 @@
 char *
 strsignal(int sig)
 {
-    static char buf[NL_TEXTMAX];
+	static char buf[NL_TEXTMAX];
 
-    static const char *const signals[] = {
-        "Signal 0", "Hangup", "Interrupt", "Quit", "Illegal instruction",
-        "Trap", "Abort", "EMT instruction", "Floating point exception",
-        "Kill", "Bus error", "Segmentation fault", "Bad system call",
-        "Broken pipe", "Alarm clock", "Terminated"
-    };
+	static const char *const signals[] = { "Signal 0",
+		                               "Hangup",
+		                               "Interrupt",
+		                               "Quit",
+		                               "Illegal instruction",
+		                               "Trap",
+		                               "Abort",
+		                               "EMT instruction",
+		                               "Floating point exception",
+		                               "Kill",
+		                               "Bus error",
+		                               "Segmentation fault",
+		                               "Bad system call",
+		                               "Broken pipe",
+		                               "Alarm clock",
+		                               "Terminated" };
 
-    if (sig < 0 || sig >= (int)(sizeof(signals)/sizeof(signals[0])))
-        return strcpy(buf, "Unknown signal");
+	if (sig < 0 || sig >= (int)(sizeof(signals) / sizeof(signals[0])))
+		return strcpy(buf, "Unknown signal");
 
-    return strcpy(buf, signals[sig]);
+	return strcpy(buf, signals[sig]);
 }
 DEF_WEAK(strsignal);

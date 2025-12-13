@@ -38,12 +38,11 @@
 #include <softfloat.h>
 #include <namespace.h>
 
-__weak_alias(_fpgetround,fpgetround);
+__weak_alias(_fpgetround, fpgetround);
 
 fp_rnd
 fpgetround(void)
 {
-
 	return float_rounding_mode;
 }
 DEF_WEAK(fpgetround);

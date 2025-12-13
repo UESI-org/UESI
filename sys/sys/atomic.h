@@ -50,7 +50,7 @@ atomic_cas_ulong(volatile unsigned long *p, unsigned long o, unsigned long n)
 static inline void *
 atomic_cas_ptr(volatile void *pp, void *o, void *n)
 {
-	void * volatile *p = (void * volatile *)pp;
+	void *volatile *p = (void *volatile *)pp;
 	return __sync_val_compare_and_swap(p, o, n);
 }
 #endif
@@ -79,7 +79,7 @@ atomic_swap_ulong(volatile unsigned long *p, unsigned long v)
 static inline void *
 atomic_swap_ptr(volatile void *pp, void *v)
 {
-	void * volatile *p = (void * volatile *)pp;
+	void *volatile *p = (void *volatile *)pp;
 	return __sync_lock_test_and_set(p, v);
 }
 #endif
@@ -276,17 +276,19 @@ membar_datadep_consumer(void)
 #endif
 }
 
-#define READ_ONCE(x) ({							\
-	typeof(x) __tmp = *(volatile typeof(x) *)&(x);			\
-	membar_datadep_consumer();					\
-	__tmp;								\
-})
+#define READ_ONCE(x)                                                           \
+	({                                                                     \
+		typeof(x) __tmp = *(volatile typeof(x) *)&(x);                 \
+		membar_datadep_consumer();                                     \
+		__tmp;                                                         \
+	})
 
-#define WRITE_ONCE(x, val) ({						\
-	typeof(x) __tmp = (val);					\
-	*(volatile typeof(x) *)&(x) = __tmp;				\
-	__tmp;								\
-})
+#define WRITE_ONCE(x, val)                                                     \
+	({                                                                     \
+		typeof(x) __tmp = (val);                                       \
+		*(volatile typeof(x) *)&(x) = __tmp;                           \
+		__tmp;                                                         \
+	})
 
 #endif /* _KERNEL */
 

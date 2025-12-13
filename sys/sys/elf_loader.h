@@ -7,7 +7,9 @@
 #include <proc.h>
 
 bool elf_validate(const void *elf_data, size_t size);
-bool elf_load(struct process *ps, const void *elf_data, size_t size, 
+bool elf_load(struct process *ps,
+              const void *elf_data,
+              size_t size,
               uint64_t *entry_point);
 
 const Elf64_Ehdr *elf_get_header(const void *elf_data);

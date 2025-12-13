@@ -59,14 +59,14 @@ typedef uint64 bits64;
 typedef int32 sbits32;
 typedef int64 sbits64;
 
-/* Boolean/flag type used throughout softfloat 
+/* Boolean/flag type used throughout softfloat
  * NOTE: Changed from int8 to int to match GCC comparison functions
  * which return int, not signed char
  */
 typedef int flag;
 
 /* Constants */
-#define LIT64( a ) a##LL
+#define LIT64(a) a##LL
 
 /* For kernel/freestanding environment, __dso_protected is not supported */
 #ifndef __dso_protected
@@ -82,10 +82,12 @@ typedef int flag;
  * Define SIGFPE and a stub raise() function that does nothing.
  */
 #ifdef _KERNEL
-#define SIGFPE 8  /* Floating point exception signal number */
-static inline int raise(int sig __attribute__((unused))) {
-    /* In kernel mode, we don't raise signals */
-    return 0;
+#define SIGFPE 8 /* Floating point exception signal number */
+static inline int
+raise(int sig __attribute__((unused)))
+{
+	/* In kernel mode, we don't raise signals */
+	return 0;
 }
 #endif
 

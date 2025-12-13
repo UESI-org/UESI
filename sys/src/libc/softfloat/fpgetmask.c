@@ -38,11 +38,10 @@
 #include "milieu.h"
 #include <softfloat.h>
 
-__weak_alias(_fpgetmask,fpgetmask);
+__weak_alias(_fpgetmask, fpgetmask);
 
 fp_except
 fpgetmask(void)
 {
-
 	return float_exception_mask;
 }

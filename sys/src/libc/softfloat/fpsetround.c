@@ -37,7 +37,7 @@
 #include "milieu.h"
 #include <softfloat.h>
 
-__weak_alias(_fpsetround,fpsetround);
+__weak_alias(_fpsetround, fpsetround);
 
 fp_rnd
 fpsetround(fp_rnd rnd_dir)

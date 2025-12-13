@@ -36,15 +36,15 @@
  *	@(#)errno.h	8.5 (Berkeley) 1/21/94
  */
 
-#ifndef	_ERRNO_H_
-#define	_ERRNO_H_
+#ifndef _ERRNO_H_
+#define _ERRNO_H_
 
 #include <sys/errno.h>
 
 __BEGIN_DECLS
 #if __BSD_VISIBLE
-#ifndef	__SYS_ERRLIST
-#define	__SYS_ERRLIST
+#ifndef __SYS_ERRLIST
+#define __SYS_ERRLIST
 extern const int sys_nerr;
 extern const char *const sys_errlist[];
 #endif /* __SYS_ERRLIST */

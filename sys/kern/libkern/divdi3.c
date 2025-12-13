@@ -53,6 +53,6 @@ __divdi3(quad_t a, quad_t b)
 
 	uq = __qdivrem(ua, ub, (u_quad_t *)0);
 	if (neg)
-		uq = - uq;
+		uq = -uq;
 	return uq;
 }

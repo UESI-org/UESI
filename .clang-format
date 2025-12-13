@@ -1,0 +1,141 @@
+BasedOnStyle: LLVM
+Language: Cpp
+
+# Indentation: 8 character tab, second level indents are 4 spaces
+IndentWidth: 8
+TabWidth: 8
+UseTab: ForIndentation
+ContinuationIndentWidth: 4
+
+# All code should fit in 80 columns
+ColumnLimit: 80
+ReflowComments: true
+
+# Braces
+# "Closing and opening braces go on the same line as the else"
+# "The function type should be on a line by itself preceding the function"
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterClass: false
+  AfterControlStatement: Never
+  AfterEnum: false
+  AfterFunction: true
+  AfterNamespace: false
+  AfterStruct: false
+  AfterUnion: false
+  AfterExternBlock: false
+  BeforeCatch: false
+  BeforeElse: false
+  IndentBraces: false
+  SplitEmptyFunction: true
+
+# "The function type should be on a line by itself preceding the function"
+AlwaysBreakAfterReturnType: TopLevelDefinitions
+
+# Pointer alignment - KNF uses "char *p" style
+PointerAlignment: Right
+DerivePointerAlignment: false
+
+# "Use a space after keywords (if, while, for, return, switch)"
+SpaceBeforeParens: ControlStatementsExceptControlMacros
+
+# "Do not use spaces after function names"
+# "Do not use spaces after '(' or '[' or preceding ']' or ')' characters"
+SpaceAfterCStyleCast: false
+SpaceAfterLogicalNot: false
+SpaceBeforeAssignmentOperators: true
+SpaceInEmptyParentheses: false
+SpacesBeforeTrailingComments: 1
+SpacesInAngles: Never
+SpacesInCStyleCastParentheses: false
+SpacesInContainerLiterals: false
+SpacesInParentheses: false
+SpacesInSquareBrackets: false
+
+# Control statement formatting
+# "No braces are used for control statements with zero or only a single statement"
+AllowShortBlocksOnASingleLine: Never
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: None
+
+# Switch statement formatting
+# "Indent the switch" / "Don't indent the case"
+IndentCaseLabels: false
+IndentCaseBlocks: false
+
+# Alignment
+AlignAfterOpenBracket: Align
+AlignConsecutiveAssignments: None
+AlignConsecutiveDeclarations: None
+AlignConsecutiveMacros: None
+AlignEscapedNewlines: Right
+AlignOperands: Align
+AlignTrailingComments: true
+
+# Parameters and arguments
+AllowAllParametersOfDeclarationOnNextLine: true
+AllowAllArgumentsOnNextLine: true
+BinPackArguments: false
+BinPackParameters: false
+
+# Binary operators
+BreakBeforeBinaryOperators: None
+BreakBeforeTernaryOperators: true
+
+# Strings
+BreakStringLiterals: true
+
+# Empty lines
+KeepEmptyLinesAtTheStartOfBlocks: false
+MaxEmptyLinesToKeep: 1
+
+# Include sorting - style(9) shows specific ordering
+# "Kernel include files come first"
+# "network include files next"
+# "blank line, followed by /usr/include files"
+# "blank line, and the user include files"
+SortIncludes: Never
+IncludeBlocks: Preserve
+
+# Preprocessor indentation
+IndentPPDirectives: None
+
+# Goto labels
+IndentGotoLabels: false
+
+# Function names
+IndentWrappedFunctionNames: false
+
+# Penalties for line breaking (tune these to match KNF preferences)
+PenaltyBreakAssignment: 2
+PenaltyBreakBeforeFirstCallParameter: 19
+PenaltyBreakComment: 300
+PenaltyBreakFirstLessLess: 120
+PenaltyBreakString: 1000
+PenaltyExcessCharacter: 1000000
+PenaltyReturnTypeOnItsOwnLine: 200
+
+# Comments
+# Recognize FALLTHROUGH comments
+CommentPragmas: '^ FALLTHROUGH'
+
+# C++ specific (mostly not applicable for kernel code)
+Cpp11BracedListStyle: false
+Standard: c++03
+
+# Additional spacing rules
+SpaceBeforeCpp11BracedList: false
+SpaceBeforeCtorInitializerColon: true
+SpaceBeforeInheritanceColon: true
+SpaceBeforeRangeBasedForLoopColon: true
+
+# Don't sort using declarations
+SortUsingDeclarations: Never
+
+# Disable namespace indentation (not used in kernel code)
+NamespaceIndentation: None
+
+# Ensure proper spacing around operators
+SpaceAroundPointerQualifiers: Default

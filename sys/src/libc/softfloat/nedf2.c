@@ -14,7 +14,6 @@ flag __nedf2(float64, float64) __dso_protected;
 flag
 __nedf2(float64 a, float64 b)
 {
-
 	/* libgcc1.c says a != b */
 	return !float64_eq(a, b);
 }

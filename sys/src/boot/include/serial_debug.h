@@ -17,7 +17,9 @@ void debug_section(const char *section);
 void debug_error(const char *error);
 void debug_success(const char *message);
 
-void debug_framebuffer_info(uint32_t width, uint32_t height, 
-                           uint32_t pitch, uint32_t bpp);
+void debug_framebuffer_info(uint32_t width,
+                            uint32_t height,
+                            uint32_t pitch,
+                            uint32_t bpp);
 
 #endif

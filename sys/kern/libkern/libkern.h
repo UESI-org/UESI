@@ -38,10 +38,9 @@
 #include <sys/types.h>
 
 #ifndef LIBKERN_INLINE
-#define LIBKERN_INLINE	static __inline
+#define LIBKERN_INLINE static __inline
 #define LIBKERN_BODY
 #endif
-
 
 LIBKERN_INLINE int imax(int, int);
 /* Undefine param.h macros to avoid conflicts with our functions */
@@ -101,75 +100,83 @@ ulmin(u_long a, u_long b)
 LIBKERN_INLINE int
 abs(int j)
 {
-	return(j < 0 ? -j : j);
+	return (j < 0 ? -j : j);
 }
 #endif
 
-#ifdef NDEBUG						/* tradition! */
-#define	assert(e)	((void)0)
+#ifdef NDEBUG /* tradition! */
+#define assert(e) ((void)0)
 #else
-#define	assert(e)	((e) ? (void)0 :				    \
-			    __assert("", __FILE__, __LINE__, #e))
+#define assert(e) ((e) ? (void)0 : __assert("", __FILE__, __LINE__, #e))
 #endif
 
-#define	__KASSERTSTR	"kernel %sassertion \"%s\" failed: file \"%s\", line %d"
+#define __KASSERTSTR "kernel %sassertion \"%s\" failed: file \"%s\", line %d"
 
 #ifndef DIAGNOSTIC
-#define	KASSERTMSG(e, msg, ...)	((void)0)
-#define	KASSERT(e)	((void)0)
+#define KASSERTMSG(e, msg, ...) ((void)0)
+#define KASSERT(e) ((void)0)
 #else
-#define	KASSERTMSG(e, msg, ...)	((e) ? (void)0 :			    \
-			    panic(__KASSERTSTR " " msg, "diagnostic ", #e,  \
-			    __FILE__, __LINE__, ## __VA_ARGS__))
-#define	KASSERT(e)	((e) ? (void)0 :				    \
-			    __assert("diagnostic ", __FILE__, __LINE__, #e))
+#define KASSERTMSG(e, msg, ...)                                                \
+	((e) ? (void)0                                                         \
+	     : panic(__KASSERTSTR " " msg,                                     \
+	             "diagnostic ",                                            \
+	             #e,                                                       \
+	             __FILE__,                                                 \
+	             __LINE__,                                                 \
+	             ##__VA_ARGS__))
+#define KASSERT(e)                                                             \
+	((e) ? (void)0 : __assert("diagnostic ", __FILE__, __LINE__, #e))
 #endif
 
 #ifndef DEBUG
-#define	KDASSERTMSG(e, msg, ...)	((void)0)
-#define	KDASSERT(e)	((void)0)
+#define KDASSERTMSG(e, msg, ...) ((void)0)
+#define KDASSERT(e) ((void)0)
 #else
-#define	KDASSERTMSG(e, msg, ...)	((e) ? (void)0 :		    \
-			    panic(__KASSERTSTR " " msg, "debugging ", #e,   \
-			    __FILE__, __LINE__, ## __VA_ARGS__))
-#define	KDASSERT(e)	((e) ? (void)0 :				    \
-			    __assert("debugging ", __FILE__, __LINE__, #e))
+#define KDASSERTMSG(e, msg, ...)                                               \
+	((e) ? (void)0                                                         \
+	     : panic(__KASSERTSTR " " msg,                                     \
+	             "debugging ",                                             \
+	             #e,                                                       \
+	             __FILE__,                                                 \
+	             __LINE__,                                                 \
+	             ##__VA_ARGS__))
+#define KDASSERT(e)                                                            \
+	((e) ? (void)0 : __assert("debugging ", __FILE__, __LINE__, #e))
 #endif
 
-#define	CTASSERT(x)	extern char  _ctassert[(x) ? 1 : -1 ]	\
-			    __attribute__((__unused__))
+#define CTASSERT(x)                                                            \
+	extern char _ctassert[(x) ? 1 : -1] __attribute__((__unused__))
 
 /* Prototypes for non-quad routines. */
-void	 __assert(const char *, const char *, int, const char *)
-	    __attribute__ ((__noreturn__));
-int	 bcmp(const void *, const void *, size_t);
-void	 bzero(void *, size_t);
-void	 explicit_bzero(void *, size_t);
-int	 ffs(int);
-int	 fls(int);
-int	 flsl(long);
-void	*memchr(const void *, int, size_t);
-int	 memcmp(const void *, const void *, size_t);
-void	*memset(void *, int c, size_t len);
+void __assert(const char *, const char *, int, const char *)
+    __attribute__((__noreturn__));
+int bcmp(const void *, const void *, size_t);
+void bzero(void *, size_t);
+void explicit_bzero(void *, size_t);
+int ffs(int);
+int fls(int);
+int flsl(long);
+void *memchr(const void *, int, size_t);
+int memcmp(const void *, const void *, size_t);
+void *memset(void *, int c, size_t len);
 u_int32_t random(void);
-int	 scanc(u_int, const u_char *, const u_char [], int);
-int	 skpc(int, size_t, u_char *);
-size_t	 strlen(const char *);
-char	*strncpy(char *, const char *, size_t)
-		__attribute__ ((__bounded__(__string__,1,3)));
-size_t	 strnlen(const char *, size_t);
-size_t	 strlcpy(char *, const char *, size_t)
-		__attribute__ ((__bounded__(__string__,1,3)));
-size_t	 strlcat(char *, const char *, size_t)
-		__attribute__ ((__bounded__(__string__,1,3)));
-int	 strcmp(const char *, const char *);
-int	 strncmp(const char *, const char *, size_t);
-int	 strncasecmp(const char *, const char *, size_t);
-size_t	 getsn(char *, size_t)
-		__attribute__ ((__bounded__(__string__,1,2)));
-char	*strchr(const char *, int);
-char	*strrchr(const char *, int);
-int	 timingsafe_bcmp(const void *, const void *, size_t);
-char	*strnstr(const char *, const char *, size_t);
+int scanc(u_int, const u_char *, const u_char[], int);
+int skpc(int, size_t, u_char *);
+size_t strlen(const char *);
+char *strncpy(char *, const char *, size_t)
+    __attribute__((__bounded__(__string__, 1, 3)));
+size_t strnlen(const char *, size_t);
+size_t strlcpy(char *, const char *, size_t)
+    __attribute__((__bounded__(__string__, 1, 3)));
+size_t strlcat(char *, const char *, size_t)
+    __attribute__((__bounded__(__string__, 1, 3)));
+int strcmp(const char *, const char *);
+int strncmp(const char *, const char *, size_t);
+int strncasecmp(const char *, const char *, size_t);
+size_t getsn(char *, size_t) __attribute__((__bounded__(__string__, 1, 2)));
+char *strchr(const char *, int);
+char *strrchr(const char *, int);
+int timingsafe_bcmp(const void *, const void *, size_t);
+char *strnstr(const char *, const char *, size_t);
 
 #endif /* __LIBKERN_H__ */

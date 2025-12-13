@@ -14,7 +14,6 @@ flag __gesf2(float32, float32) __dso_protected;
 flag
 __gesf2(float32 a, float32 b)
 {
-
 	/* libgcc1.c says (a >= b) - 1 */
 	return float32_le(b, a) - 1;
 }

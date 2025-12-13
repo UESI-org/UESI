@@ -14,7 +14,6 @@ flag __gtsf2(float32, float32) __dso_protected;
 flag
 __gtsf2(float32 a, float32 b)
 {
-
 	/* libgcc1.c says a > b */
 	return float32_lt(b, a);
 }

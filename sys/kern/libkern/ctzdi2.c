@@ -17,12 +17,8 @@ ffsl(long mask)
 {
 	int bit;
 	unsigned long r = mask;
-	static const signed char t[16] = {
-		-60, 1, 2, 1,
-		  3, 1, 2, 1,
-		  4, 1, 2, 1,
-		  3, 1, 2, 1
-	};
+	static const signed char t[16] = { -60, 1, 2, 1, 3, 1, 2, 1,
+		                           4,   1, 2, 1, 3, 1, 2, 1 };
 
 	bit = 0;
 	if (!(r & 0xffffffff)) {
@@ -42,7 +38,7 @@ ffsl(long mask)
 		r >>= 4;
 	}
 
-	return (bit + t[ r & 0xf ]);
+	return (bit + t[r & 0xf]);
 }
 #else
 static int

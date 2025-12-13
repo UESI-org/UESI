@@ -40,7 +40,7 @@ skpc(int mask, size_t size, u_char *cp)
 {
 	u_char *end = &cp[size];
 
-	while (cp < end && *cp == (u_char) mask)
+	while (cp < end && *cp == (u_char)mask)
 		cp++;
 	return (end - cp);
 }

@@ -41,7 +41,7 @@
  *
  *	u = 2^n u1  *  u0	(n = number of bits in `u_int', usu. 32)
  *
- * and 
+ * and
  *
  *	v = 2^n v1  *  v0
  *
@@ -98,10 +98,10 @@ __muldi3(quad_t a, quad_t b)
 	union uu u, v, low, prod;
 	u_int high, mid, udiff, vdiff;
 	int negall, negmid;
-#define	u1	u.ul[H]
-#define	u0	u.ul[L]
-#define	v1	v.ul[H]
-#define	v0	v.ul[L]
+#define u1 u.ul[H]
+#define u0 u.ul[L]
+#define v1 v.ul[H]
+#define v0 v.ul[L]
 
 	/*
 	 * Get u and v such that u, v >= 0.  When this is finished,
@@ -148,8 +148,8 @@ __muldi3(quad_t a, quad_t b)
 		/*
 		 * Assemble the final product.
 		 */
-		prod.ul[H] = high + (negmid ? -mid : mid) + low.ul[L] +
-		    low.ul[H];
+		prod.ul[H] =
+		    high + (negmid ? -mid : mid) + low.ul[L] + low.ul[H];
 		prod.ul[L] = low.ul[L];
 	}
 	return (negall ? -prod.q : prod.q);

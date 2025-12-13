@@ -31,7 +31,7 @@
  */
 
 #include <libkern.h>
-#define NULL	((char *)0)
+#define NULL ((char *)0)
 
 char *
 strrchr(const char *s, int c)

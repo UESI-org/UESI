@@ -8,7 +8,8 @@
 
 #define PAGE_SIZE 4096
 
-void pmm_init(struct limine_memmap_response *memmap, struct limine_hhdm_response *hhdm);
+void pmm_init(struct limine_memmap_response *memmap,
+              struct limine_hhdm_response *hhdm);
 void *pmm_alloc(void);
 void pmm_free(void *page);
 void *pmm_alloc_contiguous(size_t num_pages);

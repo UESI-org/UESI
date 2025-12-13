@@ -38,10 +38,10 @@ strrchr(const char *p, int ch)
 	char *save;
 
 	for (save = NULL;; ++p) {
-		if (*p == (char) ch)
+		if (*p == (char)ch)
 			save = (char *)p;
 		if (!*p)
-			return(save);
+			return (save);
 	}
 	/* NOTREACHED */
 }

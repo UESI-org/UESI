@@ -37,10 +37,10 @@
  * sizeof(word) MUST BE A POWER OF TWO
  * SO THAT wmask BELOW IS ALL ONES
  */
-typedef	long word;		/* "word" used for optimal copy speed */
+typedef long word; /* "word" used for optimal copy speed */
 
-#define	wsize	sizeof(word)
-#define	wmask	(wsize - 1)
+#define wsize sizeof(word)
+#define wmask (wsize - 1)
 
 /*
  * Copy a block of memory, handling overlap.
@@ -52,20 +52,25 @@ memmove(void *dst0, const void *src0, size_t length)
 	const char *src = src0;
 	size_t t;
 
-	if (length == 0 || dst == src)		/* nothing to do */
+	if (length == 0 || dst == src) /* nothing to do */
 		goto done;
 
 	/*
 	 * Macros: loop-t-times; and loop-t-times, t>0
 	 */
-#define	TLOOP(s) if (t) TLOOP1(s)
-#define	TLOOP1(s) do { s; } while (--t)
+#define TLOOP(s)                                                               \
+	if (t)                                                                 \
+	TLOOP1(s)
+#define TLOOP1(s)                                                              \
+	do {                                                                   \
+		s;                                                             \
+	} while (--t)
 
 	if ((unsigned long)dst < (unsigned long)src) {
 		/*
 		 * Copy forward.
 		 */
-		t = (long)src;	/* only need low bits */
+		t = (long)src; /* only need low bits */
 		if ((t | (long)dst) & wmask) {
 			/*
 			 * Try to align operands.  This cannot be done

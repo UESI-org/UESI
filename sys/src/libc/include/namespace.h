@@ -32,49 +32,49 @@
  * For explanations of why we use them and how they work, see DETAILS
  */
 
-#include <sys/cdefs.h>	/* for __dso_hidden and __{weak,strong}_alias */
+#include <sys/cdefs.h> /* for __dso_hidden and __{weak,strong}_alias */
 
-#define	__dso_protected		__attribute__((__visibility__("protected")))
+#define __dso_protected __attribute__((__visibility__("protected")))
 
-#define HIDDEN(x)       x
-#define	CANCEL(x)		_libc_##x##_cancel
-#define	WRAP(x)			_libc_##x##_wrap
-#define	HIDDEN_STRING(x)	"_libc_" __STRING(x)
-#define	CANCEL_STRING(x)	"_libc_" __STRING(x) "_cancel"
-#define	WRAP_STRING(x)		"_libc_" __STRING(x) "_wrap"
+#define HIDDEN(x) x
+#define CANCEL(x) _libc_##x##_cancel
+#define WRAP(x) _libc_##x##_wrap
+#define HIDDEN_STRING(x) "_libc_" __STRING(x)
+#define CANCEL_STRING(x) "_libc_" __STRING(x) "_cancel"
+#define WRAP_STRING(x) "_libc_" __STRING(x) "_wrap"
 
 #define PROTO_NORMAL(x) /* nothing */
-#define	PROTO_STD_DEPRECATED(x)	typeof(x) x __attribute__((deprecated))
-#define	PROTO_DEPRECATED(x)	typeof(x) x __attribute__((deprecated, weak))
-#define	PROTO_CANCEL(x)		__dso_hidden typeof(x) HIDDEN(x), \
-					x asm(CANCEL_STRING(x))
-#define	PROTO_WRAP(x)		PROTO_NORMAL(x), WRAP(x)
-#define	PROTO_PROTECTED(x)	__dso_protected typeof(x) x
+#define PROTO_STD_DEPRECATED(x) typeof(x) x __attribute__((deprecated))
+#define PROTO_DEPRECATED(x) typeof(x) x __attribute__((deprecated, weak))
+#define PROTO_CANCEL(x)                                                        \
+	__dso_hidden typeof(x) HIDDEN(x), x asm(CANCEL_STRING(x))
+#define PROTO_WRAP(x) PROTO_NORMAL(x), WRAP(x)
+#define PROTO_PROTECTED(x) __dso_protected typeof(x) x
 
-#define DEF_STRONG(x)   /* nothing */
-#define DEF_WEAK(x)     /* nothing */
-#define	DEF_CANCEL(x)		__weak_alias(x, CANCEL(x))
-#define	DEF_WRAP(x)		__weak_alias(x, WRAP(x))
-#define	DEF_SYS(x)		__strong_alias(_thread_sys_##x, HIDDEN(x))
+#define DEF_STRONG(x) /* nothing */
+#define DEF_WEAK(x)   /* nothing */
+#define DEF_CANCEL(x) __weak_alias(x, CANCEL(x))
+#define DEF_WRAP(x) __weak_alias(x, WRAP(x))
+#define DEF_SYS(x) __strong_alias(_thread_sys_##x, HIDDEN(x))
 
 #if !defined(__clang__)
 /* our gcc 4.2 handles redirecting builtins via PROTO_NORMAL()'s asm() label */
-#define DEF_BUILTIN(x)  /* nothing */
-#define	BUILTIN
+#define DEF_BUILTIN(x) /* nothing */
+#define BUILTIN
 #else
 /*
  * clang can't redirect builtins via asm() labels, so mark
  * them protected instead.
  */
-#define	DEF_BUILTIN(x)		__asm("")
-#define	BUILTIN			__dso_protected
+#define DEF_BUILTIN(x) __asm("")
+#define BUILTIN __dso_protected
 #endif
 
-#define	MAKE_CLONE(dst, src)	__dso_hidden typeof(dst) HIDDEN(dst) \
-				__attribute__((alias (HIDDEN_STRING(src))))
+#define MAKE_CLONE(dst, src)                                                   \
+	__dso_hidden typeof(dst) HIDDEN(dst)                                   \
+	    __attribute__((alias(HIDDEN_STRING(src))))
 
-#define	__relro			__attribute__((section(".data.rel.ro")))
-
+#define __relro __attribute__((section(".data.rel.ro")))
 
 /*
  * gcc and clang will generate calls to the functions below.
@@ -82,16 +82,16 @@
  * directly to our hidden aliases.
  */
 #include <sys/_types.h>
-BUILTIN void	*memmove(void *, const void *, __size_t);
-BUILTIN void	*memcpy(void *__restrict, const void *__restrict, __size_t);
-BUILTIN void	*memset(void *, int, __size_t);
-BUILTIN void	__stack_smash_handler(const char [], int __unused);
+BUILTIN void *memmove(void *, const void *, __size_t);
+BUILTIN void *memcpy(void *__restrict, const void *__restrict, __size_t);
+BUILTIN void *memset(void *, int, __size_t);
+BUILTIN void __stack_smash_handler(const char[], int __unused);
 #if !defined(__clang__)
 PROTO_NORMAL(memmove);
 PROTO_NORMAL(memcpy);
 PROTO_NORMAL(memset);
 PROTO_NORMAL(__stack_smash_handler);
 #endif
-#undef	BUILTIN
+#undef BUILTIN
 
-#endif  /* _LIBC_NAMESPACE_H_ */
+#endif /* _LIBC_NAMESPACE_H_ */

@@ -41,34 +41,34 @@
 
 #ifndef _PTRDIFF_T_DEFINED_
 #define _PTRDIFF_T_DEFINED_
-typedef	__ptrdiff_t	ptrdiff_t;
+typedef __ptrdiff_t ptrdiff_t;
 #endif
 
-#ifndef	_SIZE_T_DEFINED_
-#define	_SIZE_T_DEFINED_
-typedef	__size_t	size_t;
+#ifndef _SIZE_T_DEFINED_
+#define _SIZE_T_DEFINED_
+typedef __size_t size_t;
 #endif
 
 /* in C++, wchar_t is a built-in type */
 #if !defined(_WCHAR_T_DEFINED_) && !defined(__cplusplus)
 #define _WCHAR_T_DEFINED_
-typedef	__wchar_t	wchar_t;
+typedef __wchar_t wchar_t;
 #endif
 
-#ifndef	_WINT_T_DEFINED_
-#define	_WINT_T_DEFINED_
-typedef	__wint_t	wint_t;
+#ifndef _WINT_T_DEFINED_
+#define _WINT_T_DEFINED_
+typedef __wint_t wint_t;
 #endif
 
-#ifndef	_MBSTATE_T_DEFINED_
-#define	_MBSTATE_T_DEFINED_
-typedef	__mbstate_t	mbstate_t;
+#ifndef _MBSTATE_T_DEFINED_
+#define _MBSTATE_T_DEFINED_
+typedef __mbstate_t mbstate_t;
 #endif
 
 #if __GNUC_PREREQ__(4, 0)
-#define	offsetof(type, member)	__builtin_offsetof(type, member)
+#define offsetof(type, member) __builtin_offsetof(type, member)
 #else
-#define	offsetof(type, member)	((size_t)(&((type *)0)->member))
+#define offsetof(type, member) ((size_t)(&((type *)0)->member))
 #endif
 
 #if __ISO_C_VISIBLE >= 2011 || __cplusplus >= 201103

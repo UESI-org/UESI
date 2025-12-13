@@ -15,8 +15,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#ifndef	_LIBC_ERRNO_H_
-#define	_LIBC_ERRNO_H_
+#ifndef _LIBC_ERRNO_H_
+#define _LIBC_ERRNO_H_
 
 /* we want the const-correct declarations inside libc */
 #define __SYS_ERRLIST

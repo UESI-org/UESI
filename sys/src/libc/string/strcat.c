@@ -33,7 +33,7 @@
 
 #if defined(APIWARN)
 __warn_references(strcat,
-    "strcat() is almost always misused, please use strlcat()");
+                  "strcat() is almost always misused, please use strlcat()");
 #endif
 
 char *
@@ -41,7 +41,9 @@ strcat(char *s, const char *append)
 {
 	char *save = s;
 
-	for (; *s; ++s);
-	while ((*s++ = *append++) != '\0');
-	return(save);
+	for (; *s; ++s)
+		;
+	while ((*s++ = *append++) != '\0')
+		;
+	return (save);
 }

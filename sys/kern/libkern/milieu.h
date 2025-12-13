@@ -66,11 +66,7 @@ this code that are retained.
 #include <sys/types.h>
 #include <sys/endian.h>
 
-enum {
-    FALSE = 0,
-    TRUE  = 1
-};
-
+enum { FALSE = 0, TRUE = 1 };
 
 /*
 -------------------------------------------------------------------------------
@@ -138,7 +134,7 @@ name for the 64-bit integer type.  Some compilers may allow `LIT64' to be
 defined as the identity macro:  `#define LIT64( a ) a'.
 -------------------------------------------------------------------------------
 */
-#define LIT64( a ) a##LL
+#define LIT64(a) a##LL
 #endif
 
 /*
@@ -165,10 +161,12 @@ to be `static'.
  * Define SIGFPE and a stub raise() function that does nothing.
  */
 #ifdef _KERNEL
-#define SIGFPE 8  /* Floating point exception signal number */
-static inline int raise(int sig __attribute__((unused))) {
-    /* In kernel mode, we don't raise signals */
-    return 0;
+#define SIGFPE 8 /* Floating point exception signal number */
+static inline int
+raise(int sig __attribute__((unused)))
+{
+	/* In kernel mode, we don't raise signals */
+	return 0;
 }
 #endif
 

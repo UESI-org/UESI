@@ -48,11 +48,11 @@ size_t strlcpy(char *, const char *, size_t);
 size_t
 strxfrm(char *dst, const char *src, size_t n)
 {
-    /*
-     * Since locales are unimplemented, this is just a copy.
-     */
-    if (n == 0)
-        return (strlen(src));
-    return (strlcpy(dst, src, n));
+	/*
+	 * Since locales are unimplemented, this is just a copy.
+	 */
+	if (n == 0)
+		return (strlen(src));
+	return (strlcpy(dst, src, n));
 }
 DEF_STRONG(strxfrm);

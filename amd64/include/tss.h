@@ -48,17 +48,17 @@
  */
 
 struct x86_64_tss {
-	u_int32_t	tss_reserved1;
-	u_int64_t	tss_rsp0;
-	u_int64_t	tss_rsp1;
-	u_int64_t	tss_rsp2;
-	u_int32_t	tss_reserved2;
-	u_int32_t	tss_reserved3;
-	u_int64_t	tss_ist[7];
-	u_int32_t	tss_reserved4;
-	u_int32_t	tss_reserved5;
-	u_int16_t	tss_reserved6;
-	u_int16_t	tss_iobase;
+	u_int32_t tss_reserved1;
+	u_int64_t tss_rsp0;
+	u_int64_t tss_rsp1;
+	u_int64_t tss_rsp2;
+	u_int32_t tss_reserved2;
+	u_int32_t tss_reserved3;
+	u_int64_t tss_ist[7];
+	u_int32_t tss_reserved4;
+	u_int32_t tss_reserved5;
+	u_int16_t tss_reserved6;
+	u_int16_t tss_iobase;
 } __packed;
 
 #endif /* _MACHINE_TSS_H_ */

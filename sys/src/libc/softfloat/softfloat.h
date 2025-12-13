@@ -56,13 +56,13 @@ typedef unsigned int float32;
 typedef unsigned long long float64;
 #ifdef FLOATX80
 typedef struct {
-    unsigned short high;
-    unsigned long long low;
+	unsigned short high;
+	unsigned long long low;
 } floatx80;
 #endif
 #ifdef FLOAT128
 typedef struct {
-    unsigned long long high, low;
+	unsigned long long high, low;
 } float128;
 #endif
 
@@ -74,11 +74,8 @@ Software IEC/IEEE floating-point underflow tininess-detection mode.
 #ifdef SOFTFLOAT_FOR_GCC
 static
 #endif
-int8 float_detect_tininess;
-enum {
-    float_tininess_after_rounding  = 0,
-    float_tininess_before_rounding = 1
-};
+    int8 float_detect_tininess;
+enum { float_tininess_after_rounding = 0, float_tininess_before_rounding = 1 };
 
 /*
 -------------------------------------------------------------------------------
@@ -87,10 +84,10 @@ Software IEC/IEEE floating-point rounding mode.
 */
 extern fp_rnd float_rounding_mode;
 enum {
-    float_round_nearest_even = FP_RN,
-    float_round_to_zero      = FP_RZ,
-    float_round_down         = FP_RM,
-    float_round_up           = FP_RP
+	float_round_nearest_even = FP_RN,
+	float_round_to_zero = FP_RZ,
+	float_round_down = FP_RM,
+	float_round_up = FP_RP
 };
 
 /*
@@ -101,11 +98,11 @@ Software IEC/IEEE floating-point exception flags.
 extern fp_except float_exception_flags;
 extern fp_except float_exception_mask;
 enum {
-    float_flag_inexact   = FP_X_IMP,
-    float_flag_underflow = FP_X_UFL,
-    float_flag_overflow  = FP_X_OFL,
-    float_flag_divbyzero = FP_X_DZ,
-    float_flag_invalid   = FP_X_INV
+	float_flag_inexact = FP_X_IMP,
+	float_flag_underflow = FP_X_UFL,
+	float_flag_overflow = FP_X_OFL,
+	float_flag_divbyzero = FP_X_DZ,
+	float_flag_invalid = FP_X_INV
 };
 
 /*
@@ -114,29 +111,29 @@ Routine to raise any or all of the software IEC/IEEE floating-point
 exception flags.
 -------------------------------------------------------------------------------
 */
-void float_raise( fp_except );
+void float_raise(fp_except);
 
 /*
 -------------------------------------------------------------------------------
 Software IEC/IEEE integer-to-floating-point conversion routines.
 -------------------------------------------------------------------------------
 */
-float32 int32_to_float32( int ) __dso_protected;
-float64 int32_to_float64( int ) __dso_protected;
+float32 int32_to_float32(int) __dso_protected;
+float64 int32_to_float64(int) __dso_protected;
 #ifdef FLOATX80
-floatx80 int32_to_floatx80( int ) __dso_protected;
+floatx80 int32_to_floatx80(int) __dso_protected;
 #endif
 #ifdef FLOAT128
-float128 int32_to_float128( int ) __dso_protected;
+float128 int32_to_float128(int) __dso_protected;
 #endif
 #ifndef SOFTFLOAT_FOR_GCC /* __floatdi?f is in libgcc2.c */
-float32 int64_to_float32( long long ) __dso_protected;
-float64 int64_to_float64( long long ) __dso_protected;
+float32 int64_to_float32(long long) __dso_protected;
+float64 int64_to_float64(long long) __dso_protected;
 #ifdef FLOATX80
-floatx80 int64_to_floatx80( long long ) __dso_protected;
+floatx80 int64_to_floatx80(long long) __dso_protected;
 #endif
 #ifdef FLOAT128
-float128 int64_to_float128( long long ) __dso_protected;
+float128 int64_to_float128(long long) __dso_protected;
 #endif
 #endif
 
@@ -145,21 +142,21 @@ float128 int64_to_float128( long long ) __dso_protected;
 Software IEC/IEEE single-precision conversion routines.
 -------------------------------------------------------------------------------
 */
-int float32_to_int32( float32 ) __dso_protected;
-int float32_to_int32_round_to_zero( float32 ) __dso_protected;
+int float32_to_int32(float32) __dso_protected;
+int float32_to_int32_round_to_zero(float32) __dso_protected;
 #if defined(SOFTFLOAT_FOR_GCC) && defined(SOFTFLOAT_NEED_FIXUNS)
-unsigned int float32_to_uint32_round_to_zero( float32 ) __dso_protected;
+unsigned int float32_to_uint32_round_to_zero(float32) __dso_protected;
 #endif
 #ifndef SOFTFLOAT_FOR_GCC /* __fix?fdi provided by libgcc2.c */
-long long float32_to_int64( float32 ) __dso_protected;
-long long float32_to_int64_round_to_zero( float32 ) __dso_protected;
+long long float32_to_int64(float32) __dso_protected;
+long long float32_to_int64_round_to_zero(float32) __dso_protected;
 #endif
-float64 float32_to_float64( float32 ) __dso_protected;
+float64 float32_to_float64(float32) __dso_protected;
 #ifdef FLOATX80
-floatx80 float32_to_floatx80( float32 ) __dso_protected;
+floatx80 float32_to_floatx80(float32) __dso_protected;
 #endif
 #ifdef FLOAT128
-float128 float32_to_float128( float32 ) __dso_protected;
+float128 float32_to_float128(float32) __dso_protected;
 #endif
 
 /*
@@ -167,21 +164,21 @@ float128 float32_to_float128( float32 ) __dso_protected;
 Software IEC/IEEE single-precision operations.
 -------------------------------------------------------------------------------
 */
-float32 float32_round_to_int( float32 ) __dso_protected;
-float32 float32_add( float32, float32 ) __dso_protected;
-float32 float32_sub( float32, float32 ) __dso_protected;
-float32 float32_mul( float32, float32 ) __dso_protected;
-float32 float32_div( float32, float32 ) __dso_protected;
-float32 float32_rem( float32, float32 ) __dso_protected;
-float32 float32_sqrt( float32 ) __dso_protected;
-int float32_eq( float32, float32 ) __dso_protected;
-int float32_le( float32, float32 ) __dso_protected;
-int float32_lt( float32, float32 ) __dso_protected;
-int float32_eq_signaling( float32, float32 ) __dso_protected;
-int float32_le_quiet( float32, float32 ) __dso_protected;
-int float32_lt_quiet( float32, float32 ) __dso_protected;
+float32 float32_round_to_int(float32) __dso_protected;
+float32 float32_add(float32, float32) __dso_protected;
+float32 float32_sub(float32, float32) __dso_protected;
+float32 float32_mul(float32, float32) __dso_protected;
+float32 float32_div(float32, float32) __dso_protected;
+float32 float32_rem(float32, float32) __dso_protected;
+float32 float32_sqrt(float32) __dso_protected;
+int float32_eq(float32, float32) __dso_protected;
+int float32_le(float32, float32) __dso_protected;
+int float32_lt(float32, float32) __dso_protected;
+int float32_eq_signaling(float32, float32) __dso_protected;
+int float32_le_quiet(float32, float32) __dso_protected;
+int float32_lt_quiet(float32, float32) __dso_protected;
 #ifndef SOFTFLOAT_FOR_GCC
-int float32_is_signaling_nan( float32 ) __dso_protected;
+int float32_is_signaling_nan(float32) __dso_protected;
 #endif
 
 /*
@@ -189,21 +186,21 @@ int float32_is_signaling_nan( float32 ) __dso_protected;
 Software IEC/IEEE double-precision conversion routines.
 -------------------------------------------------------------------------------
 */
-int float64_to_int32( float64 ) __dso_protected;
-int float64_to_int32_round_to_zero( float64 ) __dso_protected;
+int float64_to_int32(float64) __dso_protected;
+int float64_to_int32_round_to_zero(float64) __dso_protected;
 #if defined(SOFTFLOAT_FOR_GCC) && defined(SOFTFLOAT_NEED_FIXUNS)
-unsigned int float64_to_uint32_round_to_zero( float64 ) __dso_protected;
+unsigned int float64_to_uint32_round_to_zero(float64) __dso_protected;
 #endif
 #ifndef SOFTFLOAT_FOR_GCC /* __fix?fdi provided by libgcc2.c */
-long long float64_to_int64( float64 ) __dso_protected;
-long long float64_to_int64_round_to_zero( float64 ) __dso_protected;
+long long float64_to_int64(float64) __dso_protected;
+long long float64_to_int64_round_to_zero(float64) __dso_protected;
 #endif
-float32 float64_to_float32( float64 ) __dso_protected;
+float32 float64_to_float32(float64) __dso_protected;
 #ifdef FLOATX80
-floatx80 float64_to_floatx80( float64 ) __dso_protected;
+floatx80 float64_to_floatx80(float64) __dso_protected;
 #endif
 #ifdef FLOAT128
-float128 float64_to_float128( float64 ) __dso_protected;
+float128 float64_to_float128(float64) __dso_protected;
 #endif
 
 /*
@@ -211,21 +208,21 @@ float128 float64_to_float128( float64 ) __dso_protected;
 Software IEC/IEEE double-precision operations.
 -------------------------------------------------------------------------------
 */
-float64 float64_round_to_int( float64 ) __dso_protected;
-float64 float64_add( float64, float64 ) __dso_protected;
-float64 float64_sub( float64, float64 ) __dso_protected;
-float64 float64_mul( float64, float64 ) __dso_protected;
-float64 float64_div( float64, float64 ) __dso_protected;
-float64 float64_rem( float64, float64 ) __dso_protected;
-float64 float64_sqrt( float64 ) __dso_protected;
-int float64_eq( float64, float64 ) __dso_protected;
-int float64_le( float64, float64 ) __dso_protected;
-int float64_lt( float64, float64 ) __dso_protected;
-int float64_eq_signaling( float64, float64 ) __dso_protected;
-int float64_le_quiet( float64, float64 ) __dso_protected;
-int float64_lt_quiet( float64, float64 ) __dso_protected;
+float64 float64_round_to_int(float64) __dso_protected;
+float64 float64_add(float64, float64) __dso_protected;
+float64 float64_sub(float64, float64) __dso_protected;
+float64 float64_mul(float64, float64) __dso_protected;
+float64 float64_div(float64, float64) __dso_protected;
+float64 float64_rem(float64, float64) __dso_protected;
+float64 float64_sqrt(float64) __dso_protected;
+int float64_eq(float64, float64) __dso_protected;
+int float64_le(float64, float64) __dso_protected;
+int float64_lt(float64, float64) __dso_protected;
+int float64_eq_signaling(float64, float64) __dso_protected;
+int float64_le_quiet(float64, float64) __dso_protected;
+int float64_lt_quiet(float64, float64) __dso_protected;
 #ifndef SOFTFLOAT_FOR_GCC
-int float64_is_signaling_nan( float64 ) __dso_protected;
+int float64_is_signaling_nan(float64) __dso_protected;
 #endif
 
 #ifdef FLOATX80
@@ -235,14 +232,14 @@ int float64_is_signaling_nan( float64 ) __dso_protected;
 Software IEC/IEEE extended double-precision conversion routines.
 -------------------------------------------------------------------------------
 */
-int floatx80_to_int32( floatx80 ) __dso_protected;
-int floatx80_to_int32_round_to_zero( floatx80 ) __dso_protected;
-long long floatx80_to_int64( floatx80 ) __dso_protected;
-long long floatx80_to_int64_round_to_zero( floatx80 ) __dso_protected;
-float32 floatx80_to_float32( floatx80 ) __dso_protected;
-float64 floatx80_to_float64( floatx80 ) __dso_protected;
+int floatx80_to_int32(floatx80) __dso_protected;
+int floatx80_to_int32_round_to_zero(floatx80) __dso_protected;
+long long floatx80_to_int64(floatx80) __dso_protected;
+long long floatx80_to_int64_round_to_zero(floatx80) __dso_protected;
+float32 floatx80_to_float32(floatx80) __dso_protected;
+float64 floatx80_to_float64(floatx80) __dso_protected;
 #ifdef FLOAT128
-float128 floatx80_to_float128( floatx80 ) __dso_protected;
+float128 floatx80_to_float128(floatx80) __dso_protected;
 #endif
 
 /*
@@ -258,20 +255,20 @@ extern int floatx80_rounding_precision;
 Software IEC/IEEE extended double-precision operations.
 -------------------------------------------------------------------------------
 */
-floatx80 floatx80_round_to_int( floatx80 ) __dso_protected;
-floatx80 floatx80_add( floatx80, floatx80 ) __dso_protected;
-floatx80 floatx80_sub( floatx80, floatx80 ) __dso_protected;
-floatx80 floatx80_mul( floatx80, floatx80 ) __dso_protected;
-floatx80 floatx80_div( floatx80, floatx80 ) __dso_protected;
-floatx80 floatx80_rem( floatx80, floatx80 ) __dso_protected;
-floatx80 floatx80_sqrt( floatx80 ) __dso_protected;
-int floatx80_eq( floatx80, floatx80 ) __dso_protected;
-int floatx80_le( floatx80, floatx80 ) __dso_protected;
-int floatx80_lt( floatx80, floatx80 ) __dso_protected;
-int floatx80_eq_signaling( floatx80, floatx80 ) __dso_protected;
-int floatx80_le_quiet( floatx80, floatx80 ) __dso_protected;
-int floatx80_lt_quiet( floatx80, floatx80 ) __dso_protected;
-int floatx80_is_signaling_nan( floatx80 ) __dso_protected;
+floatx80 floatx80_round_to_int(floatx80) __dso_protected;
+floatx80 floatx80_add(floatx80, floatx80) __dso_protected;
+floatx80 floatx80_sub(floatx80, floatx80) __dso_protected;
+floatx80 floatx80_mul(floatx80, floatx80) __dso_protected;
+floatx80 floatx80_div(floatx80, floatx80) __dso_protected;
+floatx80 floatx80_rem(floatx80, floatx80) __dso_protected;
+floatx80 floatx80_sqrt(floatx80) __dso_protected;
+int floatx80_eq(floatx80, floatx80) __dso_protected;
+int floatx80_le(floatx80, floatx80) __dso_protected;
+int floatx80_lt(floatx80, floatx80) __dso_protected;
+int floatx80_eq_signaling(floatx80, floatx80) __dso_protected;
+int floatx80_le_quiet(floatx80, floatx80) __dso_protected;
+int floatx80_lt_quiet(floatx80, floatx80) __dso_protected;
+int floatx80_is_signaling_nan(floatx80) __dso_protected;
 
 #endif
 
@@ -282,14 +279,14 @@ int floatx80_is_signaling_nan( floatx80 ) __dso_protected;
 Software IEC/IEEE quadruple-precision conversion routines.
 -------------------------------------------------------------------------------
 */
-int float128_to_int32( float128 ) __dso_protected;
-int float128_to_int32_round_to_zero( float128 ) __dso_protected;
-long long float128_to_int64( float128 ) __dso_protected;
-long long float128_to_int64_round_to_zero( float128 ) __dso_protected;
-float32 float128_to_float32( float128 ) __dso_protected;
-float64 float128_to_float64( float128 ) __dso_protected;
+int float128_to_int32(float128) __dso_protected;
+int float128_to_int32_round_to_zero(float128) __dso_protected;
+long long float128_to_int64(float128) __dso_protected;
+long long float128_to_int64_round_to_zero(float128) __dso_protected;
+float32 float128_to_float32(float128) __dso_protected;
+float64 float128_to_float64(float128) __dso_protected;
 #ifdef FLOATX80
-floatx80 float128_to_floatx80( float128 ) __dso_protected;
+floatx80 float128_to_floatx80(float128) __dso_protected;
 #endif
 
 /*
@@ -297,19 +294,19 @@ floatx80 float128_to_floatx80( float128 ) __dso_protected;
 Software IEC/IEEE quadruple-precision operations.
 -------------------------------------------------------------------------------
 */
-float128 float128_round_to_int( float128 ) __dso_protected;
-float128 float128_add( float128, float128 ) __dso_protected;
-float128 float128_sub( float128, float128 ) __dso_protected;
-float128 float128_mul( float128, float128 ) __dso_protected;
-float128 float128_div( float128, float128 ) __dso_protected;
-float128 float128_rem( float128, float128 ) __dso_protected;
-float128 float128_sqrt( float128 ) __dso_protected;
-int float128_eq( float128, float128 ) __dso_protected;
-int float128_le( float128, float128 ) __dso_protected;
-int float128_lt( float128, float128 ) __dso_protected;
-int float128_eq_signaling( float128, float128 ) __dso_protected;
-int float128_le_quiet( float128, float128 ) __dso_protected;
-int float128_lt_quiet( float128, float128 ) __dso_protected;
-int float128_is_signaling_nan( float128 ) __dso_protected;
+float128 float128_round_to_int(float128) __dso_protected;
+float128 float128_add(float128, float128) __dso_protected;
+float128 float128_sub(float128, float128) __dso_protected;
+float128 float128_mul(float128, float128) __dso_protected;
+float128 float128_div(float128, float128) __dso_protected;
+float128 float128_rem(float128, float128) __dso_protected;
+float128 float128_sqrt(float128) __dso_protected;
+int float128_eq(float128, float128) __dso_protected;
+int float128_le(float128, float128) __dso_protected;
+int float128_lt(float128, float128) __dso_protected;
+int float128_eq_signaling(float128, float128) __dso_protected;
+int float128_le_quiet(float128, float128) __dso_protected;
+int float128_lt_quiet(float128, float128) __dso_protected;
+int float128_is_signaling_nan(float128) __dso_protected;
 
 #endif

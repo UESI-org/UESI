@@ -31,7 +31,7 @@
 #include <string.h>
 #include <limits.h>
 
-#define NL_TEXTMAX	255
+#define NL_TEXTMAX 255
 
 char *
 strerror(int num)

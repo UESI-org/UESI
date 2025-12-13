@@ -14,7 +14,6 @@ float32 __negsf2(float32) __dso_protected;
 float32
 __negsf2(float32 a)
 {
-
 	/* libgcc1.c says INTIFY(-a) */
 	return a ^ 0x80000000;
 }

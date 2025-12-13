@@ -32,7 +32,7 @@
  */
 
 #ifndef _STRINGS_H_
-#define	_STRINGS_H_
+#define _STRINGS_H_
 
 #include <sys/cdefs.h>
 #include <_mtypes.h>
@@ -42,15 +42,15 @@
  * be prototyped in strings.h.
  */
 
-#ifndef	_SIZE_T_DEFINED_
-#define	_SIZE_T_DEFINED_
-typedef	__size_t	size_t;
+#ifndef _SIZE_T_DEFINED_
+#define _SIZE_T_DEFINED_
+typedef __size_t size_t;
 #endif
 
 #if __POSIX_VISIBLE >= 200809
-#ifndef	_LOCALE_T_DEFINED_
-#define	_LOCALE_T_DEFINED_
-typedef void	*locale_t;
+#ifndef _LOCALE_T_DEFINED_
+#define _LOCALE_T_DEFINED_
+typedef void *locale_t;
 #endif
 #endif
 
@@ -59,28 +59,27 @@ __BEGIN_DECLS
 /*
  * The following functions were removed from IEEE Std 1003.1-2008
  */
-int	 bcmp(const void *, const void *, size_t);
-void	 bcopy(const void *, void *, size_t)
-		__attribute__ ((__bounded__(__buffer__,1,3)))
-		__attribute__ ((__bounded__(__buffer__,2,3)));
-void	 bzero(void *, size_t)
-		__attribute__ ((__bounded__(__buffer__,1,2)));
-char	*index(const char *, int);
-char	*rindex(const char *, int);
+int bcmp(const void *, const void *, size_t);
+void bcopy(const void *, void *, size_t)
+    __attribute__((__bounded__(__buffer__, 1, 3)))
+    __attribute__((__bounded__(__buffer__, 2, 3)));
+void bzero(void *, size_t) __attribute__((__bounded__(__buffer__, 1, 2)));
+char *index(const char *, int);
+char *rindex(const char *, int);
 #endif
 
 #if __XPG_VISIBLE >= 420
-int	 ffs(int);
-int	 strcasecmp(const char *, const char *);
-int	 strncasecmp(const char *, const char *, size_t);
+int ffs(int);
+int strcasecmp(const char *, const char *);
+int strncasecmp(const char *, const char *, size_t);
 #endif
 #if __POSIX_VISIBLE >= 200809
-int	 strcasecmp_l(const char *, const char *, locale_t);
-int	 strncasecmp_l(const char *, const char *, size_t, locale_t);
+int strcasecmp_l(const char *, const char *, locale_t);
+int strncasecmp_l(const char *, const char *, size_t, locale_t);
 #endif
 #if __POSIX_VISIBLE >= 202405
-int	 ffsl(long);
-int	 ffsll(long long);
+int ffsl(long);
+int ffsll(long long);
 #endif
 __END_DECLS
 

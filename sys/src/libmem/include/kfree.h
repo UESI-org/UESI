@@ -8,10 +8,11 @@
 void kfree(void *ptr);
 
 /* Free memory and set pointer to NULL (safer) */
-#define kfree_safe(ptr) do { \
-    kfree(ptr); \
-    (ptr) = NULL; \
-} while(0)
+#define kfree_safe(ptr)                                                        \
+	do {                                                                   \
+		kfree(ptr);                                                    \
+		(ptr) = NULL;                                                  \
+	} while (0)
 
 bool kfree_validate(void *ptr);
 

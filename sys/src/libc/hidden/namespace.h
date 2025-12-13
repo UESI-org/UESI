@@ -80,50 +80,54 @@
  *	ex: MAKE_UNUSED_CLONE(nexttoward, nextafter);
  */
 
-#include <sys/cdefs.h>	/* for __dso_hidden and __{weak,strong}_alias */
+#include <sys/cdefs.h> /* for __dso_hidden and __{weak,strong}_alias */
 
 #ifndef PIC
-# define WEAK_IN_STATIC_ALIAS(x,y)	__weak_alias(x,y)
-# define WEAK_IN_STATIC			__attribute__((weak))
+#define WEAK_IN_STATIC_ALIAS(x, y) __weak_alias(x, y)
+#define WEAK_IN_STATIC __attribute__((weak))
 #else
-# define WEAK_IN_STATIC_ALIAS(x,y)	__strong_alias(x,y)
-# define WEAK_IN_STATIC			/* nothing */
+#define WEAK_IN_STATIC_ALIAS(x, y) __strong_alias(x, y)
+#define WEAK_IN_STATIC /* nothing */
 #endif
 
-#define	HIDDEN(x)		_libm_##x
-#define	HIDDEN_STRING(x)	"_libm_" __STRING(x)
+#define HIDDEN(x) _libm_##x
+#define HIDDEN_STRING(x) "_libm_" __STRING(x)
 
-#define	PROTO_NORMAL(x)		__dso_hidden typeof(x) HIDDEN(x), x asm(HIDDEN_STRING(x))
-#define	PROTO_STD_DEPRECATED(x)	typeof(x) HIDDEN(x), x __attribute__((deprecated))
-#define PROTO_DEPRECATED(x)	PROTO_STD_DEPRECATED(x) WEAK_IN_STATIC
+#define PROTO_NORMAL(x)                                                        \
+	__dso_hidden typeof(x) HIDDEN(x), x asm(HIDDEN_STRING(x))
+#define PROTO_STD_DEPRECATED(x)                                                \
+	typeof(x) HIDDEN(x), x __attribute__((deprecated))
+#define PROTO_DEPRECATED(x) PROTO_STD_DEPRECATED(x) WEAK_IN_STATIC
 
-#define	DEF_STD(x)		__strong_alias(x, HIDDEN(x))
-#define DEF_NONSTD(x)		WEAK_IN_STATIC_ALIAS(x, HIDDEN(x))
+#define DEF_STD(x) __strong_alias(x, HIDDEN(x))
+#define DEF_NONSTD(x) WEAK_IN_STATIC_ALIAS(x, HIDDEN(x))
 
-#define	MAKE_UNUSED_CLONE(dst, src)	__strong_alias(dst, src)
-#define LDBL_UNUSED_CLONE(x)		__strong_alias(x##l, HIDDEN(x))
-#define LDBL_NONSTD_UNUSED_CLONE(x)	WEAK_IN_STATIC_ALIAS(x##l, HIDDEN(x))
-#define LDBL_CLONE(x)		LDBL_UNUSED_CLONE(x); \
-				__dso_hidden typeof(HIDDEN(x##l)) HIDDEN(x##l) \
-				__attribute__((alias (HIDDEN_STRING(x))))
-#define LDBL_NONSTD_CLONE(x)	LDBL_NONSTD_UNUSED_CLONE(x); \
-				__dso_hidden typeof(HIDDEN(x##l)) HIDDEN(x##l) \
-				__attribute__((alias (HIDDEN_STRING(x))))
+#define MAKE_UNUSED_CLONE(dst, src) __strong_alias(dst, src)
+#define LDBL_UNUSED_CLONE(x) __strong_alias(x##l, HIDDEN(x))
+#define LDBL_NONSTD_UNUSED_CLONE(x) WEAK_IN_STATIC_ALIAS(x##l, HIDDEN(x))
+#define LDBL_CLONE(x)                                                          \
+	LDBL_UNUSED_CLONE(x);                                                  \
+	__dso_hidden typeof(HIDDEN(x##l)) HIDDEN(x##l)                         \
+	    __attribute__((alias(HIDDEN_STRING(x))))
+#define LDBL_NONSTD_CLONE(x)                                                   \
+	LDBL_NONSTD_UNUSED_CLONE(x);                                           \
+	__dso_hidden typeof(HIDDEN(x##l)) HIDDEN(x##l)                         \
+	    __attribute__((alias(HIDDEN_STRING(x))))
 
 #if __LDBL_MANT_DIG__ == __DBL_MANT_DIG__
-# define LDBL_PROTO_NORMAL(x)		typeof(x) HIDDEN(x)
-# define LDBL_PROTO_STD_DEPRECATED(x)	typeof(x) HIDDEN(x)
-# define LDBL_MAYBE_CLONE(x)		LDBL_CLONE(x)
-# define LDBL_MAYBE_UNUSED_CLONE(x)	LDBL_UNUSED_CLONE(x)
-# define LDBL_MAYBE_NONSTD_UNUSED_CLONE(x)	LDBL_NONSTD_UNUSED_CLONE(x)
-# define LDBL_MAYBE_NONSTD_CLONE(x)	LDBL_NONSTD_CLONE(x)
+#define LDBL_PROTO_NORMAL(x) typeof(x) HIDDEN(x)
+#define LDBL_PROTO_STD_DEPRECATED(x) typeof(x) HIDDEN(x)
+#define LDBL_MAYBE_CLONE(x) LDBL_CLONE(x)
+#define LDBL_MAYBE_UNUSED_CLONE(x) LDBL_UNUSED_CLONE(x)
+#define LDBL_MAYBE_NONSTD_UNUSED_CLONE(x) LDBL_NONSTD_UNUSED_CLONE(x)
+#define LDBL_MAYBE_NONSTD_CLONE(x) LDBL_NONSTD_CLONE(x)
 #else
-# define LDBL_PROTO_NORMAL(x)		PROTO_NORMAL(x)
-# define LDBL_PROTO_STD_DEPRECATED(x)	PROTO_STD_DEPRECATED(x)
-# define LDBL_MAYBE_CLONE(x)		__asm("")
-# define LDBL_MAYBE_UNUSED_CLONE(x)	__asm("")
-# define LDBL_MAYBE_NONSTD_UNUSED_CLONE(x)	__asm("")
-# define LDBL_MAYBE_NONSTD_CLONE(x)	__asm("")
+#define LDBL_PROTO_NORMAL(x) PROTO_NORMAL(x)
+#define LDBL_PROTO_STD_DEPRECATED(x) PROTO_STD_DEPRECATED(x)
+#define LDBL_MAYBE_CLONE(x) __asm("")
+#define LDBL_MAYBE_UNUSED_CLONE(x) __asm("")
+#define LDBL_MAYBE_NONSTD_UNUSED_CLONE(x) __asm("")
+#define LDBL_MAYBE_NONSTD_CLONE(x) __asm("")
 #endif
 
-#endif	/* _LIBM_NAMESPACE_H_ */
+#endif /* _LIBM_NAMESPACE_H_ */

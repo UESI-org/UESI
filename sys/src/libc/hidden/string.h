@@ -16,12 +16,12 @@
  */
 
 #ifndef _LIBC_STRING_H_
-#define	_LIBC_STRING_H_
+#define _LIBC_STRING_H_
 
 #include_next <string.h>
 
 __BEGIN_HIDDEN_DECLS
-char	*__strsignal(int , char *);
+char *__strsignal(int, char *);
 __END_HIDDEN_DECLS
 
 PROTO_NORMAL(bcmp);

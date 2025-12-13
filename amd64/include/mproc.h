@@ -40,13 +40,13 @@
  */
 struct trapframe;
 struct mdproc {
-	struct	trapframe *md_regs;	/* registers on current frame */
-	int	md_flags;
+	struct trapframe *md_regs; /* registers on current frame */
+	int md_flags;
 	volatile int md_astpending;
 };
 
 /* md_flags */
-#define MDP_IRET	0x0002	/* return via iret, not sysret */
-				/* (iret can restore r11 and rcx) */
+#define MDP_IRET 0x0002 /* return via iret, not sysret */
+                        /* (iret can restore r11 and rcx) */
 
 #endif /* _MACHINE_PROC_H_ */

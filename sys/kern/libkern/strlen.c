@@ -40,4 +40,3 @@ strlen(const char *str)
 		;
 	return (s - str);
 }
-
