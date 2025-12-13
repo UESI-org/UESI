@@ -29,6 +29,7 @@ FEATURE_FLAGS := -D__POSIX_VISIBLE=200809 \
 
 CFLAGS := $(FEATURE_FLAGS) -Wall -Wextra -std=gnu11 -ffreestanding -nostdlib -nostdinc \
           -fno-builtin -fno-stack-protector -O2 -ffunction-sections -fdata-sections \
+	  -mno-sse -mno-sse2 -mno-mmx -mno-80387 \
           -Iinclude -I$(SYSINCDIR) -I$(SYS1INCDIR) -I$(LIBC_INC_DIR) -I$(ARCHINCDIR) \
           -Wno-builtin-macro-redefined
 
