@@ -147,6 +147,13 @@ openat(int dirfd, const char *pathname, uint32_t flags, mode_t mode)
 }
 
 int
+mkdir(const char *path, mode_t mode)
+{
+	int64_t ret = syscall2(SYSCALL_MKDIR, (uint64_t)path, (uint64_t)mode);
+	return (int)handle_syscall_result(ret);
+}
+
+int
 fcntl(int fd, int cmd, ...)
 {
 	va_list args;

@@ -551,6 +551,36 @@ sys_openat(int dirfd, const char *pathname, uint32_t flags, mode_t mode)
 }
 
 int64_t
+sys_mkdir(const char *path, mode_t mode)
+{
+	if (!is_user_address(path)) {
+		return -EFAULT;
+	}
+
+	size_t path_len = 0;
+	const char *p = path;
+	while (is_user_address(p) && *p != '\0' && path_len < VFS_MAX_PATH) {
+		p++;
+		path_len++;
+	}
+
+	if (path_len == 0) {
+		return -EINVAL;
+	}
+
+	if (path_len >= VFS_MAX_PATH) {
+		return -ENAMETOOLONG;
+	}
+
+	int ret = vfs_mkdir(path, mode);
+	if (ret != VFS_SUCCESS) {
+		return -vfs_errno(ret);
+	}
+
+	return 0;
+}
+
+int64_t
 sys_fcntl(int fd, int cmd, uint64_t arg)
 {
 	task_t *current = scheduler_get_current_task();
@@ -1691,6 +1721,10 @@ syscall_handler(syscall_registers_t *regs)
 		                 (const char *)regs->rsi,
 		                 (uint32_t)regs->rdx,
 		                 (mode_t)regs->r10);
+		break;
+
+	case SYSCALL_MKDIR:
+		ret = sys_mkdir((const char *)regs->rdi, (mode_t)regs->rsi);
 		break;
 
 	case SYSCALL_FCNTL:
