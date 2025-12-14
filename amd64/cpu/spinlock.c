@@ -4,42 +4,11 @@
 #include <sys/types.h>
 #include <stddef.h>
 #include <stdbool.h>
+#include <intr.h>
 
 #ifdef SPINLOCK_DEBUG
 #include <printf.h>
 #endif
-
-static inline uint64_t
-read_rflags(void)
-{
-	uint64_t flags;
-	__asm__ volatile("pushfq; pop %0" : "=r"(flags)::"memory");
-	return flags;
-}
-
-static inline void
-write_rflags(uint64_t flags)
-{
-	__asm__ volatile("push %0; popfq" ::"r"(flags) : "memory", "cc");
-}
-
-static inline void
-cli(void)
-{
-	__asm__ volatile("cli" ::: "memory");
-}
-
-static inline void
-sti(void)
-{
-	__asm__ volatile("sti" ::: "memory");
-}
-
-static inline bool
-interrupts_enabled(void)
-{
-	return (read_rflags() & 0x200) != 0; /* IF flag is bit 9 */
-}
 
 static inline int
 get_cpu_id(void)

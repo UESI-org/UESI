@@ -6,6 +6,7 @@
 #include <vfs.h>
 #include <string.h>
 #include <trap.h>
+#include <intr.h>
 
 extern void tty_printf(const char *fmt, ...);
 
@@ -24,6 +25,7 @@ static struct {
 	task_queue_t ready_queues[5]; // One queue per priority level
 	task_t *blocked_list;
 	task_t *sleeping_list;
+	task_t *terminated_list;
 	task_t *current_task;
 	task_t *idle_task;
 
@@ -57,6 +59,7 @@ scheduler_init(uint32_t timer_frequency)
 
 	scheduler.blocked_list = NULL;
 	scheduler.sleeping_list = NULL;
+	scheduler.terminated_list = NULL;
 	scheduler.current_task = NULL;
 	scheduler.next_tid = 1;
 	scheduler.timer_frequency = timer_frequency;
@@ -206,20 +209,22 @@ scheduler_destroy_task(task_t *task)
 void
 scheduler_exit_task(uint32_t exit_code)
 {
-	if (!scheduler.current_task)
-		return;
+    if (!scheduler.current_task)
+        return;
 
-	task_t *task = scheduler.current_task;
-	task->state = TASK_STATE_TERMINATED;
-	task->exit_code = exit_code;
+    task_t *task = scheduler.current_task;
+    task->state = TASK_STATE_TERMINATED;
+    task->exit_code = exit_code;
 
-	tty_printf("[SCHED] Task %d (%s) exited with code %d\n",
-	           task->tid,
-	           task->name,
-	           exit_code);
+    tty_printf("[SCHED] Task %d (%s) exited with code %d\n",
+               task->tid,
+               task->name,
+               exit_code);
 
-	scheduler.current_task = NULL;
-	scheduler_switch_to_next();
+    list_add(&scheduler.terminated_list, task);
+    
+    scheduler.current_task = NULL;
+    scheduler_switch_to_next();
 }
 
 void
@@ -324,6 +329,15 @@ scheduler_tick(void)
 {
 	scheduler.stats.total_ticks++;
 
+	// Clean up terminated tasks
+	task_t *terminated_task = scheduler.terminated_list;
+	while (terminated_task) {
+		task_t *next = terminated_task->next;
+		list_remove(&scheduler.terminated_list, terminated_task);
+		scheduler_destroy_task(terminated_task);
+		terminated_task = next;
+	}
+
 	uint64_t current_time = (pit_get_ticks() * 1000) / pit_get_frequency();
 	task_t *task = scheduler.sleeping_list;
 	while (task) {
@@ -340,7 +354,8 @@ scheduler_tick(void)
 	}
 
 	// Check if current task's time slice expired
-	if (scheduler.current_task) {
+	if (scheduler.current_task && 
+	    scheduler.current_task != scheduler.idle_task) {
 		scheduler.current_task->time_used++;
 		scheduler.current_task->total_time++;
 
@@ -490,6 +505,8 @@ scheduler_switch_to_next(void)
 	if (!scheduler.running)
 		return;
 
+	uint64_t flags = intr_disable();
+
 	task_t *old_task = scheduler.current_task;
 	task_t *new_task = scheduler_pick_next_task();
 
@@ -500,6 +517,7 @@ scheduler_switch_to_next(void)
 	if (old_task == new_task) {
 		if (old_task)
 			old_task->time_used = 0;
+		intr_restore(flags);  // Restore interrupts before returning
 		return;
 	}
 
@@ -509,6 +527,7 @@ scheduler_switch_to_next(void)
 		queue_add(&scheduler.ready_queues[old_task->priority],
 		          old_task);
 		scheduler.stats.ready_tasks++;
+		scheduler.stats.running_tasks--;
 	}
 
 	if (new_task->state == TASK_STATE_READY) {
@@ -518,6 +537,7 @@ scheduler_switch_to_next(void)
 	}
 	new_task->state = TASK_STATE_RUNNING;
 	new_task->time_used = 0;
+	scheduler.stats.running_tasks++;
 
 	scheduler.current_task = new_task;
 	scheduler.stats.context_switches++;
@@ -531,6 +551,8 @@ scheduler_switch_to_next(void)
 	} else {
 		scheduler_switch_context(NULL, &new_task->cpu_state);
 	}
+	
+	intr_restore(flags);
 }
 
 static task_t *
