@@ -11,6 +11,7 @@ extern void tty_putchar(char c);
 #define KEYBOARD_COMMAND_PORT 0x64
 
 #define KEYBOARD_BUFFER_SIZE 256
+#define SCANCODE_TABLE_SIZE 0x59
 
 static char keyboard_buffer[KEYBOARD_BUFFER_SIZE];
 static volatile uint32_t buffer_read_pos = 0;
@@ -70,12 +71,7 @@ buffer_has_data(void)
 static char
 translate_scancode(uint8_t scancode)
 {
-	if (kbd_state.extended) {
-		kbd_state.extended = false;
-		return 0;
-	}
-
-	if (scancode >= sizeof(scancode_to_ascii)) {
+	if (scancode >= SCANCODE_TABLE_SIZE) {
 		return 0;
 	}
 
@@ -102,6 +98,7 @@ keyboard_irq_handler(registers_t *regs)
 
 	uint8_t scancode = inb(KEYBOARD_DATA_PORT);
 
+	// Handle extended scancode prefix
 	if (scancode == 0xE0) {
 		kbd_state.extended = true;
 		return;
@@ -109,6 +106,24 @@ keyboard_irq_handler(registers_t *regs)
 
 	bool released = (scancode & 0x80) != 0;
 	scancode &= 0x7F; // Remove release bit
+
+	if (kbd_state.extended) {
+		kbd_state.extended = false;
+		
+		if (scancode == KEY_LCTRL) {
+			kbd_state.ctrl = !released;
+			return;
+		}
+		
+		if (scancode == KEY_LALT) {
+			kbd_state.alt = !released;
+			return;
+		}
+		
+		// For now, ignore other extended keys (arrow keys, Home, End, etc.)
+		// These would need special handling beyond ASCII translation
+		return;
+	}
 
 	if (scancode == KEY_LSHIFT || scancode == KEY_RSHIFT) {
 		kbd_state.shift = !released;

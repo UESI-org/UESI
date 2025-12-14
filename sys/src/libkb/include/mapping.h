@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 // QWERTZ keyboard layout mapping
+// Array size: 0x59 (89 elements, covering scancodes 0x00-0x58)
 
 static const char scancode_to_ascii[] = {
 	0,    // 0x00
