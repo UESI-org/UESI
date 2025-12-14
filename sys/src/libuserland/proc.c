@@ -60,16 +60,22 @@ void
 proc_init(void)
 {
 	/* Initialize hash tables */
-	pidhash = 128; /* Should be power of 2 - 1 */
-	tidhash = 128;
+	pidhash = 127;
+	tidhash = 127;
 
 	pidhashtbl = kmalloc((pidhash + 1) * sizeof(struct pidhashhead));
 	tidhashtbl = kmalloc((tidhash + 1) * sizeof(struct tidhashhead));
 
 	if (!pidhashtbl || !tidhashtbl) {
-		printf_("Failed to allocate process hash tables\n");
-		return;
-	}
+    	printf_("Failed to allocate process hash tables\n");
+    	pidhash = 0;
+    	tidhash = 0;
+    	if (pidhashtbl) kfree(pidhashtbl);
+    	if (tidhashtbl) kfree(tidhashtbl);
+    	pidhashtbl = NULL;
+    	tidhashtbl = NULL;
+    	return;
+}
 
 	for (unsigned long i = 0; i <= pidhash; i++)
 		LIST_INIT(&pidhashtbl[i]);
@@ -204,7 +210,6 @@ proc_alloc(struct process *ps, const char *name)
 
 	/* Add to process thread list */
 	TAILQ_INSERT_TAIL(&ps->ps_threads, p, p_thr_link);
-	ps->ps_threadcnt++;
 	atomic_inc_int(&ps->ps_threadcnt);
 
 	/* Set as main thread if this is the first */
@@ -229,8 +234,13 @@ proc_free(struct proc *p)
 {
 	struct process *ps;
 
-	if (!p)
-		return;
+	if (!ps)
+    return;
+
+    if (ps->ps_threadcnt > 0) {
+        printf_("WARNING: Freeing process %d with %d threads still alive\n",
+                ps->ps_pid, ps->ps_threadcnt);
+    }
 
 	ps = p->p_p;
 
@@ -241,8 +251,9 @@ proc_free(struct proc *p)
 		TAILQ_REMOVE(&ps->ps_threads, p, p_thr_link);
 		atomic_dec_int(&ps->ps_threadcnt);
 
-		if (ps->ps_mainproc == p)
-			ps->ps_mainproc = NULL;
+		if (ps->ps_mainproc == p) {
+    	    /* Pick a new main thread if any remain */
+   			ps->ps_mainproc = TAILQ_FIRST(&ps->ps_threads);
 	}
 
 	/* Remove from global lists */
@@ -255,7 +266,9 @@ proc_free(struct proc *p)
 	}
 
 	kfree(p);
+	}
 }
+
 
 struct process *
 prfind(pid_t pid)
