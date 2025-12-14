@@ -34,6 +34,7 @@ spinlock_init(spinlock_t *lock, const char *name)
 	lock->locked = 0;
 	lock->cpu = -1;
 	lock->name = name;
+	lock->intr_save = 0;
 
 #ifdef SPINLOCK_DEBUG
 	lock->last_pc = NULL;
@@ -52,27 +53,38 @@ void
 spinlock_acquire(spinlock_t *lock)
 #endif
 {
+	int cpu;
+	uint64_t flags;
+
 	if (lock == NULL) {
 		panic("spinlock_acquire: NULL lock pointer");
 	}
 
+	flags = intr_disable();
+
+	cpu = get_cpu_id();
+
 	if (spinlock_holding(lock)) {
+
+		intr_restore(flags);
 		panic_fmt("spinlock_acquire: recursive lock detected on '%s' "
 		          "by CPU %d",
 		          spinlock_get_name(lock),
-		          get_cpu_id());
+		          cpu);
 	}
 
 	while (atomic_swap_uint(&lock->locked, 1) != 0) {
 		/* Spin with PAUSE to reduce memory bus traffic */
-		while (lock->locked != 0) {
+		/* Use atomic read to ensure we see latest value */
+		while (atomic_load_int(&lock->locked) != 0) {
 			cpu_relax();
 		}
 	}
 
 	membar_enter_after_atomic();
 
-	lock->cpu = get_cpu_id();
+	WRITE_ONCE(lock->cpu, cpu);
+	WRITE_ONCE(lock->intr_save, flags);
 
 #ifdef SPINLOCK_DEBUG
 	lock->last_pc = __builtin_return_address(0);
@@ -86,6 +98,8 @@ spinlock_acquire(spinlock_t *lock)
 void
 spinlock_release(spinlock_t *lock)
 {
+	uint64_t flags;
+
 	if (lock == NULL) {
 		panic("spinlock_release: NULL lock pointer");
 	}
@@ -96,35 +110,49 @@ spinlock_release(spinlock_t *lock)
 		          get_cpu_id());
 	}
 
+	flags = READ_ONCE(lock->intr_save);
+
 #ifdef SPINLOCK_DEBUG
 	lock->last_pc = NULL;
 #endif
 
-	lock->cpu = -1;
+	WRITE_ONCE(lock->cpu, -1);
 
 	membar_exit_before_atomic();
 
-	lock->locked = 0;
+	atomic_store_int(&lock->locked, 0);
+
+	intr_restore(flags);
 }
 
 bool
 spinlock_try_acquire(spinlock_t *lock)
 {
+	int cpu;
+	uint64_t flags;
+
 	if (lock == NULL) {
 		panic("spinlock_try_acquire: NULL lock pointer");
 	}
 
+	flags = intr_disable();
+
+	cpu = get_cpu_id();
+
 	if (spinlock_holding(lock)) {
+		intr_restore(flags);
 		return false;
 	}
 
 	if (atomic_swap_uint(&lock->locked, 1) != 0) {
+		intr_restore(flags);
 		return false; /* Already locked */
 	}
 
 	membar_enter_after_atomic();
 
-	lock->cpu = get_cpu_id();
+	WRITE_ONCE(lock->cpu, cpu);
+	WRITE_ONCE(lock->intr_save, flags);
 
 #ifdef SPINLOCK_DEBUG
 	lock->last_pc = __builtin_return_address(0);
@@ -137,11 +165,14 @@ spinlock_try_acquire(spinlock_t *lock)
 bool
 spinlock_holding(spinlock_t *lock)
 {
+	int cpu;
+
 	if (lock == NULL) {
 		return false;
 	}
 
-	return lock->locked != 0 && lock->cpu == get_cpu_id();
+	cpu = get_cpu_id();
+	return READ_ONCE(lock->locked) != 0 && READ_ONCE(lock->cpu) == cpu;
 }
 
 #ifdef SPINLOCK_DEBUG
@@ -181,9 +212,9 @@ spinlock_release_irqrestore(spinlock_t *lock, uint64_t flags)
 		panic("spinlock_release_irqrestore: NULL lock pointer");
 	}
 
-	spinlock_release(lock);
+	WRITE_ONCE(lock->intr_save, flags);
 
-	write_rflags(flags);
+	spinlock_release(lock);
 }
 
 #ifdef SPINLOCK_DEBUG

@@ -11,6 +11,7 @@ typedef struct spinlock {
 	volatile unsigned int locked;
 	int cpu;
 	const char *name;
+	uint64_t intr_save;
 #ifdef SPINLOCK_DEBUG
 	void *last_pc;
 	const char *last_file;
@@ -25,6 +26,7 @@ typedef struct spinlock {
 	{ .locked = 0,                                                         \
 	  .cpu = -1,                                                           \
 	  .name = (lockname),                                                  \
+	  .intr_save = 0,                                                      \
 	  .last_pc = NULL,                                                     \
 	  .last_file = NULL,                                                   \
 	  .last_line = 0,                                                      \
@@ -32,7 +34,7 @@ typedef struct spinlock {
 	  .hold_count = 0 }
 #else
 #define SPINLOCK_INITIALIZER(lockname)                                         \
-	{ .locked = 0, .cpu = -1, .name = (lockname) }
+	{ .locked = 0, .cpu = -1, .name = (lockname), .intr_save = 0 }
 #endif
 
 void spinlock_init(spinlock_t *lock, const char *name);
