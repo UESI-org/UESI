@@ -13,7 +13,7 @@ TARGET := $(LIBDIR)/libkb.a
 SRCS := keyboard.c
 OBJS := $(SRCS:%.c=$(OBJDIR)/%.o)
 
-INCLUDES := -I$(INCDIR) -I../boot/include -I../../../amd64/include -I../libprintf/include
+INCLUDES := -I$(INCDIR) -I../boot/include -I../../../amd64/include -I../libprintf/include -I../..
 
 .PHONY: all
 all: $(TARGET)
