@@ -7,7 +7,7 @@ LIBDIR := lib
 
 TARGET := $(LIBDIR)/libchar.a
 
-INCLUDES := -I$(INCDIR) -I../boot/include
+INCLUDES := -I$(INCDIR) -I../boot/include -I../libc/include -I../.. -I../../../amd64/include
 
 CFLAGS := -Wall -Wextra -std=gnu11 -ffreestanding -fno-stack-protector \
           -fno-stack-check -fno-lto -fno-PIC -ffunction-sections -fdata-sections \

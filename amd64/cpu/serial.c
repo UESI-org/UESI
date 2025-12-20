@@ -1,6 +1,7 @@
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdbool.h>
+#include <string.h>
 #include <serial.h>
 #include <io.h>
 
@@ -187,13 +188,20 @@ serial_printf(uint16_t port, const char *fmt, ...)
 		if (*fmt == '%' && *(fmt + 1)) {
 			fmt++;
 
+			bool left_align = false;
 			char pad = ' ';
+			int width = 0;
+
+			if (*fmt == '-') {
+				left_align = true;
+				fmt++;
+			}
+
 			if (*fmt == '0') {
 				pad = '0';
 				fmt++;
 			}
 
-			int width = 0;
 			while (*fmt >= '0' && *fmt <= '9') {
 				width = width * 10 + (*fmt - '0');
 				fmt++;
@@ -288,7 +296,29 @@ serial_printf(uint16_t port, const char *fmt, ...)
 				break;
 			case 's': {
 				char *str = va_arg(args, char *);
-				serial_write_string(port, str ? str : "(null)");
+				if (!str) {
+					str = "(null)";
+				}
+
+				int len = strlen(str);
+				int padding = width > len ? width - len : 0;
+
+				// Left-aligned: print string first, then
+				// padding
+				if (left_align) {
+					serial_write_string(port, str);
+					for (int i = 0; i < padding; i++) {
+						serial_write_byte(port, ' ');
+					}
+				}
+				// Right-aligned: print padding first, then
+				// string
+				else {
+					for (int i = 0; i < padding; i++) {
+						serial_write_byte(port, ' ');
+					}
+					serial_write_string(port, str);
+				}
 				break;
 			}
 			case 'c':

@@ -60,8 +60,7 @@ __END_DECLS
 #ifndef FLT_MAX
 #define FLT_MAX __FLT_MAX /* (1-b**(-p))*b**emax */
 #endif
-#define FLT_MAX_10_EXP __FLT_MAX_10_EXP /* floor(log10((1-b**(-p))*b**emax))   \
-	                                 */
+#define FLT_MAX_10_EXP  __FLT_MAX_10_EXP /* floor(log10((1-b**(-p))*b**emax)) */
 
 #define DBL_MANT_DIG __DBL_MANT_DIG
 #define DBL_EPSILON __DBL_EPSILON

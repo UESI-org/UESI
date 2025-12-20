@@ -220,7 +220,6 @@ userland_load_and_run(const void *elf_data, size_t elf_size, const char *name)
 			    "ERROR: Failed to map page at virt=0x%016lx\n",
 			    virt_page);
 			printf_("Failed to map stack page\n");
-			pmm_free(page_virt);
 			proc_free(p);
 			process_release(ps);
 			return false;

@@ -1,4 +1,5 @@
 #include <tty.h>
+#include <string.h>
 #include <stdarg.h>
 
 static void
@@ -102,6 +103,24 @@ tty_printf(const char *fmt, ...)
 
 			bool is_long_long = false;
 			bool is_long = false;
+			bool left_align = false;
+			bool zero_pad = false;
+			int width = 0;
+
+			if (*fmt == '-') {
+				left_align = true;
+				fmt++;
+			}
+
+			if (*fmt == '0') {
+				zero_pad = true;
+				fmt++;
+			}
+
+			while (*fmt >= '0' && *fmt <= '9') {
+				width = width * 10 + (*fmt - '0');
+				fmt++;
+			}
 
 			if (*fmt == 'l') {
 				if (*(fmt + 1) == 'l') {
@@ -109,17 +128,6 @@ tty_printf(const char *fmt, ...)
 					fmt += 2;
 				} else {
 					is_long = true;
-					fmt++;
-				}
-			}
-
-			bool zero_pad = false;
-			int width = 0;
-			if (*fmt == '0') {
-				zero_pad = true;
-				fmt++;
-				while (*fmt >= '0' && *fmt <= '9') {
-					width = width * 10 + (*fmt - '0');
 					fmt++;
 				}
 			}
@@ -210,10 +218,28 @@ tty_printf(const char *fmt, ...)
 			}
 			case 's': {
 				char *str = va_arg(args, char *);
-				if (str) {
+				if (!str) {
+					str = "(null)";
+				}
+
+				int len = strlen(str);
+				int padding = width > len ? width - len : 0;
+
+				// Left-aligned: print string first, then
+				// padding
+				if (left_align) {
 					tty_writestring(str);
-				} else {
-					tty_writestring("(null)");
+					for (int i = 0; i < padding; i++) {
+						tty_putchar(' ');
+					}
+				}
+				// Right-aligned: print padding first, then
+				// string
+				else {
+					for (int i = 0; i < padding; i++) {
+						tty_putchar(' ');
+					}
+					tty_writestring(str);
 				}
 				break;
 			}
@@ -228,6 +254,9 @@ tty_printf(const char *fmt, ...)
 			}
 			default:
 				tty_putchar('%');
+				if (left_align) {
+					tty_putchar('-');
+				}
 				if (is_long_long) {
 					tty_writestring("ll");
 				} else if (is_long) {

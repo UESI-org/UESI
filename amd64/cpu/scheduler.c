@@ -209,22 +209,22 @@ scheduler_destroy_task(task_t *task)
 void
 scheduler_exit_task(uint32_t exit_code)
 {
-    if (!scheduler.current_task)
-        return;
+	if (!scheduler.current_task)
+		return;
 
-    task_t *task = scheduler.current_task;
-    task->state = TASK_STATE_TERMINATED;
-    task->exit_code = exit_code;
+	task_t *task = scheduler.current_task;
+	task->state = TASK_STATE_TERMINATED;
+	task->exit_code = exit_code;
 
-    tty_printf("[SCHED] Task %d (%s) exited with code %d\n",
-               task->tid,
-               task->name,
-               exit_code);
+	tty_printf("[SCHED] Task %d (%s) exited with code %d\n",
+	           task->tid,
+	           task->name,
+	           exit_code);
 
-    list_add(&scheduler.terminated_list, task);
-    
-    scheduler.current_task = NULL;
-    scheduler_switch_to_next();
+	list_add(&scheduler.terminated_list, task);
+
+	scheduler.current_task = NULL;
+	scheduler_switch_to_next();
 }
 
 void
@@ -354,7 +354,7 @@ scheduler_tick(void)
 	}
 
 	// Check if current task's time slice expired
-	if (scheduler.current_task && 
+	if (scheduler.current_task &&
 	    scheduler.current_task != scheduler.idle_task) {
 		scheduler.current_task->time_used++;
 		scheduler.current_task->total_time++;
@@ -517,7 +517,7 @@ scheduler_switch_to_next(void)
 	if (old_task == new_task) {
 		if (old_task)
 			old_task->time_used = 0;
-		intr_restore(flags);  // Restore interrupts before returning
+		intr_restore(flags); // Restore interrupts before returning
 		return;
 	}
 
@@ -551,7 +551,7 @@ scheduler_switch_to_next(void)
 	} else {
 		scheduler_switch_context(NULL, &new_task->cpu_state);
 	}
-	
+
 	intr_restore(flags);
 }
 

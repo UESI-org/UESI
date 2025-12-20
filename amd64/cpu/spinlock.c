@@ -65,7 +65,6 @@ spinlock_acquire(spinlock_t *lock)
 	cpu = get_cpu_id();
 
 	if (spinlock_holding(lock)) {
-
 		intr_restore(flags);
 		panic_fmt("spinlock_acquire: recursive lock detected on '%s' "
 		          "by CPU %d",

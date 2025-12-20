@@ -101,8 +101,7 @@
 
 #define PCI_MSI_CTRL 0x02    /* Message Control */
 #define PCI_MSI_ADDR_LO 0x04 /* Message Address (lower 32 bits) */
-#define PCI_MSI_ADDR_HI 0x08 /* Message Address (upper 32 bits, 64-bit only)   \
-	                      */
+#define PCI_MSI_ADDR_HI 0x08 /* Message Address (upper 32 bits, 64-bit only) */
 #define PCI_MSI_DATA_32 0x08 /* Message Data (32-bit) */
 #define PCI_MSI_DATA_64 0x0C /* Message Data (64-bit) */
 #define PCI_MSI_MASK_32 0x0C /* Mask Bits (32-bit) */
