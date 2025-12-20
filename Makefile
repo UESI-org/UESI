@@ -24,6 +24,8 @@ ISO := $(BUILD_DIR)/uesi.iso
 .PHONY: all
 all: $(BUILD_DIR)/uesi.elf
 
+.NOTPARALLEL: libc libchar libkb libmem libprintf libkdebug libuserland libfs libkern
+
 libc:
 	@echo "[*] Building libc..."
 	@$(MAKE) -C $(LIBC_DIR) CC=$(CC) AR=$(AR)

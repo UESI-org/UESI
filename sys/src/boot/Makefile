@@ -60,11 +60,11 @@ all: $(TARGET)
 
 obj/init/%.o: init/%.c
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -MMD -MP -c $< -o $@
 
 obj/cpu/%_c.o: ../../../amd64/cpu/%.c
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -MMD -MP -c $< -o $@
 
 obj/cpu/%_asm.o: ../../../amd64/cpu/%.S
 	@mkdir -p $(dir $@)
@@ -99,3 +99,5 @@ list-sources:
 	@echo "  $(CPU_C_SRC)"
 	@echo "CPU ASM sources:"
 	@echo "  $(CPU_ASM_SRC)"
+
+-include $(OBJS:.o=.d)

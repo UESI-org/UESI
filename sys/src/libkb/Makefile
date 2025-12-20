@@ -28,8 +28,8 @@ $(TARGET): $(OBJDIR) $(LIBDIR) $(OBJS)
 	$(AR) $(ARFLAGS) $@ $(OBJS)
 	@echo "Built $@"
 
-$(OBJDIR)/%.o: %.c
-	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+$(OBJDIR)/%.o: %.c | $(OBJDIR)
+	$(CC) $(CFLAGS) $(INCLUDES) -MMD -MP -c $< -o $@
 
 .PHONY: clean
 clean:
@@ -61,6 +61,3 @@ help:
 	@echo "  help     - Show this help message"
 
 -include $(OBJS:.o=.d)
-
-$(OBJDIR)/%.d: %.c | $(OBJDIR)
-	@$(CC) $(CFLAGS) $(INCLUDES) -MM -MT $(OBJDIR)/$*.o $< > $@

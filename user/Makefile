@@ -77,19 +77,21 @@ $(BIN_DIR)/%: $(OBJ_DIR)/%.o $(CRT0) $(SYSCALL_OBJ) $(LIBUSER) $(LDS_SCRIPT) | $
 	@echo "[+] Built user program: $@"
 
 $(LDS_SCRIPT):
-	@echo "OUTPUT_FORMAT(elf64-x86-64)" > $@
-	@echo "ENTRY(_start)" >> $@
-	@echo "SECTIONS {" >> $@
-	@echo "  . = 0x400000;" >> $@
-	@echo "  .text : { *(.text .text.*) }" >> $@
-	@echo "  . = ALIGN(0x1000);" >> $@
-	@echo "  .rodata : { *(.rodata .rodata.*) }" >> $@
-	@echo "  . = ALIGN(0x1000);" >> $@
-	@echo "  .data : { *(.data .data.*) }" >> $@
-	@echo "  .bss : { *(.bss .bss.*) *(COMMON) }" >> $@
-	@echo "  /DISCARD/ : { *(.note*) *(.eh_frame*) *(.comment) }" >> $@
-	@echo "}" >> $@
-	@echo "[+] Created userland linker script"
+	@if [ ! -f $@ ]; then \
+		echo "OUTPUT_FORMAT(elf64-x86-64)" > $@; \
+		echo "ENTRY(_start)" >> $@; \
+		echo "SECTIONS {" >> $@; \
+		echo "  . = 0x400000;" >> $@; \
+		echo "  .text : { *(.text .text.*) }" >> $@; \
+		echo "  . = ALIGN(0x1000);" >> $@; \
+		echo "  .rodata : { *(.rodata .rodata.*) }" >> $@; \
+		echo "  . = ALIGN(0x1000);" >> $@; \
+		echo "  .data : { *(.data .data.*) }" >> $@; \
+		echo "  .bss : { *(.bss .bss.*) *(COMMON) }" >> $@; \
+		echo "  /DISCARD/ : { *(.note*) *(.eh_frame*) *(.comment) }" >> $@; \
+		echo "}" >> $@; \
+		echo "[+] Created userland linker script"; \
+	fi
 
 clean:
 	rm -rf $(OBJ_DIR) $(BIN_DIR) $(LIB_DIR) $(LDS_SCRIPT)
