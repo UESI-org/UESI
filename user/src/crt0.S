@@ -2,20 +2,26 @@
 .global _start
 .extern main
 .extern exit
+.extern _init
+.extern _fini
 
 _start:
-    # Clear frame pointer
     xor %rbp, %rbp
     
-    # Align stack to 16 bytes (required by System V ABI)
     and $-16, %rsp
     
-    # Call main
+    mov %rsp, %r15
+    
+    call _init
+    
+    mov $_fini, %rdi
+    
     call main
     
-    # Exit with return value from main
     mov %rax, %rdi
+    
+    call _fini
+    
     call exit
     
-    # Should never reach here
     ud2
