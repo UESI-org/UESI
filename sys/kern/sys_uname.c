@@ -1,19 +1,20 @@
 #include <sys/types.h>
-#include <sys/utsname.h>
 #include <sys/param.h>
+#include <sys/utsname.h>
+
 #include <string.h>
 
 extern const char ostype[];
 extern const char osrelease[];
 extern const char version[];
-extern int gethostname(char *name, size_t len);
+
+extern int gethostname(char *, size_t);
 
 int
 kern_uname(struct utsname *name)
 {
-	if (name == NULL) {
-		return -1;
-	}
+	if (name == NULL)
+		return (-1);
 
 	memset(name, 0, sizeof(struct utsname));
 
@@ -34,5 +35,5 @@ kern_uname(struct utsname *name)
 	strncpy(name->machine, "x86_64", SYS_NMLN - 1);
 	name->machine[SYS_NMLN - 1] = '\0';
 
-	return 0;
+	return (0);
 }
