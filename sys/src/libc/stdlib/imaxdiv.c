@@ -1,13 +1,10 @@
-/*	$OpenBSD: errno.h,v 1.3 2017/08/10 13:34:46 guenther Exp $	*/
-
+/*	$OpenBSD: imaxdiv.c,v 1.1 2006/01/13 17:58:09 millert Exp $	*/
 /*
- * Copyright (c) 1982, 1986, 1989, 1993
- *	The Regents of the University of California.  All rights reserved.
- * (c) UNIX System Laboratories, Inc.
- * All or some portions of this file are derived from material licensed
- * to the University of California by American Telephone and Telegraph
- * Co. or Unix System Laboratories, Inc. and are reproduced herein with
- * the permission of UNIX System Laboratories, Inc.
+ * Copyright (c) 1990 Regents of the University of California.
+ * All rights reserved.
+ *
+ * This code is derived from software contributed to Berkeley by
+ * Chris Torek.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -32,29 +29,22 @@
  * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
- *
- *	@(#)errno.h	8.5 (Berkeley) 1/21/94
  */
 
-#ifndef _ERRNO_H_
-#define _ERRNO_H_
+#include <inttypes.h>		/* imaxdiv_t */
 
-#include <sys/errno.h>
-#include <sys/cdefs.h>
+imaxdiv_t
+imaxdiv(intmax_t num, intmax_t denom)
+{
+	imaxdiv_t r;
 
-__BEGIN_DECLS
+	/* see div.c for comments */
 
-extern int *__errno(void);
-#define errno (*__errno())
-
-#if __BSD_VISIBLE || defined(_KERNEL)
-#ifndef __SYS_ERRLIST
-#define __SYS_ERRLIST
-extern const int sys_nerr;
-extern const char *const sys_errlist[];
-#endif /* __SYS_ERRLIST */
-#endif /* __BSD_VISIBLE */
-
-__END_DECLS
-
-#endif /* _ERRNO_H_ */
+	r.quot = num / denom;
+	r.rem = num % denom;
+	if (num >= 0 && r.rem < 0) {
+		r.quot++;
+		r.rem -= denom;
+	}
+	return (r);
+}

@@ -138,6 +138,11 @@ scheduler_create_task(const char *name,
 		task->cpu_state.cr3 = (uint64_t)space->page_dir;
 	}
 
+	memset(&task->fpu_state, 0, sizeof(fpu_state_t));
+	task->fpu_state.fpu_used = false;
+
+	__asm__ volatile("fxsave %0" : "=m"(task->fpu_state.fpu_state));
+
 	for (int i = 0; i < MAX_OPEN_FILES; i++) {
 		task->fd_table[i].file = NULL;
 		task->fd_table[i].flags = 0;

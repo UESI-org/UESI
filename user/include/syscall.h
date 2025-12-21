@@ -67,7 +67,7 @@ struct stat;
 struct utsname;
 extern int errno;
 
-void exit(int status) __attribute__((noreturn));
+void _exit(int status) __attribute__((noreturn));
 pid_t fork(void);
 int64_t read(int fd, void *buf, size_t count);
 int64_t write(int fd, const void *buf, size_t count);

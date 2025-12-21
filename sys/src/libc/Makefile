@@ -8,6 +8,7 @@ BOOTINCDIR := ../boot/include
 SRCDIR := string
 GENDIR := gen
 SOFTFLOATDIR := softfloat
+STDLIBDIR := stdlib
 OBJDIR := obj
 LIBDIR := lib
 TARGET := $(LIBDIR)/libc.a
@@ -15,10 +16,12 @@ TARGET := $(LIBDIR)/libc.a
 SRCS := $(wildcard $(SRCDIR)/*.c)
 GENSRC := $(wildcard $(GENDIR)/*.c)
 SOFTFLOATSRC := $(wildcard $(SOFTFLOATDIR)/*.c)
+STDLIBSRC := $(wildcard $(STDLIBDIR)/*.c)
 
 OBJS := $(SRCS:$(SRCDIR)/%.c=$(OBJDIR)/%.o) \
         $(GENSRC:$(GENDIR)/%.c=$(OBJDIR)/gen_%.o) \
-        $(SOFTFLOATSRC:$(SOFTFLOATDIR)/%.c=$(OBJDIR)/softfloat_%.o)
+        $(SOFTFLOATSRC:$(SOFTFLOATDIR)/%.c=$(OBJDIR)/softfloat_%.o) \
+        $(STDLIBSRC:$(STDLIBDIR)/%.c=$(OBJDIR)/stdlib_%.o)
 
 FEATURE_FLAGS := -D__POSIX_VISIBLE=200809 \
                  -D__XPG_VISIBLE=700 \
@@ -32,7 +35,7 @@ CPPFLAGS := $(FEATURE_FLAGS)
 
 CFLAGS := -Wall -Wextra -std=gnu11 -ffreestanding -fno-stack-protector \
     -fno-stack-check -fno-lto -fno-PIC -ffunction-sections -fdata-sections \
-    -m64 -march=x86-64 -mabi=sysv -mno-80387 -mno-mmx -mno-sse -mno-sse2 \
+    -m64 -march=x86-64 -mabi=sysv \
     -mno-red-zone -mcmodel=kernel -O2 \
     $(CPPFLAGS) \
     -I$(INCDIR) -I$(SYSINCDIR) -I$(ARCHINCDIR) -I$(BOOTINCDIR) -I$(SOFTFLOATDIR) \
@@ -61,6 +64,9 @@ $(OBJDIR)/gen_%.o: $(GENDIR)/%.c | $(OBJDIR)
 	$(CC) $(CFLAGS) -c $< -o $@ -MMD -MP
 
 $(OBJDIR)/softfloat_%.o: $(SOFTFLOATDIR)/%.c | $(OBJDIR)
+	$(CC) $(CFLAGS) -c $< -o $@ -MMD -MP
+
+$(OBJDIR)/stdlib_%.o: $(STDLIBDIR)/%.c | $(OBJDIR)
 	$(CC) $(CFLAGS) -c $< -o $@ -MMD -MP
 
 clean:

@@ -1,9 +1,11 @@
 #include <errno.h>
 
-int errno = 0;
+#undef errno
+
+static int __errno_storage = 0;
 
 int *
 __errno(void)
 {
-	return &errno;
+    return &__errno_storage;
 }

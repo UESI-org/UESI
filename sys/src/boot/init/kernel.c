@@ -93,6 +93,28 @@ initialize_memory(void)
 	}
 }
 
+
+static void
+enable_fpu(void)
+{
+	uint64_t cr0, cr4;
+	
+	/* Clear EM (bit 2) and set MP (bit 1) in CR0 */
+	__asm__ volatile("mov %%cr0, %0" : "=r"(cr0));
+	cr0 &= ~(1 << 2);  /* Clear EM (emulation) */
+	cr0 |= (1 << 1);   /* Set MP (monitor coprocessor) */
+	__asm__ volatile("mov %0, %%cr0" :: "r"(cr0));
+	
+	/* Set OSFXSR (bit 9) and OSXMMEXCPT (bit 10) in CR4 */
+	__asm__ volatile("mov %%cr4, %0" : "=r"(cr4));
+	cr4 |= (1 << 9);   /* Set OSFXSR (OS supports FXSAVE/FXRSTOR) */
+	cr4 |= (1 << 10);  /* Set OSXMMEXCPT (OS supports unmasked SIMD exceptions) */
+	__asm__ volatile("mov %0, %%cr4" :: "r"(cr4));
+	
+	/* Initialize FPU */
+	__asm__ volatile("fninit");
+}
+
 static void
 initialize_cpu(cpu_info_t *cpu)
 {
@@ -126,6 +148,13 @@ initialize_cpu(cpu_info_t *cpu)
 	if (!all_features_present) {
 		tty_set_color(TTY_COLOR_WHITE, TTY_COLOR_BLACK);
 		panic("Required CPU features missing (64-bit, PAE, NX)");
+	}
+
+	if (cpuid_has_fxsr()) {
+		enable_fpu();
+		debug_success("FPU enabled");
+	} else {
+		debug_error("FPU/FXSR not supported");
 	}
 
 	debug_success("CPU detection complete");

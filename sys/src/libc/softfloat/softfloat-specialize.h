@@ -60,11 +60,8 @@ fp_except float_exception_mask = 0;
 void
 float_raise(fp_except flags)
 {
-	float_exception_flags |= flags;
-
-	if (flags & float_exception_mask) {
-		raise(SIGFPE);
-	}
+    float_exception_flags |= flags;
+    /* no signals or traps in kernel */
 }
 DEF_STRONG(float_raise);
 

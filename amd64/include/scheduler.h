@@ -32,6 +32,11 @@ typedef struct {
 	uint64_t cr3; // Page directory base
 } cpu_state_t;
 
+typedef struct {
+	uint8_t fpu_state[512] __attribute__((aligned(16)));
+	bool fpu_used;
+} fpu_state_t;
+
 typedef struct fd_entry {
 	void *file; /* Pointer to vfs_file_t */
 	int flags;  /* FD_CLOEXEC and other per-FD flags */
@@ -44,6 +49,7 @@ typedef struct task {
 	task_priority_t priority;
 
 	cpu_state_t cpu_state;
+	fpu_state_t fpu_state;
 	void *kernel_stack;
 	void *user_stack;
 	size_t kernel_stack_size;

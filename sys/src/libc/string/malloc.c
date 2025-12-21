@@ -8,7 +8,6 @@
 #include <sys/malloc.h>
 
 #ifndef _KERNEL
-extern int errno;
 #endif
 
 #ifdef _KERNEL

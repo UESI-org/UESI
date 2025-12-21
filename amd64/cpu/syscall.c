@@ -1282,32 +1282,27 @@ sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 
 	if (p == NULL) {
 		tty_printf("[MMAP DEBUG] No current proc!\n");
-		errno = ESRCH;
-		return MAP_FAILED;
+		return (void *)(intptr_t)-EINVAL;
 	}
 
 	struct process *ps = p->p_p;
 	if (ps == NULL || ps->ps_vmspace == NULL) {
 		tty_printf("[MMAP DEBUG] No process or vmspace!\n");
-		errno = ESRCH;
-		return MAP_FAILED;
+		return (void *)(intptr_t)-EINVAL;
 	}
 
 	tty_printf("[MMAP DEBUG] Process found: pid=%d\n", ps->ps_pid);
 
 	if (length == 0) {
-		errno = EINVAL;
-		return MAP_FAILED;
+		return (void *)(intptr_t)-EINVAL;
 	}
 
 	if (!(flags & MAP_ANONYMOUS)) {
-		errno = ENOTSUP;
-		return MAP_FAILED;
+		return (void *)(intptr_t)-EINVAL;
 	}
 
 	if (!(flags & MAP_SHARED) && !(flags & MAP_PRIVATE)) {
-		errno = EINVAL;
-		return MAP_FAILED;
+		return (void *)(intptr_t)-EINVAL;
 	}
 
 	size_t aligned_length = (length + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
@@ -1316,8 +1311,7 @@ sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 
 	if (flags & MAP_FIXED) {
 		if (!is_user_address(addr)) {
-			errno = EINVAL;
-			return MAP_FAILED;
+			return (void *)(intptr_t)-EINVAL;
 		}
 		virt_addr = (uint64_t)addr & ~(PAGE_SIZE - 1);
 	} else {
@@ -1361,8 +1355,7 @@ sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 				                   virt_addr + (j * PAGE_SIZE),
 				                   1);
 			}
-			errno = ENOMEM;
-			return MAP_FAILED;
+			return (void *)(intptr_t)-EINVAL;
 		}
 
 		memset(page_virt, 0, PAGE_SIZE);
@@ -1379,8 +1372,7 @@ sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 				                   virt_addr + (j * PAGE_SIZE),
 				                   1);
 			}
-			errno = ENOMEM;
-			return MAP_FAILED;
+			return (void *)(intptr_t)-EINVAL;
 		}
 
 		tty_printf(
@@ -1769,19 +1761,23 @@ syscall_handler(syscall_registers_t *regs)
 		ret = sys_getppid();
 		break;
 
-	case SYSCALL_MMAP: {
-		void *result = sys_mmap((void *)regs->rdi,
-		                        (size_t)regs->rsi,
-		                        (int)regs->rdx,
-		                        (int)regs->r10,
-		                        (int)regs->r8,
-		                        (off_t)regs->r9);
+		case SYSCALL_MMAP: {
+		void *result;
+
+		result = sys_mmap(
+		    (void *)regs->rdi,
+		    (size_t)regs->rsi,
+		    (int)regs->rdx,
+		    (int)regs->r10,
+		    (int)regs->r8,
+		    (off_t)regs->r9);
+
 		if (result == MAP_FAILED) {
-			ret = -errno; // Return negative errno on failure
-		} else {
-			ret = (int64_t)(uintptr_t)
-			    result; // Return address on success
+			ret = -ENOMEM;
+			break;
 		}
+
+		ret = (int64_t)result;
 		break;
 	}
 

@@ -3,8 +3,6 @@
 #include <syscall.h>
 #include <errno.h>
 
-int errno = 0;
-
 /* System call with 0 arguments */
 static inline int64_t
 syscall0(uint64_t syscall_num)
@@ -325,7 +323,7 @@ mprotect(void *addr, size_t len, int prot)
 }
 
 void
-exit(int status)
+_exit(int status)
 {
 	syscall1(SYSCALL_EXIT, (uint64_t)status);
 	__builtin_unreachable();
