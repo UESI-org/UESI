@@ -8,7 +8,7 @@ OBJDIR := obj
 LIBDIR := lib
 TARGET := $(LIBDIR)/libkern.a
 
-INCLUDES := -I.. -I../.. -I../../amd64/include -I../src/libc/include -I$(LIBKERNDIR) -nostdinc
+INCLUDES := -I.. -I../.. -I../../amd64/include -I../sys -I../src/libc/include -I../src/libmem/include -I../src/libprintf/include -I$(LIBKERNDIR) -nostdinc
 
 FEATURE_FLAGS := -D__POSIX_VISIBLE=200809 \
                  -D__XPG_VISIBLE=700 \
@@ -20,7 +20,7 @@ CFLAGS := $(FEATURE_FLAGS) -D_KERNEL -Wall -Wextra -std=gnu11 -ffreestanding -fn
           -fno-stack-check -fno-lto -fno-PIC -ffunction-sections -fdata-sections \
           -m64 -march=x86-64 -mabi=sysv -mno-80387 -mno-mmx -mno-sse -mno-sse2 \
           -mno-red-zone -mcmodel=kernel -O2 -nostdlib -fno-builtin -s \
-          -Wno-builtin-macro-redefined \
+          -Wno-builtin-macro-redefined -DPRINTF_INCLUDE_CONFIG_H -D_KERNEL \
           $(INCLUDES)
 
 ASFLAGS := --64
@@ -29,7 +29,8 @@ ARFLAGS := rcs
 
 SRCS := sys_kern.c \
 		sys_uname.c \
-        sysinfo.c 
+        sysinfo.c \
+		kern_mutex.c
 
 LIBKERN_SRCS := $(wildcard $(LIBKERNDIR)/*.c) $(LIBKERNDIR)/softfloat-support.c
 
