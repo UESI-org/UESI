@@ -10,18 +10,16 @@ _start:
     
     and $-16, %rsp
     
-    mov %rsp, %r15
-    
     call _init
     
-    mov $_fini, %rdi
+    xor %rdi, %rdi          # rdi = 0 (argc = 0)
+    xor %rsi, %rsi          # rsi = NULL (argv = NULL)
     
     call main
     
-    mov %rax, %rdi
-    
     call _fini
     
+    mov %rax, %rdi          # Pass main's return value as exit code
     call exit
     
     ud2
