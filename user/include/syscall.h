@@ -24,6 +24,7 @@
 #define SYSCALL_DUP2 90
 #define SYSCALL_FCNTL 92
 #define SYSCALL_MKDIR 136
+#define SYSCALL_RMDIR 137
 #define SYSCALL_GETHOSTID 142
 #define SYSCALL_UNAME 164
 #define SYSCALL_MMAP 197
@@ -76,6 +77,7 @@ int64_t close(int fd);
 int64_t creat(const char *path, mode_t mode);
 int64_t openat(int dirfd, const char *pathname, uint32_t flags, mode_t mode);
 int mkdir(const char *path, mode_t mode);
+int rmdir(const char *path);
 int fcntl(int fd, int cmd, ...);
 int stat(const char *path, struct stat *buf);
 int fstat(int fd, struct stat *buf);

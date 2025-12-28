@@ -23,6 +23,7 @@
 #define SYSCALL_DUP2 90
 #define SYSCALL_FCNTL 92
 #define SYSCALL_MKDIR 136
+#define SYSCALL_RMDIR 137
 #define SYSCALL_GETHOSTID 142
 #define SYSCALL_UNAME 164
 #define SYSCALL_MMAP 197
@@ -60,6 +61,7 @@ int64_t sys_openat(int dirfd,
                    uint32_t flags,
                    mode_t mode);
 int64_t sys_mkdir(const char *path, mode_t mode);
+int64_t sys_rmdir(const char *path);
 int64_t sys_fcntl(int fd, int cmd, uint64_t arg);
 int64_t sys_dup(int oldfd);
 int64_t sys_dup2(int oldfd, int newfd);
