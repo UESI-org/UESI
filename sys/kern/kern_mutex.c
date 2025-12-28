@@ -13,7 +13,7 @@
 #include <stdbool.h>
 
 static inline void
-mtx_waitq_enqueue(mutex_t *mtx, struct task *task)
+mtx_waitq_enqueue(mutex_t *mtx, task_t *task)
 {
 	mtx_waitq_t *entry;
 
@@ -34,11 +34,11 @@ mtx_waitq_enqueue(mutex_t *mtx, struct task *task)
 	}
 }
 
-static inline struct task *
+static inline task_t *
 mtx_waitq_dequeue(mutex_t *mtx)
 {
 	mtx_waitq_t *entry;
-	struct task *task;
+	task_t *task;
 
 	if (mtx->mtx_waitq_head == NULL) {
 		return NULL;
@@ -124,7 +124,7 @@ mutex_destroy(mutex_t *mtx)
 void
 mutex_lock(mutex_t *mtx)
 {
-	struct task *current_task;
+	task_t *current_task;
 	bool did_sleep;
 
 	if (mtx == NULL) {
@@ -200,7 +200,7 @@ mutex_lock(mutex_t *mtx)
 bool
 mutex_trylock(mutex_t *mtx)
 {
-	struct task *current_task;
+	task_t *current_task;
 
 	if (mtx == NULL) {
 		panic("mutex_trylock: NULL mutex pointer");
@@ -251,8 +251,8 @@ mutex_trylock(mutex_t *mtx)
 void
 mutex_unlock(mutex_t *mtx)
 {
-	struct task *current_task;
-	struct task *next_task;
+	task_t *current_task;
+	task_t *next_task;
 
 	if (mtx == NULL) {
 		panic("mutex_unlock: NULL mutex pointer");
@@ -301,7 +301,7 @@ mutex_unlock(mutex_t *mtx)
 bool
 mutex_owned(const mutex_t *mtx)
 {
-	struct task *current_task;
+	task_t *current_task;
 
 	if (mtx == NULL) {
 		return false;
@@ -325,14 +325,13 @@ mutex_locked(const mutex_t *mtx)
 	return READ_ONCE(mtx->mtx_owner) != NULL;
 }
 
-struct task *
+task_t *
 mutex_owner(const mutex_t *mtx)
 {
-	if (mtx == NULL) {
-		return NULL;
-	}
-
-	return (struct task *)READ_ONCE(mtx->mtx_owner);
+    if (mtx == NULL) {
+        return NULL;
+    }
+    return (task_t *)READ_ONCE(mtx->mtx_owner);
 }
 
 #ifdef MTX_DEBUG

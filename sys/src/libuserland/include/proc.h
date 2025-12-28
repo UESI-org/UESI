@@ -10,7 +10,10 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
+#include <scheduler.h>
 #include <paging.h>
+
+#define MAX_OPEN_FILES 32
 
 #define PID_MAX 99999
 #define TID_MASK 0x7ffff
@@ -53,6 +56,11 @@ struct tusage {
 	uint64_t tu_sticks;  /* System mode ticks */
 };
 
+typedef struct fd_entry {
+	void *file;
+	int flags;
+} fd_entry_t;
+
 struct proc;
 struct process {
 	/* Reference counting */
@@ -85,6 +93,8 @@ struct process {
 	unsigned int ps_flags; /* [a] PS_* flags */
 	int ps_xexit;          /* Exit status for wait */
 	int ps_xsig;           /* Stopping or killing signal */
+
+	fd_entry_t ps_fd_table[MAX_OPEN_FILES];
 
 	/* Accounting */
 	struct tusage ps_tu;      /* Accumulated times */

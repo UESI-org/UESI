@@ -8,7 +8,7 @@ OBJDIR := obj
 LIBDIR := lib
 TARGET := $(LIBDIR)/libkern.a
 
-INCLUDES := -I.. -I../.. -I../../amd64/include -I../sys -I../src/libc/include -I../src/libmem/include -I../src/libprintf/include -I$(LIBKERNDIR) -nostdinc
+INCLUDES := -I.. -I../.. -I../../amd64/include -I../sys -I../src/libc/include -I../src/libmem/include -I../src/libprintf/include -I../src/libuserland/include -I../src/boot/include -I$(LIBKERNDIR) -nostdinc
 
 FEATURE_FLAGS := -D__POSIX_VISIBLE=200809 \
                  -D__XPG_VISIBLE=700 \

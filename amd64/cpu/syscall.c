@@ -57,51 +57,11 @@ is_user_range(const void *addr, size_t len)
 static task_t *
 scheduler_create_forked_task(struct proc *p)
 {
-	if (!p || !p->p_p) {
-		return NULL;
-	}
-
-	struct process *ps = p->p_p;
-
-	task_t *task = pmm_alloc();
-	if (!task) {
-		return NULL;
-	}
-
-	memset(task, 0, sizeof(task_t));
-
-	task->tid = ps->ps_pid; /* Use process PID as task ID */
-	strncpy(task->name, ps->ps_comm, sizeof(task->name) - 1);
-	task->name[sizeof(task->name) - 1] = '\0';
-	task->state = TASK_STATE_READY;
-	task->priority = TASK_PRIORITY_NORMAL;
-
-	task->kernel_stack = p->p_kstack;
-	task->kernel_stack_size = PROCESS_KERNEL_STACK_SIZE;
-	task->user_stack = (void *)p->p_ustack_top;
-	task->user_stack_size = PROCESS_USER_STACK_SIZE;
-
-	memset(&task->cpu_state, 0, sizeof(cpu_state_t));
-
-	extern void proc_fork_child_entry(void *arg);
-	task->cpu_state.rip = (uint64_t)proc_fork_child_entry;
-	task->cpu_state.rdi = (uint64_t)p; /* Pass proc as argument */
-	task->cpu_state.rflags = 0x202;    /* IF=1 */
-	task->cpu_state.cs = 0x08;         /* Kernel code segment */
-	task->cpu_state.ss = 0x10;         /* Kernel data segment */
-
-	task->cpu_state.rsp =
-	    (uint64_t)p->p_kstack + PROCESS_KERNEL_STACK_SIZE - 16;
-	task->cpu_state.rbp = task->cpu_state.rsp;
-
-	task->page_directory = (void *)ps->ps_vmspace;
-	task->cpu_state.cr3 = ps->ps_vmspace->phys_addr;
-
-	/* FD table will be copied in sys_fork from parent task */
-
-	p->p_cpu = (void *)task; /* Store task pointer in proc */
-
-	return task;
+    if (!p || !p->p_p) {
+        return NULL;
+    }
+	
+    return p;
 }
 
 static uint64_t
@@ -186,7 +146,7 @@ sys_exit(int status)
 
 			tty_printf("[SYSCALL] Cleaning up memory mappings for "
 			           "task %d\n",
-			           current->tid);
+			           current->p_tid);
 
 			extern struct limine_hhdm_response *boot_get_hhdm(void);
 			struct limine_hhdm_response *hhdm = boot_get_hhdm();
@@ -227,18 +187,18 @@ sys_exit(int status)
 		}
 
 		for (int i = 0; i < MAX_OPEN_FILES; i++) {
-			if (current->fd_table[i].file != NULL) {
+			if (current->p_p->ps_fd_table[i].file != NULL) {
 				vfs_file_t *file =
-				    (vfs_file_t *)current->fd_table[i].file;
+				    (vfs_file_t *)current->p_p->ps_fd_table[i].file;
 				vfs_close(file);
-				current->fd_table[i].file = NULL;
-				current->fd_table[i].flags = 0;
+				current->p_p->ps_fd_table[i].file = NULL;
+				current->p_p->ps_fd_table[i].flags = 0;
 			}
 		}
 
 		tty_printf("[SYSCALL] Task %d (%s) exiting with status %d\n",
-		           current->tid,
-		           current->name,
+		           current->p_tid,
+		           current->p_name,
 		           status);
 
 		scheduler_exit_task(status);
@@ -332,7 +292,7 @@ sys_read(int fd, void *buf, size_t count)
 		return -EBADF;
 	}
 
-	vfs_file_t *file = (vfs_file_t *)current->fd_table[fd].file;
+	vfs_file_t *file = (vfs_file_t *)current->p_p->ps_fd_table[fd].file;
 	if (file == NULL) {
 		return -EBADF;
 	}
@@ -377,7 +337,7 @@ sys_write(int fd, const void *buf, size_t count)
 		return -EBADF;
 	}
 
-	vfs_file_t *file = (vfs_file_t *)current->fd_table[fd].file;
+	vfs_file_t *file = (vfs_file_t *)current->p_p->ps_fd_table[fd].file;
 	if (file == NULL) {
 		return -EBADF;
 	}
@@ -423,7 +383,7 @@ sys_open(const char *path, uint32_t flags, mode_t mode)
 
 	int fd = -1;
 	for (int i = 3; i < MAX_OPEN_FILES; i++) {
-		if (current->fd_table[i].file == NULL) {
+		if (current->p_p->ps_fd_table[i].file == NULL) {
 			fd = i;
 			break;
 		}
@@ -439,8 +399,8 @@ sys_open(const char *path, uint32_t flags, mode_t mode)
 		return -vfs_errno(ret);
 	}
 
-	current->fd_table[fd].file = file;
-	current->fd_table[fd].flags = 0;
+	current->p_p->ps_fd_table[fd].file = file;
+	current->p_p->ps_fd_table[fd].flags = 0;
 	return fd;
 }
 
@@ -456,7 +416,7 @@ sys_close(int fd)
 		return -EBADF;
 	}
 
-	vfs_file_t *file = (vfs_file_t *)current->fd_table[fd].file;
+	vfs_file_t *file = (vfs_file_t *)current->p_p->ps_fd_table[fd].file;
 	if (file == NULL) {
 		return -EBADF;
 	}
@@ -466,8 +426,8 @@ sys_close(int fd)
 		return -vfs_errno(ret);
 	}
 
-	current->fd_table[fd].file = NULL;
-	current->fd_table[fd].flags = 0;
+	current->p_p->ps_fd_table[fd].file = NULL;
+	current->p_p->ps_fd_table[fd].flags = 0;
 	return 0;
 }
 
@@ -533,7 +493,7 @@ sys_openat(int dirfd, const char *pathname, uint32_t flags, mode_t mode)
 		return -EBADF;
 	}
 
-	vfs_file_t *dir_file = (vfs_file_t *)current->fd_table[dirfd].file;
+	vfs_file_t *dir_file = (vfs_file_t *)current->p_p->ps_fd_table[dirfd].file;
 	if (dir_file == NULL) {
 		return -EBADF;
 	}
@@ -593,7 +553,7 @@ sys_fcntl(int fd, int cmd, uint64_t arg)
 		return -EBADF;
 	}
 
-	fd_entry_t *fd_entry = &current->fd_table[fd];
+	fd_entry_t *fd_entry = &current->p_p->ps_fd_table[fd];
 
 	switch (cmd) {
 	case F_DUPFD: {
@@ -610,7 +570,7 @@ sys_fcntl(int fd, int cmd, uint64_t arg)
 		/* Find lowest available fd >= minfd */
 		int newfd = -1;
 		for (int i = minfd; i < MAX_OPEN_FILES; i++) {
-			if (current->fd_table[i].file == NULL) {
+			if (current->p_p->ps_fd_table[i].file == NULL) {
 				newfd = i;
 				break;
 			}
@@ -622,8 +582,8 @@ sys_fcntl(int fd, int cmd, uint64_t arg)
 
 		/* Duplicate the file */
 		vfs_file_t *file = (vfs_file_t *)fd_entry->file;
-		current->fd_table[newfd].file = file;
-		current->fd_table[newfd].flags =
+		current->p_p->ps_fd_table[newfd].file = file;
+		current->p_p->ps_fd_table[newfd].flags =
 		    0; /* FD_CLOEXEC not inherited */
 
 		/* Increment refcount */
@@ -651,7 +611,7 @@ sys_fcntl(int fd, int cmd, uint64_t arg)
 		/* Find lowest available fd >= minfd */
 		int newfd = -1;
 		for (int i = minfd; i < MAX_OPEN_FILES; i++) {
-			if (current->fd_table[i].file == NULL) {
+			if (current->p_p->ps_fd_table[i].file == NULL) {
 				newfd = i;
 				break;
 			}
@@ -663,8 +623,8 @@ sys_fcntl(int fd, int cmd, uint64_t arg)
 
 		/* Duplicate the file with CLOEXEC */
 		vfs_file_t *file = (vfs_file_t *)fd_entry->file;
-		current->fd_table[newfd].file = file;
-		current->fd_table[newfd].flags = FD_CLOEXEC;
+		current->p_p->ps_fd_table[newfd].file = file;
+		current->p_p->ps_fd_table[newfd].flags = FD_CLOEXEC;
 
 		/* Increment refcount */
 		uint64_t flags;
@@ -786,14 +746,14 @@ sys_dup(int oldfd)
 		return -EBADF;
 	}
 
-	vfs_file_t *file = (vfs_file_t *)current->fd_table[oldfd].file;
+	vfs_file_t *file = (vfs_file_t *)current->p_p->ps_fd_table[oldfd].file;
 	if (file == NULL) {
 		return -EBADF;
 	}
 
 	int newfd = -1;
 	for (int i = 0; i < MAX_OPEN_FILES; i++) {
-		if (current->fd_table[i].file == NULL) {
+		if (current->p_p->ps_fd_table[i].file == NULL) {
 			newfd = i;
 			break;
 		}
@@ -803,8 +763,8 @@ sys_dup(int oldfd)
 		return -EMFILE;
 	}
 
-	current->fd_table[newfd].file = file;
-	current->fd_table[newfd].flags = 0; /* Don't inherit FD_CLOEXEC */
+	current->p_p->ps_fd_table[newfd].file = file;
+	current->p_p->ps_fd_table[newfd].flags = 0; /* Don't inherit FD_CLOEXEC */
 
 	uint64_t flags;
 	spinlock_acquire_irqsave(&file->f_lock, &flags);
@@ -827,7 +787,7 @@ sys_dup2(int oldfd, int newfd)
 		return -EBADF;
 	}
 
-	vfs_file_t *file = (vfs_file_t *)current->fd_table[oldfd].file;
+	vfs_file_t *file = (vfs_file_t *)current->p_p->ps_fd_table[oldfd].file;
 	if (file == NULL) {
 		return -EBADF;
 	}
@@ -840,14 +800,14 @@ sys_dup2(int oldfd, int newfd)
 		return newfd;
 	}
 
-	if (current->fd_table[newfd].file != NULL) {
+	if (current->p_p->ps_fd_table[newfd].file != NULL) {
 		vfs_file_t *old_file =
-		    (vfs_file_t *)current->fd_table[newfd].file;
+		    (vfs_file_t *)current->p_p->ps_fd_table[newfd].file;
 		vfs_close(old_file);
 	}
 
-	current->fd_table[newfd].file = file;
-	current->fd_table[newfd].flags = 0; /* Don't inherit FD_CLOEXEC */
+	current->p_p->ps_fd_table[newfd].file = file;
+	current->p_p->ps_fd_table[newfd].flags = 0; /* Don't inherit FD_CLOEXEC */
 
 	uint64_t flags;
 	spinlock_acquire_irqsave(&file->f_lock, &flags);
@@ -933,7 +893,7 @@ sys_fstat(int fd, struct stat *statbuf)
 		return -EBADF;
 	}
 
-	vfs_file_t *file = (vfs_file_t *)current->fd_table[fd].file;
+	vfs_file_t *file = (vfs_file_t *)current->p_p->ps_fd_table[fd].file;
 	if (file == NULL) {
 		return -EBADF;
 	}
@@ -1030,7 +990,7 @@ sys_lseek(int fd, off_t offset, int whence)
 		return -EBADF;
 	}
 
-	vfs_file_t *file = (vfs_file_t *)current->fd_table[fd].file;
+	vfs_file_t *file = (vfs_file_t *)current->p_p->ps_fd_table[fd].file;
 	if (file == NULL) {
 		return -EBADF;
 	}
@@ -1232,7 +1192,7 @@ sys_fork(syscall_registers_t *regs)
 
 	tty_printf("[FORK] Created child process %d (task %d) from parent %d\n",
 	           child_ps->ps_pid,
-	           child_task->tid,
+	           child_task->p_tid,
 	           parent_ps->ps_pid);
 	tty_printf("[FORK] Child will return to RIP=0x%lx RSP=0x%lx\n",
 	           child_tf->tf_rip,

@@ -1,50 +1,73 @@
 #include <scheduler.h>
+#include <proc.h>
 #include <pit.h>
 #include <isr.h>
 #include <pmm.h>
-#include <vmm.h>
-#include <vfs.h>
+#include <paging.h>
+#include <kmalloc.h>
 #include <string.h>
 #include <trap.h>
 #include <intr.h>
+#include <printf.h>
 
 extern void tty_printf(const char *fmt, ...);
 
-#define SCHEDULER_TIME_SLICE_MS 20 // 20ms time slice
+#define SCHEDULER_TIME_SLICE_MS 20
 #define MAX_TASKS 256
-#define KERNEL_STACK_SIZE (16 * 1024) // 16KB kernel stack
-#define USER_STACK_SIZE (64 * 1024)   // 64KB user stack
 
 typedef struct {
-	task_t *head;
-	task_t *tail;
-	uint32_t count;
-} task_queue_t;
+	struct proclist queues[5]; /* One queue per priority level */
+	struct proclist blocked_list;
+	struct proclist sleeping_list;
+	struct proclist terminated_list;
+	
+	struct proc *idle_task;
+	struct process *idle_process;
 
-static struct {
-	task_queue_t ready_queues[5]; // One queue per priority level
-	task_t *blocked_list;
-	task_t *sleeping_list;
-	task_t *terminated_list;
-	task_t *current_task;
-	task_t *idle_task;
-
-	uint32_t next_tid;
 	uint32_t timer_frequency;
 	uint64_t time_slice_ticks;
-	bool running; // Scheduler enabled
+	bool running;
 
 	scheduler_stats_t stats;
-} scheduler;
+} scheduler_data_t;
+
+static scheduler_data_t scheduler;
 
 static void scheduler_switch_to_next(void);
-static task_t *scheduler_pick_next_task(void);
-static void queue_add(task_queue_t *queue, task_t *task);
-static void queue_remove(task_queue_t *queue, task_t *task);
-static void list_add(task_t **list, task_t *task);
-static void list_remove(task_t **list, task_t *task);
+static struct proc *scheduler_pick_next_task(void);
 static void idle_task_entry(void);
 static void scheduler_timer_handler(registers_t *regs);
+
+static inline task_priority_t
+proc_get_priority(struct proc *p)
+{
+	return (task_priority_t)p->p_runpri;
+}
+
+static inline void
+proc_set_priority(struct proc *p, task_priority_t priority)
+{
+	p->p_runpri = (uint8_t)priority;
+}
+
+static inline task_state_t
+proc_to_task_state(struct proc *p)
+{
+	switch (p->p_stat) {
+	case SRUN:
+		return TASK_STATE_READY;
+	case SONPROC:
+		return TASK_STATE_RUNNING;
+	case SSTOP:
+		return TASK_STATE_BLOCKED;
+	case SSLEEP:
+		return TASK_STATE_SLEEPING;
+	case SDEAD:
+		return TASK_STATE_TERMINATED;
+	default:
+		return TASK_STATE_READY;
+	}
+}
 
 void
 scheduler_init(uint32_t timer_frequency)
@@ -52,24 +75,26 @@ scheduler_init(uint32_t timer_frequency)
 	memset(&scheduler, 0, sizeof(scheduler));
 
 	for (int i = 0; i < 5; i++) {
-		scheduler.ready_queues[i].head = NULL;
-		scheduler.ready_queues[i].tail = NULL;
-		scheduler.ready_queues[i].count = 0;
+		TAILQ_INIT(&scheduler.queues[i]);
 	}
+	TAILQ_INIT(&scheduler.blocked_list);
+	TAILQ_INIT(&scheduler.sleeping_list);
+	TAILQ_INIT(&scheduler.terminated_list);
 
-	scheduler.blocked_list = NULL;
-	scheduler.sleeping_list = NULL;
-	scheduler.terminated_list = NULL;
-	scheduler.current_task = NULL;
-	scheduler.next_tid = 1;
 	scheduler.timer_frequency = timer_frequency;
 	scheduler.running = false;
-
 	scheduler.time_slice_ticks =
 	    (SCHEDULER_TIME_SLICE_MS * timer_frequency) / 1000;
 
-	scheduler.idle_task = scheduler_create_task(
-	    "idle", idle_task_entry, TASK_PRIORITY_IDLE, true);
+	proc_init();
+
+	scheduler.idle_process = process_alloc("idle");
+	if (scheduler.idle_process) {
+		scheduler.idle_task = proc_alloc(scheduler.idle_process, "idle");
+		if (scheduler.idle_task) {
+			proc_set_priority(scheduler.idle_task, TASK_PRIORITY_IDLE);
+		}
+	}
 
 	isr_register_handler(T_IRQ0, scheduler_timer_handler);
 
@@ -84,170 +109,117 @@ scheduler_create_task(const char *name,
                       task_priority_t priority,
                       bool is_kernel)
 {
-	task_t *task = pmm_alloc();
-	if (!task)
+	struct process *ps;
+	struct proc *p;
+
+	ps = process_alloc(name);
+	if (!ps)
 		return NULL;
 
-	memset(task, 0, sizeof(task_t));
-
-	task->tid = scheduler.next_tid++;
-	strncpy(task->name, name, sizeof(task->name) - 1);
-	task->state = TASK_STATE_READY;
-	task->priority = priority;
-	task->time_slice = scheduler.time_slice_ticks;
-
-	task->kernel_stack_size = KERNEL_STACK_SIZE;
-	task->kernel_stack =
-	    pmm_alloc_contiguous(KERNEL_STACK_SIZE / PAGE_SIZE);
-	if (!task->kernel_stack) {
-		pmm_free(task);
+	p = proc_alloc(ps, name);
+	if (!p) {
+		process_free(ps);
 		return NULL;
 	}
 
-	if (!is_kernel) {
-		task->user_stack_size = USER_STACK_SIZE;
-		task->user_stack =
-		    pmm_alloc_contiguous(USER_STACK_SIZE / PAGE_SIZE);
-		if (!task->user_stack) {
-			pmm_free_contiguous(task->kernel_stack,
-			                    KERNEL_STACK_SIZE / PAGE_SIZE);
-			pmm_free(task);
-			return NULL;
-		}
-	}
+	proc_set_priority(p, priority);
 
-	memset(&task->cpu_state, 0, sizeof(cpu_state_t));
-	task->cpu_state.rip = (uint64_t)entry_point;
-	task->cpu_state.rflags = 0x202;
-	task->cpu_state.cs = 0x08;
-	task->cpu_state.ss = 0x10;
+	/* Store entry point in machine-dependent structure */
+	/* This would need to be stored in trapframe or similar */
+	/* For now, we'll assume the entry point gets set elsewhere */
+	(void)entry_point; /* TODO: Store entry point properly */
 
-	task->cpu_state.rsp =
-	    (uint64_t)task->kernel_stack + KERNEL_STACK_SIZE - 16;
-	task->cpu_state.rbp = task->cpu_state.rsp;
+	p->p_stat = SRUN;
 
-	if (is_kernel) {
-		task->page_directory = vmm_get_kernel_space();
-	} else {
-		task->page_directory = vmm_create_address_space(false);
-	}
-
-	if (task->page_directory) {
-		vmm_address_space_t *space =
-		    (vmm_address_space_t *)task->page_directory;
-		task->cpu_state.cr3 = (uint64_t)space->page_dir;
-	}
-
-	memset(&task->fpu_state, 0, sizeof(fpu_state_t));
-	task->fpu_state.fpu_used = false;
-
-	__asm__ volatile("fxsave %0" : "=m"(task->fpu_state.fpu_state));
-
-	for (int i = 0; i < MAX_OPEN_FILES; i++) {
-		task->fd_table[i].file = NULL;
-		task->fd_table[i].flags = 0;
-	}
-
-	if (task != scheduler.idle_task) {
-		queue_add(&scheduler.ready_queues[priority], task);
+	if (p != scheduler.idle_task) {
+		TAILQ_INSERT_TAIL(&scheduler.queues[priority], p, p_runq);
 		scheduler.stats.total_tasks++;
 		scheduler.stats.ready_tasks++;
 	}
 
 	tty_printf("[SCHED] Created task %d: %s (priority=%d)\n",
-	           task->tid,
-	           task->name,
+	           p->p_tid,
+	           name,
 	           priority);
 
-	return task;
+	return p;
 }
 
 void
 scheduler_destroy_task(task_t *task)
 {
-	if (!task || task == scheduler.idle_task)
+	struct proc *p = task;
+
+	if (!p || p == scheduler.idle_task)
 		return;
 
-	for (int i = 0; i < MAX_OPEN_FILES; i++) {
-		if (task->fd_table[i].file != NULL) {
-			vfs_close((vfs_file_t *)task->fd_table[i].file);
-			task->fd_table[i].file = NULL;
-			task->fd_table[i].flags = 0;
-		}
-	}
-
-	switch (task->state) {
+	task_state_t state = proc_to_task_state(p);
+	switch (state) {
 	case TASK_STATE_READY:
-		queue_remove(&scheduler.ready_queues[task->priority], task);
+		TAILQ_REMOVE(&scheduler.queues[proc_get_priority(p)], p, p_runq);
 		scheduler.stats.ready_tasks--;
 		break;
 	case TASK_STATE_BLOCKED:
-		list_remove(&scheduler.blocked_list, task);
+		TAILQ_REMOVE(&scheduler.blocked_list, p, p_runq);
 		scheduler.stats.blocked_tasks--;
 		break;
 	case TASK_STATE_SLEEPING:
-		list_remove(&scheduler.sleeping_list, task);
+		TAILQ_REMOVE(&scheduler.sleeping_list, p, p_runq);
 		break;
 	default:
 		break;
 	}
 
-	if (task->kernel_stack) {
-		pmm_free_contiguous(task->kernel_stack,
-		                    KERNEL_STACK_SIZE / PAGE_SIZE);
-	}
-	if (task->user_stack) {
-		pmm_free_contiguous(task->user_stack,
-		                    USER_STACK_SIZE / PAGE_SIZE);
-	}
-
-	vmm_address_space_t *kernel_space = vmm_get_kernel_space();
-	if (task->page_directory && task->page_directory != kernel_space) {
-		vmm_destroy_address_space(
-		    (vmm_address_space_t *)task->page_directory);
-	}
-
-	pmm_free(task);
 	scheduler.stats.total_tasks--;
+
+	struct process *ps = p->p_p;
+	proc_free(p);
+	if (ps && ps->ps_threadcnt == 0) {
+		process_free(ps);
+	}
 }
 
 void
 scheduler_exit_task(uint32_t exit_code)
 {
-	if (!scheduler.current_task)
+	struct proc *p = proc_get_current();
+	if (!p)
 		return;
 
-	task_t *task = scheduler.current_task;
-	task->state = TASK_STATE_TERMINATED;
-	task->exit_code = exit_code;
+	struct process *ps = p->p_p;
+
+	p->p_stat = SDEAD;
+	ps->ps_xexit = exit_code;
 
 	tty_printf("[SCHED] Task %d (%s) exited with code %d\n",
-	           task->tid,
-	           task->name,
+	           p->p_tid,
+	           p->p_name,
 	           exit_code);
 
-	list_add(&scheduler.terminated_list, task);
+	TAILQ_INSERT_TAIL(&scheduler.terminated_list, p, p_runq);
 
-	scheduler.current_task = NULL;
+	proc_set_current(NULL);
 	scheduler_switch_to_next();
 }
 
 void
 scheduler_block_task(task_t *task)
 {
-	if (!task || task->state == TASK_STATE_BLOCKED)
+	struct proc *p = task;
+
+	if (!p || p->p_stat == SSTOP)
 		return;
 
-	if (task->state == TASK_STATE_READY) {
-		queue_remove(&scheduler.ready_queues[task->priority], task);
+	if (p->p_stat == SRUN) {
+		TAILQ_REMOVE(&scheduler.queues[proc_get_priority(p)], p, p_runq);
 		scheduler.stats.ready_tasks--;
 	}
 
-	task->state = TASK_STATE_BLOCKED;
-	list_add(&scheduler.blocked_list, task);
+	p->p_stat = SSTOP;
+	TAILQ_INSERT_TAIL(&scheduler.blocked_list, p, p_runq);
 	scheduler.stats.blocked_tasks++;
 
-	if (task == scheduler.current_task) {
+	if (p == proc_get_current()) {
 		scheduler_yield();
 	}
 }
@@ -255,37 +227,40 @@ scheduler_block_task(task_t *task)
 void
 scheduler_unblock_task(task_t *task)
 {
-	if (!task || task->state != TASK_STATE_BLOCKED)
+	struct proc *p = task;
+
+	if (!p || p->p_stat != SSTOP)
 		return;
 
-	list_remove(&scheduler.blocked_list, task);
+	TAILQ_REMOVE(&scheduler.blocked_list, p, p_runq);
 	scheduler.stats.blocked_tasks--;
 
-	task->state = TASK_STATE_READY;
-	task->time_used = 0; // Reset time slice
-	queue_add(&scheduler.ready_queues[task->priority], task);
+	p->p_stat = SRUN;
+	p->p_cpticks = 0;
+	TAILQ_INSERT_TAIL(&scheduler.queues[proc_get_priority(p)], p, p_runq);
 	scheduler.stats.ready_tasks++;
 }
 
 void
 scheduler_sleep_task(task_t *task, uint64_t milliseconds)
 {
-	if (!task)
+	struct proc *p = task;
+
+	if (!p)
 		return;
 
 	uint64_t current_time = (pit_get_ticks() * 1000) / pit_get_frequency();
-	task->sleep_until = current_time + milliseconds;
+	p->p_slptime = current_time + milliseconds;
 
-	if (task->state == TASK_STATE_READY) {
-		queue_remove(&scheduler.ready_queues[task->priority], task);
+	if (p->p_stat == SRUN) {
+		TAILQ_REMOVE(&scheduler.queues[proc_get_priority(p)], p, p_runq);
 		scheduler.stats.ready_tasks--;
 	}
 
-	task->state = TASK_STATE_SLEEPING;
-	list_add(&scheduler.sleeping_list, task);
+	p->p_stat = SSLEEP;
+	TAILQ_INSERT_TAIL(&scheduler.sleeping_list, p, p_runq);
 
-	// If sleeping current task, switch
-	if (task == scheduler.current_task) {
+	if (p == proc_get_current()) {
 		scheduler_yield();
 	}
 }
@@ -293,7 +268,7 @@ scheduler_sleep_task(task_t *task, uint64_t milliseconds)
 void
 scheduler_yield(void)
 {
-	if (!scheduler.running || !scheduler.current_task)
+	if (!scheduler.running || !proc_get_current())
 		return;
 	scheduler_switch_to_next();
 }
@@ -309,15 +284,24 @@ scheduler_start(void)
 
 	pit_start();
 
-	task_t *first_task = scheduler_pick_next_task();
+	struct proc *first_task = scheduler_pick_next_task();
+	if (!first_task) {
+		first_task = scheduler.idle_task;
+	}
+
 	if (first_task) {
-		scheduler.current_task = first_task;
-		first_task->state = TASK_STATE_RUNNING;
+		proc_set_current(first_task);
+		first_task->p_stat = SONPROC;
 		scheduler.stats.running_tasks = 1;
 
-		vmm_switch_address_space(
-		    (vmm_address_space_t *)first_task->page_directory);
-		scheduler_switch_context(NULL, &first_task->cpu_state);
+		if (first_task->p_vmspace) {
+			/* Load CR3 with physical address */
+			uint64_t cr3 = first_task->p_vmspace->phys_addr;
+			__asm__ volatile("movq %0, %%cr3" : : "r"(cr3));
+		}
+
+		/* Context switch would happen here */
+		/* This is architecture-specific */
 	}
 }
 
@@ -334,38 +318,36 @@ scheduler_tick(void)
 {
 	scheduler.stats.total_ticks++;
 
-	// Clean up terminated tasks
-	task_t *terminated_task = scheduler.terminated_list;
-	while (terminated_task) {
-		task_t *next = terminated_task->next;
-		list_remove(&scheduler.terminated_list, terminated_task);
-		scheduler_destroy_task(terminated_task);
-		terminated_task = next;
+	struct proc *p = TAILQ_FIRST(&scheduler.terminated_list);
+	while (p) {
+		struct proc *next = TAILQ_NEXT(p, p_runq);
+		TAILQ_REMOVE(&scheduler.terminated_list, p, p_runq);
+		scheduler_destroy_task(p);
+		p = next;
 	}
 
 	uint64_t current_time = (pit_get_ticks() * 1000) / pit_get_frequency();
-	task_t *task = scheduler.sleeping_list;
-	while (task) {
-		task_t *next = task->next;
-		if (current_time >= task->sleep_until) {
-			list_remove(&scheduler.sleeping_list, task);
-			task->state = TASK_STATE_READY;
-			task->time_used = 0;
-			queue_add(&scheduler.ready_queues[task->priority],
-			          task);
+	p = TAILQ_FIRST(&scheduler.sleeping_list);
+	while (p) {
+		struct proc *next = TAILQ_NEXT(p, p_runq);
+		if (current_time >= p->p_slptime) {
+			TAILQ_REMOVE(&scheduler.sleeping_list, p, p_runq);
+			p->p_stat = SRUN;
+			p->p_cpticks = 0;
+			TAILQ_INSERT_TAIL(&scheduler.queues[proc_get_priority(p)],
+			                  p,
+			                  p_runq);
 			scheduler.stats.ready_tasks++;
 		}
-		task = next;
+		p = next;
 	}
 
-	// Check if current task's time slice expired
-	if (scheduler.current_task &&
-	    scheduler.current_task != scheduler.idle_task) {
-		scheduler.current_task->time_used++;
-		scheduler.current_task->total_time++;
+	struct proc *current = proc_get_current();
+	if (current && current != scheduler.idle_task) {
+		current->p_cpticks++;
+		current->p_tu.tu_runtime++;
 
-		if (scheduler.current_task->time_used >=
-		    scheduler.current_task->time_slice) {
+		if (current->p_cpticks >= scheduler.time_slice_ticks) {
 			scheduler_switch_to_next();
 		}
 	}
@@ -374,79 +356,56 @@ scheduler_tick(void)
 task_t *
 scheduler_get_current_task(void)
 {
-	return scheduler.current_task;
+	return proc_get_current();
 }
 
 task_t *
 scheduler_add_forked_task(task_t *task)
 {
-	if (!task)
+	struct proc *p = task;
+
+	if (!p)
 		return NULL;
 
-	queue_add(&scheduler.ready_queues[task->priority], task);
+	TAILQ_INSERT_TAIL(&scheduler.queues[proc_get_priority(p)], p, p_runq);
 	scheduler.stats.total_tasks++;
 	scheduler.stats.ready_tasks++;
 
 	tty_printf("[SCHED] Added forked task %d: %s to ready queue\n",
-	           task->tid,
-	           task->name);
+	           p->p_tid,
+	           p->p_name);
 
-	return task;
+	return p;
 }
 
 task_t *
 scheduler_get_task_by_tid(uint32_t tid)
 {
-	for (int i = 0; i < 5; i++) {
-		task_t *task = scheduler.ready_queues[i].head;
-		while (task) {
-			if (task->tid == tid)
-				return task;
-			task = task->next;
-		}
-	}
-
-	task_t *task = scheduler.blocked_list;
-	while (task) {
-		if (task->tid == tid)
-			return task;
-		task = task->next;
-	}
-
-	task = scheduler.sleeping_list;
-	while (task) {
-		if (task->tid == tid)
-			return task;
-		task = task->next;
-	}
-
-	if (scheduler.current_task && scheduler.current_task->tid == tid) {
-		return scheduler.current_task;
-	}
-
-	return NULL;
+	return tfind(tid);
 }
 
 void
 scheduler_set_priority(task_t *task, task_priority_t priority)
 {
-	if (!task || task->priority == priority)
+	struct proc *p = task;
+
+	if (!p || proc_get_priority(p) == priority)
 		return;
 
-	// If task is ready, move to new priority queue
-	if (task->state == TASK_STATE_READY) {
-		queue_remove(&scheduler.ready_queues[task->priority], task);
-		task->priority = priority;
-		queue_add(&scheduler.ready_queues[priority], task);
+	if (p->p_stat == SRUN) {
+		TAILQ_REMOVE(&scheduler.queues[proc_get_priority(p)], p, p_runq);
+		proc_set_priority(p, priority);
+		TAILQ_INSERT_TAIL(&scheduler.queues[priority], p, p_runq);
 	} else {
-		task->priority = priority;
+		proc_set_priority(p, priority);
 	}
 }
 
 task_priority_t
 scheduler_get_priority(task_t *task)
 {
-	return task ? task->priority : TASK_PRIORITY_IDLE;
+	struct proc *p = task;
+	return p ? proc_get_priority(p) : TASK_PRIORITY_IDLE;
 }
 
 scheduler_stats_t
@@ -465,23 +424,25 @@ scheduler_dump_tasks(void)
 	           scheduler.stats.context_switches);
 
 	tty_printf("\nCurrent task:\n");
-	if (scheduler.current_task) {
-		scheduler_print_task(scheduler.current_task);
+	struct proc *current = proc_get_current();
+	if (current) {
+		scheduler_print_task(current);
 	} else {
 		tty_printf("  (none)\n");
 	}
 
 	tty_printf("\nReady queues:\n");
 	for (int i = 4; i >= 0; i--) {
-		if (scheduler.ready_queues[i].count > 0) {
-			tty_printf("  Priority %d (%d tasks):\n",
-			           i,
-			           scheduler.ready_queues[i].count);
-			task_t *task = scheduler.ready_queues[i].head;
-			while (task) {
+		struct proc *p;
+		int count = 0;
+		TAILQ_FOREACH(p, &scheduler.queues[i], p_runq) {
+			count++;
+		}
+		if (count > 0) {
+			tty_printf("  Priority %d (%d tasks):\n", i, count);
+			TAILQ_FOREACH(p, &scheduler.queues[i], p_runq) {
 				tty_printf("    ");
-				scheduler_print_task(task);
-				task = task->next;
+				scheduler_print_task(p);
 			}
 		}
 	}
@@ -490,18 +451,22 @@ scheduler_dump_tasks(void)
 void
 scheduler_print_task(task_t *task)
 {
-	if (!task)
+	struct proc *p = task;
+
+	if (!p)
 		return;
 
 	const char *state_str[] = {
-		"READY", "RUNNING", "BLOCKED", "SLEEPING", "TERMINATED"
+		"UNKNOWN", "IDLE", "READY", "SLEEPING", "STOPPED", 
+		"UNKNOWN", "DEAD", "RUNNING"
 	};
+	
 	tty_printf("Task %d: %s [%s] pri=%d time=%llu\n",
-	           task->tid,
-	           task->name,
-	           state_str[task->state],
-	           task->priority,
-	           task->total_time);
+	           p->p_tid,
+	           p->p_name,
+	           state_str[p->p_stat],
+	           proc_get_priority(p),
+	           p->p_tu.tu_runtime);
 }
 
 static void
@@ -512,8 +477,8 @@ scheduler_switch_to_next(void)
 
 	uint64_t flags = intr_disable();
 
-	task_t *old_task = scheduler.current_task;
-	task_t *new_task = scheduler_pick_next_task();
+	struct proc *old_task = proc_get_current();
+	struct proc *new_task = scheduler_pick_next_task();
 
 	if (!new_task) {
 		new_task = scheduler.idle_task;
@@ -521,117 +486,54 @@ scheduler_switch_to_next(void)
 
 	if (old_task == new_task) {
 		if (old_task)
-			old_task->time_used = 0;
-		intr_restore(flags); // Restore interrupts before returning
+			old_task->p_cpticks = 0;
+		intr_restore(flags);
 		return;
 	}
 
-	if (old_task && old_task->state == TASK_STATE_RUNNING) {
-		old_task->state = TASK_STATE_READY;
-		old_task->time_used = 0;
-		queue_add(&scheduler.ready_queues[old_task->priority],
-		          old_task);
+	if (old_task && old_task->p_stat == SONPROC) {
+		old_task->p_stat = SRUN;
+		old_task->p_cpticks = 0;
+		TAILQ_INSERT_TAIL(&scheduler.queues[proc_get_priority(old_task)],
+		                  old_task,
+		                  p_runq);
 		scheduler.stats.ready_tasks++;
 		scheduler.stats.running_tasks--;
 	}
 
-	if (new_task->state == TASK_STATE_READY) {
-		queue_remove(&scheduler.ready_queues[new_task->priority],
-		             new_task);
+	if (new_task->p_stat == SRUN) {
+		TAILQ_REMOVE(&scheduler.queues[proc_get_priority(new_task)],
+		             new_task,
+		             p_runq);
 		scheduler.stats.ready_tasks--;
 	}
-	new_task->state = TASK_STATE_RUNNING;
-	new_task->time_used = 0;
+	new_task->p_stat = SONPROC;
+	new_task->p_cpticks = 0;
 	scheduler.stats.running_tasks++;
 
-	scheduler.current_task = new_task;
+	proc_set_current(new_task);
 	scheduler.stats.context_switches++;
 
-	vmm_switch_address_space(
-	    (vmm_address_space_t *)new_task->page_directory);
-
-	if (old_task) {
-		scheduler_switch_context(&old_task->cpu_state,
-		                         &new_task->cpu_state);
-	} else {
-		scheduler_switch_context(NULL, &new_task->cpu_state);
+	if (new_task->p_vmspace) {
+		uint64_t cr3 = new_task->p_vmspace->phys_addr;
+		__asm__ volatile("movq %0, %%cr3" : : "r"(cr3));
 	}
+
+	/* Context switch would happen here */
+	/* This is architecture-specific and would use scheduler_switch_context */
 
 	intr_restore(flags);
 }
 
-static task_t *
+static struct proc *
 scheduler_pick_next_task(void)
 {
 	for (int i = 4; i >= 0; i--) {
-		if (scheduler.ready_queues[i].head) {
-			return scheduler.ready_queues[i].head;
-		}
+		struct proc *p = TAILQ_FIRST(&scheduler.queues[i]);
+		if (p)
+			return p;
 	}
 	return NULL;
-}
-
-static void
-queue_add(task_queue_t *queue, task_t *task)
-{
-	task->next = NULL;
-	task->prev = queue->tail;
-
-	if (queue->tail) {
-		queue->tail->next = task;
-	} else {
-		queue->head = task;
-	}
-	queue->tail = task;
-	queue->count++;
-}
-
-static void
-queue_remove(task_queue_t *queue, task_t *task)
-{
-	if (task->prev) {
-		task->prev->next = task->next;
-	} else {
-		queue->head = task->next;
-	}
-
-	if (task->next) {
-		task->next->prev = task->prev;
-	} else {
-		queue->tail = task->prev;
-	}
-
-	task->next = NULL;
-	task->prev = NULL;
-	queue->count--;
-}
-
-static void
-list_add(task_t **list, task_t *task)
-{
-	task->next = *list;
-	task->prev = NULL;
-	if (*list) {
-		(*list)->prev = task;
-	}
-	*list = task;
-}
-
-static void
-list_remove(task_t **list, task_t *task)
-{
-	if (task->prev) {
-		task->prev->next = task->next;
-	} else {
-		*list = task->next;
-	}
-
-	if (task->next) {
-		task->next->prev = task->prev;
-	}
-
-	task->next = NULL;
-	task->prev = NULL;
 }
 
 static void
@@ -648,6 +550,5 @@ scheduler_timer_handler(registers_t *regs)
 	(void)regs;
 
 	pit_handler();
-
 	scheduler_tick();
 }

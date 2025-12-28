@@ -275,9 +275,6 @@ kmain(void)
 
 	initialize_system_components();
 
-	proc_init();
-	debug_success("Process subsystem initialized");
-
 	run_tests();
 
 	debug_banner("Kernel Initialization Complete");

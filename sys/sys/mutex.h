@@ -6,6 +6,7 @@
 #include <sys/spinlock.h>
 
 #include <stdbool.h>
+#include <scheduler.h>
 
 __BEGIN_DECLS
 
@@ -16,13 +17,13 @@ struct task;
 #define MTX_SPIN	0x00000002	/* Spin mutex (no sleep) */
 
 typedef struct mtx_waitq {
-	struct task *task;
+	task_t *task;
 	struct mtx_waitq *next;
 } mtx_waitq_t;
 
 typedef struct mutex {
 	spinlock_t mtx_lock;		/* Spinlock for internal state */
-	volatile struct task *mtx_owner;	/* Current owner task */
+	volatile task_t *mtx_owner;	/* Current owner task */
 	volatile unsigned int mtx_recurse;	/* Recursion count */
 	unsigned int mtx_type;		/* Mutex type flags */
 	const char *mtx_name;		/* Mutex name for debugging */
@@ -73,7 +74,7 @@ void mutex_unlock(mutex_t *mtx);
 bool mutex_owned(const mutex_t *mtx);
 bool mutex_locked(const mutex_t *mtx);
 
-struct task *mutex_owner(const mutex_t *mtx);
+task_t *mutex_owner(const mutex_t *mtx);
 
 #ifdef MTX_DEBUG
 void mutex_assert_locked(const mutex_t *mtx, const char *file, int line);
