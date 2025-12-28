@@ -13,6 +13,7 @@
 #define SYSCALL_OPEN 5
 #define SYSCALL_CLOSE 6
 #define SYSCALL_CREAT 8
+#define SYSCALL_UNLINK 10
 #define SYSCALL_BRK 17
 #define SYSCALL_GETPID 20
 #define SYSCALL_GETPPID 39
@@ -62,6 +63,7 @@ int64_t sys_openat(int dirfd,
                    mode_t mode);
 int64_t sys_mkdir(const char *path, mode_t mode);
 int64_t sys_rmdir(const char *path);
+int64_t sys_unlink(const char *path);
 int64_t sys_fcntl(int fd, int cmd, uint64_t arg);
 int64_t sys_dup(int oldfd);
 int64_t sys_dup2(int oldfd, int newfd);

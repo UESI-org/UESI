@@ -159,6 +159,13 @@ rmdir(const char *path)
 }
 
 int
+unlink(const char *path)
+{
+	int64_t ret = syscall1(SYSCALL_UNLINK, (uint64_t)path);
+	return (int)handle_syscall_result(ret);
+}
+
+int
 fcntl(int fd, int cmd, ...)
 {
 	va_list args;

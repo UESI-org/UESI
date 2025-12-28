@@ -570,6 +570,47 @@ sys_rmdir(const char *path)
 	return 0;
 }
 
+
+int64_t
+sys_unlink(const char *path)
+{
+	if (!is_user_address(path)) {
+		return -EFAULT;
+	}
+
+	size_t path_len = 0;
+	const char *p = path;
+	while (is_user_address(p) && *p != '\0' && path_len < VFS_MAX_PATH) {
+		p++;
+		path_len++;
+	}
+
+	if (path_len == 0) {
+		return -EINVAL;
+	}
+
+	if (path_len >= VFS_MAX_PATH) {
+		return -ENAMETOOLONG;
+	}
+
+	vnode_t *vnode;
+	int ret = vfs_lookup(path, &vnode);
+	if (ret == 0) {
+		if ((vnode->v_mode & VFS_IFMT) == VFS_IFDIR) {
+			vfs_vnode_unref(vnode);
+			return -EISDIR;  /* Can't unlink directories */
+		}
+		vfs_vnode_unref(vnode);
+	}
+
+	ret = vfs_unlink(path);  /* Reuse ret variable */
+	if (ret != VFS_SUCCESS) {
+		return -vfs_errno(ret);
+	}
+
+	return 0;
+}
+
 int64_t
 sys_fcntl(int fd, int cmd, uint64_t arg)
 {
@@ -1737,6 +1778,10 @@ syscall_handler(syscall_registers_t *regs)
 
 	case SYSCALL_RMDIR:
 		ret = sys_rmdir((const char *)regs->rdi);
+		break;
+
+	case SYSCALL_UNLINK:
+		ret = sys_unlink((const char *)regs->rdi);
 		break;
 
 	case SYSCALL_FCNTL:
