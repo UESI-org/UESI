@@ -10,6 +10,7 @@
 #include <mmu.h>
 #include <string.h>
 #include <printf.h>
+#include <tapframe.h>
 
 struct processlist allprocess = LIST_HEAD_INITIALIZER(allprocess);
 struct processlist zombprocess = LIST_HEAD_INITIALIZER(zombprocess);
@@ -407,67 +408,82 @@ void
 proc_fork_child_entry(void *arg)
 {
 	struct proc *p = (struct proc *)arg;
+	
+	if (!p) {
+		printf_("proc_fork_child_entry: NULL proc!\n");
+		while (1) asm("hlt");
+	}
+	
 	struct trapframe *tf = (struct trapframe *)p->p_md.md_regs;
-
-	if (!p || !tf) {
-		printf_("proc_fork_child_entry: invalid arguments\n");
-		while (1)
-			asm("hlt");
+	if (!tf) {
+		printf_("proc_fork_child_entry: NULL trapframe!\n");
+		while (1) asm("hlt");
 	}
 
 	struct process *ps = p->p_p;
-	printf_(
-	    "Child process %d (thread %d) starting\n", ps->ps_pid, p->p_tid);
+	if (!ps) {
+		printf_("proc_fork_child_entry: NULL process!\n");
+		while (1) asm("hlt");
+	}
+
+	printf_("Child process %d (thread %d) starting at RIP=0x%lx RSP=0x%lx\n", 
+	        ps->ps_pid, p->p_tid, tf->tf_rip, tf->tf_rsp);
 
 	proc_set_current(p);
 	p->p_stat = SONPROC;
 
 	uint64_t user_cr3 = ps->ps_vmspace->phys_addr;
 
+	extern void tss_set_rsp0(uint64_t rsp);
 	tss_set_rsp0(p->p_kstack_top);
 
-	/* Return to userspace using the saved trapframe */
-	asm volatile("cli\n"
-
-	             /* Load registers from trapframe */
-	             "movq %0, %%rsp\n" /* Point RSP to trapframe */
-
-	             /* Load general purpose registers */
-	             "movq 0(%%rsp), %%r15\n"
-	             "movq 8(%%rsp), %%r14\n"
-	             "movq 16(%%rsp), %%r13\n"
-	             "movq 24(%%rsp), %%r12\n"
-	             "movq 32(%%rsp), %%r11\n"
-	             "movq 40(%%rsp), %%r10\n"
-	             "movq 48(%%rsp), %%r9\n"
-	             "movq 56(%%rsp), %%r8\n"
-	             "movq 64(%%rsp), %%rbp\n"
-	             "movq 72(%%rsp), %%rdi\n"
-	             "movq 80(%%rsp), %%rsi\n"
-	             "movq 88(%%rsp), %%rdx\n"
-	             "movq 96(%%rsp), %%rcx\n"
-	             "movq 104(%%rsp), %%rbx\n"
-	             "movq 112(%%rsp), %%rax\n" /* RAX=0 for child */
-
-	             /* Skip trapno and err (already processed) */
-	             /* Load user CR3 */
-	             "movq %1, %%cr3\n"
-
-	             /* Set up data segments for user mode */
-	             "movw $0x23, %%ax\n" /* User data selector */
-	             "movw %%ax, %%ds\n"
-	             "movw %%ax, %%es\n"
-	             "movw %%ax, %%fs\n"
-	             "movw %%ax, %%gs\n"
-
-	             /* Point to iret frame */
-	             "addq $136, %%rsp\n" /* Skip to tf_rip */
-
-	             /* Stack now has: RIP, CS, RFLAGS, RSP, SS */
-	             "iretq\n"
-	             :
-	             : "r"(tf), "r"(user_cr3)
-	             : "memory");
+	/* Return to userspace using the trapframe */
+	/* The trapframe contains all user registers and return address */
+	asm volatile(
+	    "cli\n"                        /* Disable interrupts */
+	    
+	    /* Load user CR3 first */
+	    "movq %1, %%cr3\n"
+	    
+	    /* Load general purpose registers from trapframe */
+	    "movq 112(%%rdi), %%rax\n"    /* tf_rax (child returns 0) */
+	    "movq 104(%%rdi), %%rbx\n"    /* tf_rbx */
+	    "movq 96(%%rdi), %%rcx\n"     /* tf_rcx */
+	    "movq 88(%%rdi), %%rdx\n"     /* tf_rdx */
+	    "movq 80(%%rdi), %%rsi\n"     /* tf_rsi */
+	    "movq 64(%%rdi), %%rbp\n"     /* tf_rbp */
+	    "movq 56(%%rdi), %%r8\n"      /* tf_r8 */
+	    "movq 48(%%rdi), %%r9\n"      /* tf_r9 */
+	    "movq 40(%%rdi), %%r10\n"     /* tf_r10 */
+	    "movq 32(%%rdi), %%r11\n"     /* tf_r11 */
+	    "movq 24(%%rdi), %%r12\n"     /* tf_r12 */
+	    "movq 16(%%rdi), %%r13\n"     /* tf_r13 */
+	    "movq 8(%%rdi), %%r14\n"      /* tf_r14 */
+	    "movq 0(%%rdi), %%r15\n"      /* tf_r15 */
+	    
+	    /* Set up data segments for user mode */
+	    "movw $0x23, %%cx\n"          /* User data selector (GDT entry 4, RPL=3) */
+	    "movw %%cx, %%ds\n"
+	    "movw %%cx, %%es\n"
+	    "movw %%cx, %%fs\n"
+	    "movw %%cx, %%gs\n"
+	    
+	    /* Build iret frame on current stack */
+	    "pushq $0x23\n"               /* SS (user data) */
+	    "pushq 152(%%rdi)\n"          /* tf_rsp (user stack) */
+	    "pushq 144(%%rdi)\n"          /* tf_rflags */
+	    "pushq $0x2b\n"               /* CS (user code, GDT entry 5, RPL=3) */
+	    "pushq 136(%%rdi)\n"          /* tf_rip (user return address) */
+	    
+	    /* Load last register (rdi) */
+	    "movq 72(%%rdi), %%rdi\n"     /* tf_rdi */
+	    
+	    /* Jump to userspace */
+	    "iretq\n"
+	    
+	    : /* no outputs */
+	    : "D"(tf), "r"(user_cr3)
+	    : "memory");
 
 	__builtin_unreachable();
 }

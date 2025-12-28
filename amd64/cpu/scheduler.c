@@ -11,6 +11,7 @@
 #include <printf.h>
 
 extern void tty_printf(const char *fmt, ...);
+extern void tss_set_rsp0(uint64_t rsp);
 
 #define SCHEDULER_TIME_SLICE_MS 20
 #define MAX_TASKS 256
@@ -457,14 +458,14 @@ scheduler_print_task(task_t *task)
 		return;
 
 	const char *state_str[] = {
-		"UNKNOWN", "IDLE", "READY", "SLEEPING", "STOPPED", 
+		"UNKNOWN", "IDLE", "READY", "SLEEPING", "STOPPED",
 		"UNKNOWN", "DEAD", "RUNNING"
 	};
 	
 	tty_printf("Task %d: %s [%s] pri=%d time=%llu\n",
 	           p->p_tid,
 	           p->p_name,
-	           state_str[p->p_stat],
+	           state_str[(int)p->p_stat],
 	           proc_get_priority(p),
 	           p->p_tu.tu_runtime);
 }
@@ -490,6 +491,10 @@ scheduler_switch_to_next(void)
 		intr_restore(flags);
 		return;
 	}
+
+	tty_printf("[SCHED] Switching from task %d to task %d\n",
+	           old_task ? old_task->p_tid : -1,
+	           new_task ? new_task->p_tid : -1);
 
 	if (old_task && old_task->p_stat == SONPROC) {
 		old_task->p_stat = SRUN;
@@ -519,9 +524,33 @@ scheduler_switch_to_next(void)
 		__asm__ volatile("movq %0, %%cr3" : : "r"(cr3));
 	}
 
-	/* Context switch would happen here */
-	/* This is architecture-specific and would use scheduler_switch_context */
+	if (old_task && old_task->p_md.md_cpu_state && 
+	    new_task->p_md.md_cpu_state) {
+		
+		tty_printf("[SCHED] Context switching with cpu_state\n");
+		
+		cpu_state_t *old_state = (cpu_state_t *)old_task->p_md.md_cpu_state;
+		cpu_state_t *new_state = (cpu_state_t *)new_task->p_md.md_cpu_state;
+		
+		scheduler_switch_context(old_state, new_state);
+		
+		intr_restore(flags);
+		return;
+	}
+	
+	if (!old_task || !old_task->p_md.md_cpu_state) {
+		if (new_task->p_md.md_cpu_state) {
+			tty_printf("[SCHED] Initial switch to task %d\n", new_task->p_tid);
+			
+			cpu_state_t *new_state = (cpu_state_t *)new_task->p_md.md_cpu_state;
+			
+			scheduler_switch_context(NULL, new_state);
+			
+			__builtin_unreachable();
+		}
+	}
 
+	tty_printf("[SCHED] WARNING: No context switch performed!\n");
 	intr_restore(flags);
 }
 

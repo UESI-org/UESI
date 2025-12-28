@@ -1049,8 +1049,8 @@ sys_fork(syscall_registers_t *regs)
 	pml4e_t *parent_pml4 = parent_pd->pml4;
 	uint64_t pages_copied = 0;
 
-	for (int pml4_idx = 0; pml4_idx < 256;
-	     pml4_idx++) { /* Only user space */
+	/* Copy all user-space pages (PML4 entries 0-255) */
+	for (int pml4_idx = 0; pml4_idx < 256; pml4_idx++) {
 		if (!(parent_pml4[pml4_idx] & PAGE_PRESENT))
 			continue;
 
@@ -1090,8 +1090,6 @@ sys_fork(syscall_registers_t *regs)
 						tty_printf(
 						    "[FORK] Out of memory "
 						    "during fork\n");
-						/* TODO: Clean up partial copy
-						 */
 						proc_free(child_proc);
 						process_free(child_ps);
 						return -ENOMEM;
@@ -1114,8 +1112,6 @@ sys_fork(syscall_registers_t *regs)
 					                  new_phys,
 					                  flags)) {
 						pmm_free(new_page);
-						/* TODO: Clean up partial copy
-						 */
 						proc_free(child_proc);
 						process_free(child_ps);
 						return -ENOMEM;
@@ -1133,6 +1129,18 @@ sys_fork(syscall_registers_t *regs)
 
 	child_ps->ps_brk = parent_ps->ps_brk;
 	child_ps->ps_flags = (parent_ps->ps_flags & ~PS_EMBRYO);
+
+	for (int i = 0; i < MAX_OPEN_FILES; i++) {
+		child_ps->ps_fd_table[i] = parent_ps->ps_fd_table[i];
+		if (child_ps->ps_fd_table[i].file != NULL) {
+			vfs_file_t *file = (vfs_file_t *)child_ps->ps_fd_table[i].file;
+			/* Increment reference count */
+			uint64_t flags;
+			spinlock_acquire_irqsave(&file->f_lock, &flags);
+			file->f_refcount++;
+			spinlock_release_irqrestore(&file->f_lock, flags);
+		}
+	}
 
 	struct trapframe *child_tf = (struct trapframe *)pmm_alloc();
 	if (!child_tf) {
@@ -1169,21 +1177,37 @@ sys_fork(syscall_registers_t *regs)
 	child_proc->p_md.md_regs = child_tf;
 	child_proc->p_md.md_flags = 0;
 
+	uint64_t kstack_top = (uint64_t)child_proc->p_kstack + 
+	                       PROCESS_KERNEL_STACK_SIZE;
+	
+	kstack_top -= sizeof(cpu_state_t);
+	kstack_top &= ~0xFULL; /* 16-byte align */
+	
+	cpu_state_t *child_cpu_state = (cpu_state_t *)kstack_top;
+	memset(child_cpu_state, 0, sizeof(cpu_state_t));
+
+	extern void proc_fork_child_entry(void *arg);
+	
+	child_cpu_state->rip = (uint64_t)proc_fork_child_entry;
+	child_cpu_state->rdi = (uint64_t)child_proc;  /* Argument: pointer to child proc */
+	child_cpu_state->rsp = kstack_top;            /* Kernel stack pointer */
+	child_cpu_state->rbp = 0;                     /* Clear frame pointer */
+	child_cpu_state->cr3 = child_ps->ps_vmspace->phys_addr;
+	child_cpu_state->rflags = 0x202;              /* IF=1, Reserved bit */
+	child_cpu_state->cs = GDT_SELECTOR_KERNEL_CODE;
+	child_cpu_state->ss = GDT_SELECTOR_KERNEL_DATA;
+
+	child_proc->p_md.md_cpu_state = child_cpu_state;
+
+	child_proc->p_kstack_top = kstack_top;
+
 	child_proc->p_stat = SRUN;
 	child_ps->ps_flags &= ~PS_EMBRYO;
 
-	task_t *child_task = scheduler_create_forked_task(child_proc);
+	/* Add child to scheduler's ready queue */
+	task_t *child_task = scheduler_add_forked_task(child_proc);
 	if (!child_task) {
-		tty_printf("[FORK] Failed to create scheduler task\n");
-		pmm_free(child_tf);
-		proc_free(child_proc);
-		process_free(child_ps);
-		return -ENOMEM;
-	}
-
-	if (!scheduler_add_forked_task(child_task)) {
 		tty_printf("[FORK] Failed to add task to scheduler\n");
-		pmm_free(child_task);
 		pmm_free(child_tf);
 		proc_free(child_proc);
 		process_free(child_ps);
@@ -1192,11 +1216,13 @@ sys_fork(syscall_registers_t *regs)
 
 	tty_printf("[FORK] Created child process %d (task %d) from parent %d\n",
 	           child_ps->ps_pid,
-	           child_task->p_tid,
+	           child_proc->p_tid,
 	           parent_ps->ps_pid);
 	tty_printf("[FORK] Child will return to RIP=0x%lx RSP=0x%lx\n",
 	           child_tf->tf_rip,
 	           child_tf->tf_rsp);
+	tty_printf("[FORK] Child entry point: proc_fork_child_entry at 0x%lx\n",
+	           (uint64_t)proc_fork_child_entry);
 
 	return (int64_t)child_ps->ps_pid;
 }

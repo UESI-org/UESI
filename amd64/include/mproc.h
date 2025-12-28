@@ -35,14 +35,23 @@
 #ifndef _MACHINE_PROC_H_
 #define _MACHINE_PROC_H_
 
+#include <stdbool.h>
+#include <stdint.h>
+
 /*
  * Machine-dependent part of the proc structure for amd64.
  */
+
+/* Forward declarations */
 struct trapframe;
+
 struct mdproc {
-	struct trapframe *md_regs; /* registers on current frame */
+	struct trapframe *md_regs;      /* registers on current frame */
+	void *md_cpu_state;             /* Kernel context for scheduler (cpu_state_t *) */
 	int md_flags;
 	volatile int md_astpending;
+	uint8_t md_fpu_state[512] __attribute__((aligned(16)));
+	bool md_fpu_used;
 };
 
 /* md_flags */
