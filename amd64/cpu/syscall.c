@@ -133,23 +133,6 @@ vfs_errno(int vfs_ret)
 	return EIO;
 }
 
-static uint32_t
-open_flags_to_vfs(uint32_t flags)
-{
-	uint32_t vfs_flags = 0;
-	
-	/* Access mode - these match already */
-	vfs_flags |= (flags & O_ACCMODE);
-	
-	/* Other flags */
-	if (flags & O_CREAT)    vfs_flags |= VFS_O_CREAT;
-	if (flags & O_EXCL)     vfs_flags |= VFS_O_EXCL;
-	if (flags & O_TRUNC)    vfs_flags |= VFS_O_TRUNC;
-	if (flags & O_APPEND)   vfs_flags |= VFS_O_APPEND;
-	
-	return vfs_flags;
-}
-
 void
 sys_exit(int status)
 {
