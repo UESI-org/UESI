@@ -59,14 +59,7 @@ struct stat {
 };
 
 #ifdef _KERNEL
-/* Kernel VFS functions are declared in vfs.h */
-#else
-int stat(const char *path, struct stat *buf);
-int fstat(int fd, struct stat *buf);
-int lstat(const char *path, struct stat *buf);
-int chmod(const char *path, mode_t mode);
-int fchmod(int fd, mode_t mode);
-int mkdir(const char *path, mode_t mode);
+/* Empty for now until full implementation */
 #endif
 
 __END_DECLS
