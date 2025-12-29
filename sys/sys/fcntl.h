@@ -8,10 +8,10 @@
 
 __BEGIN_DECLS
 
-#define O_RDONLY 0x0001  /* open for reading only */
-#define O_WRONLY 0x0002  /* open for writing only */
-#define O_RDWR 0x0003    /* open for reading and writing */
-#define O_ACCMODE 0x0003 /* mask for above modes */
+#define O_RDONLY 0x0000  /* open for reading only */
+#define O_WRONLY 0x0001  /* open for writing only */
+#define O_RDWR 0x0002    /* open for reading and writing */
+#define O_ACCMODE 0x0004 /* mask for above modes */
 
 #define O_NONBLOCK 0x0004 /* no delay */
 #define O_APPEND 0x0008   /* set append mode */
@@ -20,7 +20,7 @@ __BEGIN_DECLS
 #define O_EXCL 0x0800     /* error if already exists */
 
 #define O_SYNC 0x0080       /* synchronous writes */
-#define O_NOFOLLOW 0x0100   /* if path is a symlink, don't follow */
+#define O_NOFOLLOW 0x0200   /* if path is a symlink, don't follow */
 #define O_NOCTTY 0x8000     /* don't assign controlling terminal */
 #define O_CLOEXEC 0x10000   /* atomically set FD_CLOEXEC */
 #define O_DIRECTORY 0x20000 /* fail if not a directory */
