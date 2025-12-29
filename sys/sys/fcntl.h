@@ -11,7 +11,7 @@ __BEGIN_DECLS
 #define O_RDONLY 0x0000  /* open for reading only */
 #define O_WRONLY 0x0001  /* open for writing only */
 #define O_RDWR 0x0002    /* open for reading and writing */
-#define O_ACCMODE 0x0004 /* mask for above modes */
+#define O_ACCMODE 0x0003 /* mask for above modes */
 
 #define O_NONBLOCK 0x0004 /* no delay */
 #define O_APPEND 0x0008   /* set append mode */
@@ -83,6 +83,15 @@ struct flock {
 #define AT_SYMLINK_NOFOLLOW 0x02
 #define AT_SYMLINK_FOLLOW 0x04
 #define AT_REMOVEDIR 0x08
+
+#ifdef _KERNEL
+extern int64_t open(const char *path, uint32_t flags, mode_t mode);
+extern int64_t creat(const char *path, mode_t mode);
+extern int fcntl(int fd, int cmd, ...);
+#if __POSIX_VISIBLE >= 200809
+extern int64_t openat(int dirfd, const char *pathname, uint32_t flags, mode_t mode);
+#endif
+#endif
 
 __END_DECLS
 

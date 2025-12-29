@@ -28,10 +28,10 @@ struct vnode_operations;
 #define VFS_O_RDONLY 0x0001 /* Open for reading only */
 #define VFS_O_WRONLY 0x0002 /* Open for writing only */
 #define VFS_O_RDWR 0x0003   /* Open for reading and writing */
+#define VFS_O_APPEND 0x0008 /* Write to file in append mode */
 #define VFS_O_CREAT 0x0100  /* Create file if it doesn't exist */
-#define VFS_O_EXCL 0x0200   /* Error if create and file exists */
 #define VFS_O_TRUNC 0x0400  /* Truncate to zero length */
-#define VFS_O_APPEND 0x0800 /* Append mode */
+#define VFS_O_EXCL 0x0800   /* Error if create and file exists */
 
 #define VFS_SEEK_SET 0 /* Seek from beginning */
 #define VFS_SEEK_CUR 1 /* Seek from current position */

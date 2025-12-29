@@ -744,26 +744,34 @@ vfs_open(const char *path, uint32_t flags, mode_t mode, vfs_file_t **file)
 	/* Try to lookup existing file */
 	ret = vfs_lookup(path, &vnode);
 
-	if (ret == -ENOENT && (flags & VFS_O_CREAT)) {
-		/* Create new file */
-		ret = vfs_create(path, mode);
-		if (ret != 0) {
-			return ret;
+	if (ret == 0) {
+		/* File exists */
+		/* Check for exclusive create - fail if O_EXCL with O_CREAT */
+		if ((flags & VFS_O_CREAT) && (flags & VFS_O_EXCL)) {
+			vfs_vnode_unref(vnode);
+			return -EEXIST;
 		}
+		/* File exists and O_EXCL not set, continue normally */
+	} else if (ret == -ENOENT) {
+		/* File doesn't exist */
+		if (flags & VFS_O_CREAT) {
+			/* Create new file */
+			ret = vfs_create(path, mode);
+			if (ret != 0) {
+				return ret;
+			}
 
-		ret = vfs_lookup(path, &vnode);
-		if (ret != 0) {
-			return ret;
+			ret = vfs_lookup(path, &vnode);
+			if (ret != 0) {
+				return ret;
+			}
+		} else {
+			/* No O_CREAT and file doesn't exist */
+			return -ENOENT;
 		}
-	} else if (ret != 0) {
+	} else {
+		/* Other error during lookup */
 		return ret;
-	}
-
-	/* Check for exclusive create */
-	if ((flags & (VFS_O_CREAT | VFS_O_EXCL)) ==
-	    (VFS_O_CREAT | VFS_O_EXCL)) {
-		vfs_vnode_unref(vnode);
-		return -EEXIST;
 	}
 
 	/* Allocate file structure */
