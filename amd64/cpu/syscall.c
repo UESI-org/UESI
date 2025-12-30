@@ -28,8 +28,6 @@ extern int kern_sysinfo(struct sysinfo *info);
 extern int gethostname(char *name, size_t len);
 extern int gethostid(void);
 
-extern int errno;
-
 #define USER_SPACE_START 0x0000000000400000UL
 #define USER_SPACE_END 0x00007FFFFFFFFFFFUL
 
