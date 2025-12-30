@@ -166,6 +166,21 @@ unlink(const char *path)
 }
 
 int
+chmod(const char *path, mode_t mode)
+{
+	int64_t ret = syscall2(SYSCALL_CHMOD, (uint64_t)path, (uint64_t)mode);
+	return (int)handle_syscall_result(ret);
+}
+
+int
+mknod(const char *path, mode_t mode, dev_t dev)
+{
+	int64_t ret = syscall3(
+	    SYSCALL_MKNOD, (uint64_t)path, (uint64_t)mode, (uint64_t)dev);
+	return (int)handle_syscall_result(ret);
+}
+
+int
 fcntl(int fd, int cmd, ...)
 {
 	va_list args;

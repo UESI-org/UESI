@@ -1132,6 +1132,75 @@ vfs_mkdir(const char *path, mode_t mode)
 }
 
 int
+vfs_mknod(const char *path, mode_t mode, dev_t dev)
+{
+	if (path == NULL) {
+		return -EINVAL;
+	}
+
+	mode_t file_type = mode & VFS_IFMT;
+
+	switch (file_type) {
+	case VFS_IFREG:  /* Regular file */
+	case VFS_IFCHR:  /* Character device */
+	case VFS_IFBLK:  /* Block device */
+	case VFS_IFIFO:  /* Named pipe (FIFO) */
+	case VFS_IFSOCK: /* Socket */
+		break;
+	case VFS_IFDIR:
+		return -EPERM;
+	case VFS_IFLNK:
+		return -EPERM;
+	default:
+		return -EINVAL;
+	}
+
+	if ((file_type == VFS_IFCHR || file_type == VFS_IFBLK) && dev == 0) {
+		VFS_DEBUG("Device files require dev parameter\n");
+		return -EINVAL;
+	}
+
+	vnode_t *parent;
+	char *name;
+
+	int ret = vfs_lookup_parent(path, &parent, &name);
+	if (ret != 0) {
+		return ret;
+	}
+
+	if (parent->v_ops == NULL || parent->v_ops->create == NULL) {
+		kfree(name);
+		vfs_vnode_unref(parent);
+		return -ENOSYS;
+	}
+
+	vnode_t *vnode = NULL;
+	ret = parent->v_ops->create(parent, name, mode, &vnode);
+
+	if (ret == 0 && vnode != NULL) {
+		if (file_type == VFS_IFCHR || file_type == VFS_IFBLK) {
+			uint64_t flags;
+			spinlock_acquire_irqsave(&vnode->v_lock, &flags);
+			vnode->v_rdev = dev;
+			vnode->v_flags |= VNODE_FLAG_DIRTY;
+			spinlock_release_irqrestore(&vnode->v_lock, flags);
+		}
+
+		vfs_vnode_unref(vnode);
+
+		VFS_DEBUG("Created node: %s (type: 0x%x, dev: 0x%x)\n",
+		          path,
+		          file_type,
+		          dev);
+	}
+
+	kfree(name);
+	vfs_vnode_unref(parent);
+
+	return ret;
+}
+
+int
 vfs_unlink(const char *path)
 {
 	if (path == NULL) {

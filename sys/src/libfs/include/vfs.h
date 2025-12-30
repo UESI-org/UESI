@@ -218,6 +218,7 @@ int vfs_chown(const char *path, uid_t uid, gid_t gid);
 int vfs_rename(const char *oldpath, const char *newpath);
 
 int vfs_mkdir(const char *path, mode_t mode);
+int vfs_mknod(const char *path, mode_t mode, dev_t dev);
 int vfs_rmdir(const char *path);
 int vfs_readdir(vfs_file_t *file, vfs_dirent_t *dirent);
 

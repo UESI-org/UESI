@@ -541,6 +541,36 @@ sys_mkdir(const char *path, mode_t mode)
 }
 
 int64_t
+sys_mknod(const char *path, mode_t mode, dev_t dev)
+{
+	if (!is_user_address(path)) {
+		return -EFAULT;
+	}
+
+	size_t path_len = 0;
+	const char *p = path;
+	while (is_user_address(p) && *p != '\0' && path_len < VFS_MAX_PATH) {
+		p++;
+		path_len++;
+	}
+
+	if (path_len == 0) {
+		return -EINVAL;
+	}
+
+	if (path_len >= VFS_MAX_PATH) {
+		return -ENAMETOOLONG;
+	}
+
+	int ret = vfs_mknod(path, mode, dev);
+	if (ret != VFS_SUCCESS) {
+		return -vfs_errno(ret);
+	}
+
+	return 0;
+}
+
+int64_t
 sys_rmdir(const char *path)
 {
 	if (!is_user_address(path)) {
@@ -604,6 +634,36 @@ sys_unlink(const char *path)
 	}
 
 	ret = vfs_unlink(path);  /* Reuse ret variable */
+	if (ret != VFS_SUCCESS) {
+		return -vfs_errno(ret);
+	}
+
+	return 0;
+}
+
+int64_t
+sys_chmod(const char *path, mode_t mode)
+{
+	if (!is_user_address(path)) {
+		return -EFAULT;
+	}
+
+	size_t path_len = 0;
+	const char *p = path;
+	while (is_user_address(p) && *p != '\0' && path_len < VFS_MAX_PATH) {
+		p++;
+		path_len++;
+	}
+
+	if (path_len == 0) {
+		return -EINVAL;
+	}
+
+	if (path_len >= VFS_MAX_PATH) {
+		return -ENAMETOOLONG;
+	}
+
+	int ret = vfs_chmod(path, mode);
 	if (ret != VFS_SUCCESS) {
 		return -vfs_errno(ret);
 	}
@@ -1776,12 +1836,22 @@ syscall_handler(syscall_registers_t *regs)
 		ret = sys_mkdir((const char *)regs->rdi, (mode_t)regs->rsi);
 		break;
 
+	case SYSCALL_MKNOD:
+		ret = sys_mknod((const char *)regs->rdi,
+	                	(mode_t)regs->rsi,
+	                	(dev_t)regs->rdx);
+		break;
+
 	case SYSCALL_RMDIR:
 		ret = sys_rmdir((const char *)regs->rdi);
 		break;
 
 	case SYSCALL_UNLINK:
 		ret = sys_unlink((const char *)regs->rdi);
+		break;
+
+	case SYSCALL_CHMOD:
+		ret = sys_chmod((const char *)regs->rdi, (mode_t)regs->rsi);
 		break;
 
 	case SYSCALL_FCNTL:
