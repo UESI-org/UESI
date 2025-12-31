@@ -23,10 +23,10 @@ OBJS := $(SRCS:$(SRCDIR)/%.c=$(OBJDIR)/%.o) \
         $(SOFTFLOATSRC:$(SOFTFLOATDIR)/%.c=$(OBJDIR)/softfloat_%.o) \
         $(STDLIBSRC:$(STDLIBDIR)/%.c=$(OBJDIR)/stdlib_%.o)
 
-FEATURE_FLAGS := -D__POSIX_VISIBLE=200809 \
+FEATURE_FLAGS := -D__POSIX_VISIBLE=202405 \
                  -D__XPG_VISIBLE=700 \
                  -D__ISO_C_VISIBLE=2011 \
-                 -D_BSD_SOURCE \
+                 -D__BSD_VISIBLE=1 \
                  -DNL_TEXTMAX=128 \
                  -D_KERNEL \
                  -DSOFTFLOAT_FOR_GCC
