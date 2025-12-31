@@ -318,24 +318,6 @@ vfs_vnode_free(vnode_t *vnode)
 		return;
 	}
 
-	/* Remove from hash table */
-	uint32_t hash = vnode_hash_func(0, vnode->v_ino);
-
-	uint64_t flags;
-	spinlock_acquire_irqsave(&vnode_hash_lock, &flags);
-
-	vnode_t **current = &vnode_hash[hash];
-	while (*current != NULL) {
-		if (*current == vnode) {
-			*current = vnode->v_next;
-			break;
-		}
-		current = &(*current)->v_next;
-	}
-
-	spinlock_release_irqrestore(&vnode_hash_lock, flags);
-
-	/* Call filesystem-specific release */
 	if (vnode->v_ops && vnode->v_ops->release) {
 		vnode->v_ops->release(vnode);
 	}
@@ -370,8 +352,27 @@ vfs_vnode_unref(vnode_t *vnode)
 		vnode->v_refcount--;
 
 		if (vnode->v_refcount == 0) {
+			uint32_t hash = vnode_hash_func(0, vnode->v_ino);
+			
+			uint64_t hash_flags;
+			spinlock_acquire_irqsave(&vnode_hash_lock, &hash_flags);
+			
+			vnode_t **current = &vnode_hash[hash];
+			while (*current != NULL) {
+				if (*current == vnode) {
+					*current = vnode->v_next;
+					break;
+				}
+				current = &(*current)->v_next;
+			}
+			
+			spinlock_release_irqrestore(&vnode_hash_lock, hash_flags);
 			spinlock_release_irqrestore(&vnode->v_lock, flags);
-			vfs_vnode_free(vnode);
+			
+			if (vnode->v_ops && vnode->v_ops->release) {
+				vnode->v_ops->release(vnode);
+			}
+			kfree(vnode);
 			return;
 		}
 	}
@@ -503,7 +504,7 @@ vfs_lookup(const char *path, vnode_t **result)
 	    path, result, true); /* Follow all symlinks */
 }
 
-static int
+int
 vfs_lookup_internal(const char *path, vnode_t **result, bool follow_final)
 {
 	if (path == NULL || result == NULL) {
@@ -590,8 +591,7 @@ vfs_lookup_internal(const char *path, vnode_t **result, bool follow_final)
 
 		/* Check if this is a symlink */
 		if ((current->v_mode & VFS_IFMT) == VFS_IFLNK) {
-			/* If this is the final component and we shouldn't
-			 * follow, stop here */
+			/* If this is the final component and we shouldn't follow, stop here */
 			if (is_final && !follow_final) {
 				break;
 			}
@@ -606,94 +606,76 @@ vfs_lookup_internal(const char *path, vnode_t **result, bool follow_final)
 
 			/* Read the symlink target */
 			char target[VFS_MAX_PATH];
-			if (current->v_ops == NULL ||
-			    current->v_ops->readlink == NULL) {
+			if (current->v_ops == NULL || current->v_ops->readlink == NULL) {
 				vfs_vnode_unref(current);
 				kfree(path_copy);
 				return -EINVAL;
 			}
 
-			ret = current->v_ops->readlink(
-			    current, target, sizeof(target));
+			ret = current->v_ops->readlink(current, target, sizeof(target));
 			if (ret < 0) {
 				vfs_vnode_unref(current);
 				kfree(path_copy);
 				return ret;
 			}
+			
+			/* Validate target length */
+			if (ret >= VFS_MAX_PATH) {
+				vfs_vnode_unref(current);
+				kfree(path_copy);
+				return -ENAMETOOLONG;
+			}
+			target[ret] = '\0';  /* Ensure null termination */
 
 			/* Release the symlink vnode */
 			vfs_vnode_unref(current);
 
-			/* If the target is absolute, start from root */
+			/* Handle relative vs absolute symlink targets */
 			if (target[0] == '/') {
-				current = root_mount->mnt_root;
-				vfs_vnode_ref(current);
-			} else {
-				/* Relative symlink - need to resolve from
-				 * parent directory */
-				/* This is complex: we need to rebuild the path
-				   up to the parent and then resolve the
-				   relative target from there */
-
-				/* For now, return error - proper implementation
-				   requires tracking the parent directory or
-				   rebuilding the path */
-				kfree(path_copy);
-				return -ENOTSUP;
-			}
-
-			/* Parse symlink target and resolve it */
-			char *symlink_path_copy = kmalloc(strlen(target) + 1);
-			if (symlink_path_copy == NULL) {
-				vfs_vnode_unref(current);
-				kfree(path_copy);
-				return -ENOMEM;
-			}
-			strcpy(symlink_path_copy, target);
-
-			/* Tokenize symlink target */
-			char *sym_token = strtok(symlink_path_copy + 1, "/");
-			while (sym_token != NULL) {
-				/* Check if current is a directory */
-				if ((current->v_mode & VFS_IFMT) != VFS_IFDIR) {
-					vfs_vnode_unref(current);
-					kfree(symlink_path_copy);
-					kfree(path_copy);
-					return -ENOTDIR;
-				}
-
-				/* Lookup component */
-				if (current->v_ops == NULL ||
-				    current->v_ops->lookup == NULL) {
-					vfs_vnode_unref(current);
-					kfree(symlink_path_copy);
-					kfree(path_copy);
-					return -ENOSYS;
-				}
-
-				vnode_t *sym_next = NULL;
-				ret = current->v_ops->lookup(
-				    current, sym_token, &sym_next);
-
-				vfs_vnode_unref(current);
-
+				/* Absolute symlink - recursively resolve from root */
+				ret = vfs_lookup_internal(target, &current, true);
 				if (ret != 0) {
-					kfree(symlink_path_copy);
 					kfree(path_copy);
 					return ret;
 				}
-
-				current = sym_next;
-				sym_token = strtok(NULL, "/");
+			} else {
+				/* Relative symlink - need to resolve from parent directory */
+				/* Build the full path: parent_path + "/" + target */
+				
+				/* Reconstruct parent path */
+				char parent_path[VFS_MAX_PATH];
+				parent_path[0] = '/';
+				parent_path[1] = '\0';
+				
+				for (int j = 0; j < i; j++) {
+					if (strlen(parent_path) > 1) {
+						strcat(parent_path, "/");
+					}
+					strcat(parent_path, components[j]);
+				}
+				
+				/* Append the relative target */
+				if (strlen(parent_path) > 1) {
+					strcat(parent_path, "/");
+				}
+				strcat(parent_path, target);
+				
+				/* Check total length */
+				if (strlen(parent_path) >= VFS_MAX_PATH) {
+					kfree(path_copy);
+					return -ENAMETOOLONG;
+				}
+				
+				/* Recursively resolve the complete path */
+				ret = vfs_lookup_internal(parent_path, &current, true);
+				if (ret != 0) {
+					kfree(path_copy);
+					return ret;
+				}
 			}
-
-			kfree(symlink_path_copy);
-
-			/* If there are more components in the original path
-			   after this symlink, we need to continue walking from
-			   the symlink target */
-			/* This is already handled by the main loop continuing
-			 */
+			
+			/* current now points to the resolved symlink target */
+			/* Continue with remaining path components if any */
 		}
 	}
 
@@ -845,17 +827,27 @@ vfs_read(vfs_file_t *file, void *buf, size_t count)
 	}
 
 	uint64_t flags;
-	spinlock_acquire_irqsave(&file->f_lock, &flags);
-	off_t offset = file->f_offset;
-	spinlock_release_irqrestore(&file->f_lock, flags);
+	off_t offset;
+
+	if (file->f_flags & VFS_O_APPEND) {
+		uint64_t vnode_flags;
+		spinlock_acquire_irqsave(&vnode->v_lock, &vnode_flags);
+		offset = vnode->v_size;
+		spinlock_release_irqrestore(&vnode->v_lock, vnode_flags);
+	} else {
+		spinlock_acquire_irqsave(&file->f_lock, &flags);
+		offset = file->f_offset;
+		spinlock_release_irqrestore(&file->f_lock, flags);
+	}
 
 	ssize_t bytes = vnode->v_ops->read(vnode, buf, count, offset);
 
 	if (bytes > 0) {
 		spinlock_acquire_irqsave(&file->f_lock, &flags);
-		file->f_offset += bytes;
+		/* Update offset regardless of append mode (POSIX requirement) */
+		file->f_offset = offset + bytes;
 		spinlock_release_irqrestore(&file->f_lock, flags);
-	}
+}
 
 	return bytes;
 }
@@ -1318,6 +1310,11 @@ vfs_readlink(const char *path, char *buf, size_t bufsize)
 	if (vnode->v_ops == NULL || vnode->v_ops->readlink == NULL) {
 		vfs_vnode_unref(vnode);
 		return -ENOSYS;
+	}
+
+	/* Validate buffer size */
+	if (bufsize > VFS_MAX_PATH) {
+		bufsize = VFS_MAX_PATH;
 	}
 
 	ret = vnode->v_ops->readlink(vnode, buf, bufsize);

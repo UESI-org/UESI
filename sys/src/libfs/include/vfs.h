@@ -198,9 +198,8 @@ void vfs_vnode_ref(vnode_t *vnode);
 void vfs_vnode_unref(vnode_t *vnode);
 
 int vfs_lookup(const char *path, vnode_t **result);
-static int vfs_lookup_internal(const char *path,
-                               vnode_t **result,
-                               bool follow_final);
+int
+vfs_lookup_internal(const char *path, vnode_t **result, bool follow_final);
 int vfs_lookup_parent(const char *path, vnode_t **parent, char **name);
 
 int vfs_open(const char *path, uint32_t flags, mode_t mode, vfs_file_t **file);
