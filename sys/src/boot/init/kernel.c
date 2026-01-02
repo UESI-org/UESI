@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <limine.h>
 #include <tty.h>
+#include <tsc.h>
 #include <tmpfs.h>
 #include <gdt.h>
 #include <isr.h>
@@ -195,6 +196,16 @@ initialize_system_components(void)
 	pit_init(100);
 	isr_register_handler(32, (isr_handler_t)pit_handler);
 	debug_success("PIT initialized (100 Hz)");
+
+  tsc_init();
+  if(tsc_is_available()) {
+    debug_success("TSC initialized");
+    if (debug_is_enabled()) {
+      tsc_print_info();
+    }
+  } else {
+    debug_error("TSC not available");
+  }
 
 	scheduler_init(100);
 	debug_success("Scheduler initialized");
