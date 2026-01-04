@@ -261,9 +261,9 @@ tsc_print_info(void)
 	}
 
 	printf("TSC Information:\n");
-	printf("  Frequency: %llu Hz (%llu MHz)\n",
-	       g_tsc_info.frequency_hz,
-	       g_tsc_info.frequency_hz / 1000000);
+	printf("  Frequency: %lu Hz (%lu MHz)\n",
+	       (unsigned long)g_tsc_info.frequency_hz,
+	       (unsigned long)(g_tsc_info.frequency_hz / 1000000));
 
 	printf("  Calibration: ");
 	switch (g_tsc_info.calibration_method) {
@@ -271,7 +271,8 @@ tsc_print_info(void)
 		printf("CPUID\n");
 		break;
 	case TSC_CALIBRATED_PIT:
-		printf("PIT (%llu ms)\n", g_tsc_info.calibration_duration_ms);
+		printf("PIT (%lu ms)\n",
+		       (unsigned long)g_tsc_info.calibration_duration_ms);
 		break;
 	default:
 		printf("Uncalibrated\n");

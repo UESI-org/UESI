@@ -408,26 +408,33 @@ void
 proc_fork_child_entry(void *arg)
 {
 	struct proc *p = (struct proc *)arg;
-	
+
 	if (!p) {
 		printf_("proc_fork_child_entry: NULL proc!\n");
-		while (1) asm("hlt");
+		while (1)
+			asm("hlt");
 	}
-	
+
 	struct trapframe *tf = (struct trapframe *)p->p_md.md_regs;
 	if (!tf) {
 		printf_("proc_fork_child_entry: NULL trapframe!\n");
-		while (1) asm("hlt");
+		while (1)
+			asm("hlt");
 	}
 
 	struct process *ps = p->p_p;
 	if (!ps) {
 		printf_("proc_fork_child_entry: NULL process!\n");
-		while (1) asm("hlt");
+		while (1)
+			asm("hlt");
 	}
 
-	printf_("Child process %d (thread %d) starting at RIP=0x%lx RSP=0x%lx\n", 
-	        ps->ps_pid, p->p_tid, tf->tf_rip, tf->tf_rsp);
+	printf_(
+	    "Child process %d (thread %d) starting at RIP=0x%lx RSP=0x%lx\n",
+	    ps->ps_pid,
+	    p->p_tid,
+	    tf->tf_rip,
+	    tf->tf_rsp);
 
 	proc_set_current(p);
 	p->p_stat = SONPROC;
@@ -440,47 +447,47 @@ proc_fork_child_entry(void *arg)
 	/* Return to userspace using the trapframe */
 	/* The trapframe contains all user registers and return address */
 	asm volatile(
-	    "cli\n"                        /* Disable interrupts */
-	    
+	    "cli\n" /* Disable interrupts */
+
 	    /* Load user CR3 first */
 	    "movq %1, %%cr3\n"
-	    
+
 	    /* Load general purpose registers from trapframe */
-	    "movq 112(%%rdi), %%rax\n"    /* tf_rax (child returns 0) */
-	    "movq 104(%%rdi), %%rbx\n"    /* tf_rbx */
-	    "movq 96(%%rdi), %%rcx\n"     /* tf_rcx */
-	    "movq 88(%%rdi), %%rdx\n"     /* tf_rdx */
-	    "movq 80(%%rdi), %%rsi\n"     /* tf_rsi */
-	    "movq 64(%%rdi), %%rbp\n"     /* tf_rbp */
-	    "movq 56(%%rdi), %%r8\n"      /* tf_r8 */
-	    "movq 48(%%rdi), %%r9\n"      /* tf_r9 */
-	    "movq 40(%%rdi), %%r10\n"     /* tf_r10 */
-	    "movq 32(%%rdi), %%r11\n"     /* tf_r11 */
-	    "movq 24(%%rdi), %%r12\n"     /* tf_r12 */
-	    "movq 16(%%rdi), %%r13\n"     /* tf_r13 */
-	    "movq 8(%%rdi), %%r14\n"      /* tf_r14 */
-	    "movq 0(%%rdi), %%r15\n"      /* tf_r15 */
-	    
+	    "movq 112(%%rdi), %%rax\n" /* tf_rax (child returns 0) */
+	    "movq 104(%%rdi), %%rbx\n" /* tf_rbx */
+	    "movq 96(%%rdi), %%rcx\n"  /* tf_rcx */
+	    "movq 88(%%rdi), %%rdx\n"  /* tf_rdx */
+	    "movq 80(%%rdi), %%rsi\n"  /* tf_rsi */
+	    "movq 64(%%rdi), %%rbp\n"  /* tf_rbp */
+	    "movq 56(%%rdi), %%r8\n"   /* tf_r8 */
+	    "movq 48(%%rdi), %%r9\n"   /* tf_r9 */
+	    "movq 40(%%rdi), %%r10\n"  /* tf_r10 */
+	    "movq 32(%%rdi), %%r11\n"  /* tf_r11 */
+	    "movq 24(%%rdi), %%r12\n"  /* tf_r12 */
+	    "movq 16(%%rdi), %%r13\n"  /* tf_r13 */
+	    "movq 8(%%rdi), %%r14\n"   /* tf_r14 */
+	    "movq 0(%%rdi), %%r15\n"   /* tf_r15 */
+
 	    /* Set up data segments for user mode */
-	    "movw $0x23, %%cx\n"          /* User data selector (GDT entry 4, RPL=3) */
+	    "movw $0x23, %%cx\n" /* User data selector (GDT entry 4, RPL=3) */
 	    "movw %%cx, %%ds\n"
 	    "movw %%cx, %%es\n"
 	    "movw %%cx, %%fs\n"
 	    "movw %%cx, %%gs\n"
-	    
+
 	    /* Build iret frame on current stack */
-	    "pushq $0x23\n"               /* SS (user data) */
-	    "pushq 152(%%rdi)\n"          /* tf_rsp (user stack) */
-	    "pushq 144(%%rdi)\n"          /* tf_rflags */
-	    "pushq $0x2b\n"               /* CS (user code, GDT entry 5, RPL=3) */
-	    "pushq 136(%%rdi)\n"          /* tf_rip (user return address) */
-	    
+	    "pushq $0x23\n"      /* SS (user data) */
+	    "pushq 152(%%rdi)\n" /* tf_rsp (user stack) */
+	    "pushq 144(%%rdi)\n" /* tf_rflags */
+	    "pushq $0x2b\n"      /* CS (user code, GDT entry 5, RPL=3) */
+	    "pushq 136(%%rdi)\n" /* tf_rip (user return address) */
+
 	    /* Load last register (rdi) */
-	    "movq 72(%%rdi), %%rdi\n"     /* tf_rdi */
-	    
+	    "movq 72(%%rdi), %%rdi\n" /* tf_rdi */
+
 	    /* Jump to userspace */
 	    "iretq\n"
-	    
+
 	    : /* no outputs */
 	    : "D"(tf), "r"(user_cr3)
 	    : "memory");

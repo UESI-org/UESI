@@ -27,14 +27,14 @@ arc4random_uniform(uint32_t upper_bound)
 	if (upper_bound < 2) {
 		return 0;
 	}
-	
+
 	uint32_t min = (0xFFFFFFFF - upper_bound + 1) % upper_bound;
 	uint32_t r;
-	
+
 	do {
 		r = arc4random();
 	} while (r < min);
-	
+
 	return r % upper_bound;
 }
 

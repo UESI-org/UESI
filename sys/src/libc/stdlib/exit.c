@@ -49,7 +49,7 @@ exit(int status)
 			atexit_funcs[i]();
 		}
 	}
-	
+
 	_exit(status);
 	__builtin_unreachable();
 }

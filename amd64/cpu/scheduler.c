@@ -21,7 +21,7 @@ typedef struct {
 	struct proclist blocked_list;
 	struct proclist sleeping_list;
 	struct proclist terminated_list;
-	
+
 	struct proc *idle_task;
 	struct process *idle_process;
 
@@ -91,9 +91,11 @@ scheduler_init(uint32_t timer_frequency)
 
 	scheduler.idle_process = process_alloc("idle");
 	if (scheduler.idle_process) {
-		scheduler.idle_task = proc_alloc(scheduler.idle_process, "idle");
+		scheduler.idle_task =
+		    proc_alloc(scheduler.idle_process, "idle");
 		if (scheduler.idle_task) {
-			proc_set_priority(scheduler.idle_task, TASK_PRIORITY_IDLE);
+			proc_set_priority(scheduler.idle_task,
+			                  TASK_PRIORITY_IDLE);
 		}
 	}
 
@@ -157,7 +159,8 @@ scheduler_destroy_task(task_t *task)
 	task_state_t state = proc_to_task_state(p);
 	switch (state) {
 	case TASK_STATE_READY:
-		TAILQ_REMOVE(&scheduler.queues[proc_get_priority(p)], p, p_runq);
+		TAILQ_REMOVE(
+		    &scheduler.queues[proc_get_priority(p)], p, p_runq);
 		scheduler.stats.ready_tasks--;
 		break;
 	case TASK_STATE_BLOCKED:
@@ -212,7 +215,8 @@ scheduler_block_task(task_t *task)
 		return;
 
 	if (p->p_stat == SRUN) {
-		TAILQ_REMOVE(&scheduler.queues[proc_get_priority(p)], p, p_runq);
+		TAILQ_REMOVE(
+		    &scheduler.queues[proc_get_priority(p)], p, p_runq);
 		scheduler.stats.ready_tasks--;
 	}
 
@@ -254,7 +258,8 @@ scheduler_sleep_task(task_t *task, uint64_t milliseconds)
 	p->p_slptime = current_time + milliseconds;
 
 	if (p->p_stat == SRUN) {
-		TAILQ_REMOVE(&scheduler.queues[proc_get_priority(p)], p, p_runq);
+		TAILQ_REMOVE(
+		    &scheduler.queues[proc_get_priority(p)], p, p_runq);
 		scheduler.stats.ready_tasks--;
 	}
 
@@ -335,9 +340,8 @@ scheduler_tick(void)
 			TAILQ_REMOVE(&scheduler.sleeping_list, p, p_runq);
 			p->p_stat = SRUN;
 			p->p_cpticks = 0;
-			TAILQ_INSERT_TAIL(&scheduler.queues[proc_get_priority(p)],
-			                  p,
-			                  p_runq);
+			TAILQ_INSERT_TAIL(
+			    &scheduler.queues[proc_get_priority(p)], p, p_runq);
 			scheduler.stats.ready_tasks++;
 		}
 		p = next;
@@ -394,7 +398,8 @@ scheduler_set_priority(task_t *task, task_priority_t priority)
 		return;
 
 	if (p->p_stat == SRUN) {
-		TAILQ_REMOVE(&scheduler.queues[proc_get_priority(p)], p, p_runq);
+		TAILQ_REMOVE(
+		    &scheduler.queues[proc_get_priority(p)], p, p_runq);
 		proc_set_priority(p, priority);
 		TAILQ_INSERT_TAIL(&scheduler.queues[priority], p, p_runq);
 	} else {
@@ -436,12 +441,14 @@ scheduler_dump_tasks(void)
 	for (int i = 4; i >= 0; i--) {
 		struct proc *p;
 		int count = 0;
-		TAILQ_FOREACH(p, &scheduler.queues[i], p_runq) {
+		TAILQ_FOREACH(p, &scheduler.queues[i], p_runq)
+		{
 			count++;
 		}
 		if (count > 0) {
 			tty_printf("  Priority %d (%d tasks):\n", i, count);
-			TAILQ_FOREACH(p, &scheduler.queues[i], p_runq) {
+			TAILQ_FOREACH(p, &scheduler.queues[i], p_runq)
+			{
 				tty_printf("    ");
 				scheduler_print_task(p);
 			}
@@ -457,11 +464,9 @@ scheduler_print_task(task_t *task)
 	if (!p)
 		return;
 
-	const char *state_str[] = {
-		"UNKNOWN", "IDLE", "READY", "SLEEPING", "STOPPED",
-		"UNKNOWN", "DEAD", "RUNNING"
-	};
-	
+	const char *state_str[] = { "UNKNOWN", "IDLE",    "READY", "SLEEPING",
+		                    "STOPPED", "UNKNOWN", "DEAD",  "RUNNING" };
+
 	tty_printf("Task %d: %s [%s] pri=%d time=%llu\n",
 	           p->p_tid,
 	           p->p_name,
@@ -499,9 +504,10 @@ scheduler_switch_to_next(void)
 	if (old_task && old_task->p_stat == SONPROC) {
 		old_task->p_stat = SRUN;
 		old_task->p_cpticks = 0;
-		TAILQ_INSERT_TAIL(&scheduler.queues[proc_get_priority(old_task)],
-		                  old_task,
-		                  p_runq);
+		TAILQ_INSERT_TAIL(
+		    &scheduler.queues[proc_get_priority(old_task)],
+		    old_task,
+		    p_runq);
 		scheduler.stats.ready_tasks++;
 		scheduler.stats.running_tasks--;
 	}
@@ -524,28 +530,31 @@ scheduler_switch_to_next(void)
 		__asm__ volatile("movq %0, %%cr3" : : "r"(cr3));
 	}
 
-	if (old_task && old_task->p_md.md_cpu_state && 
+	if (old_task && old_task->p_md.md_cpu_state &&
 	    new_task->p_md.md_cpu_state) {
-		
 		tty_printf("[SCHED] Context switching with cpu_state\n");
-		
-		cpu_state_t *old_state = (cpu_state_t *)old_task->p_md.md_cpu_state;
-		cpu_state_t *new_state = (cpu_state_t *)new_task->p_md.md_cpu_state;
-		
+
+		cpu_state_t *old_state =
+		    (cpu_state_t *)old_task->p_md.md_cpu_state;
+		cpu_state_t *new_state =
+		    (cpu_state_t *)new_task->p_md.md_cpu_state;
+
 		scheduler_switch_context(old_state, new_state);
-		
+
 		intr_restore(flags);
 		return;
 	}
-	
+
 	if (!old_task || !old_task->p_md.md_cpu_state) {
 		if (new_task->p_md.md_cpu_state) {
-			tty_printf("[SCHED] Initial switch to task %d\n", new_task->p_tid);
-			
-			cpu_state_t *new_state = (cpu_state_t *)new_task->p_md.md_cpu_state;
-			
+			tty_printf("[SCHED] Initial switch to task %d\n",
+			           new_task->p_tid);
+
+			cpu_state_t *new_state =
+			    (cpu_state_t *)new_task->p_md.md_cpu_state;
+
 			scheduler_switch_context(NULL, new_state);
-			
+
 			__builtin_unreachable();
 		}
 	}

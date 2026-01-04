@@ -353,10 +353,10 @@ vfs_vnode_unref(vnode_t *vnode)
 
 		if (vnode->v_refcount == 0) {
 			uint32_t hash = vnode_hash_func(0, vnode->v_ino);
-			
+
 			uint64_t hash_flags;
 			spinlock_acquire_irqsave(&vnode_hash_lock, &hash_flags);
-			
+
 			vnode_t **current = &vnode_hash[hash];
 			while (*current != NULL) {
 				if (*current == vnode) {
@@ -365,10 +365,11 @@ vfs_vnode_unref(vnode_t *vnode)
 				}
 				current = &(*current)->v_next;
 			}
-			
-			spinlock_release_irqrestore(&vnode_hash_lock, hash_flags);
+
+			spinlock_release_irqrestore(&vnode_hash_lock,
+			                            hash_flags);
 			spinlock_release_irqrestore(&vnode->v_lock, flags);
-			
+
 			if (vnode->v_ops && vnode->v_ops->release) {
 				vnode->v_ops->release(vnode);
 			}
@@ -591,7 +592,8 @@ vfs_lookup_internal(const char *path, vnode_t **result, bool follow_final)
 
 		/* Check if this is a symlink */
 		if ((current->v_mode & VFS_IFMT) == VFS_IFLNK) {
-			/* If this is the final component and we shouldn't follow, stop here */
+			/* If this is the final component and we shouldn't
+			 * follow, stop here */
 			if (is_final && !follow_final) {
 				break;
 			}
@@ -606,74 +608,81 @@ vfs_lookup_internal(const char *path, vnode_t **result, bool follow_final)
 
 			/* Read the symlink target */
 			char target[VFS_MAX_PATH];
-			if (current->v_ops == NULL || current->v_ops->readlink == NULL) {
+			if (current->v_ops == NULL ||
+			    current->v_ops->readlink == NULL) {
 				vfs_vnode_unref(current);
 				kfree(path_copy);
 				return -EINVAL;
 			}
 
-			ret = current->v_ops->readlink(current, target, sizeof(target));
+			ret = current->v_ops->readlink(
+			    current, target, sizeof(target));
 			if (ret < 0) {
 				vfs_vnode_unref(current);
 				kfree(path_copy);
 				return ret;
 			}
-			
+
 			/* Validate target length */
 			if (ret >= VFS_MAX_PATH) {
 				vfs_vnode_unref(current);
 				kfree(path_copy);
 				return -ENAMETOOLONG;
 			}
-			target[ret] = '\0';  /* Ensure null termination */
+			target[ret] = '\0'; /* Ensure null termination */
 
 			/* Release the symlink vnode */
 			vfs_vnode_unref(current);
 
 			/* Handle relative vs absolute symlink targets */
 			if (target[0] == '/') {
-				/* Absolute symlink - recursively resolve from root */
-				ret = vfs_lookup_internal(target, &current, true);
+				/* Absolute symlink - recursively resolve from
+				 * root */
+				ret =
+				    vfs_lookup_internal(target, &current, true);
 				if (ret != 0) {
 					kfree(path_copy);
 					return ret;
 				}
 			} else {
-				/* Relative symlink - need to resolve from parent directory */
-				/* Build the full path: parent_path + "/" + target */
-				
+				/* Relative symlink - need to resolve from
+				 * parent directory */
+				/* Build the full path: parent_path + "/" +
+				 * target */
+
 				/* Reconstruct parent path */
 				char parent_path[VFS_MAX_PATH];
 				parent_path[0] = '/';
 				parent_path[1] = '\0';
-				
+
 				for (int j = 0; j < i; j++) {
 					if (strlen(parent_path) > 1) {
 						strcat(parent_path, "/");
 					}
 					strcat(parent_path, components[j]);
 				}
-				
+
 				/* Append the relative target */
 				if (strlen(parent_path) > 1) {
 					strcat(parent_path, "/");
 				}
 				strcat(parent_path, target);
-				
+
 				/* Check total length */
 				if (strlen(parent_path) >= VFS_MAX_PATH) {
 					kfree(path_copy);
 					return -ENAMETOOLONG;
 				}
-				
+
 				/* Recursively resolve the complete path */
-				ret = vfs_lookup_internal(parent_path, &current, true);
+				ret = vfs_lookup_internal(
+				    parent_path, &current, true);
 				if (ret != 0) {
 					kfree(path_copy);
 					return ret;
 				}
 			}
-			
+
 			/* current now points to the resolved symlink target */
 			/* Continue with remaining path components if any */
 		}
@@ -844,10 +853,11 @@ vfs_read(vfs_file_t *file, void *buf, size_t count)
 
 	if (bytes > 0) {
 		spinlock_acquire_irqsave(&file->f_lock, &flags);
-		/* Update offset regardless of append mode (POSIX requirement) */
+		/* Update offset regardless of append mode (POSIX requirement)
+		 */
 		file->f_offset = offset + bytes;
 		spinlock_release_irqrestore(&file->f_lock, flags);
-}
+	}
 
 	return bytes;
 }

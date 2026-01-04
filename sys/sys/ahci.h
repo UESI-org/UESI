@@ -49,15 +49,16 @@
 #define AHCI_CAP_CCCS 0x00000080 /* Command Completion Coalescing Supported */
 #define AHCI_CAP_NCS 0x00001F00  /* Number of Command Slots */
 #define AHCI_CAP_NCS_SHIFT 8
-#define AHCI_CAP_PSC 0x00002000  /* Partial State Capable */
-#define AHCI_CAP_SSC 0x00004000  /* Slumber State Capable */
-#define AHCI_CAP_PMD 0x00008000  /* PIO Multiple DRQ Block */
-#define AHCI_CAP_FBSS 0x00010000 /* FIS-based Switching Supported */
-#define AHCI_CAP_SPM 0x00020000  /* Supports Port Multiplier */
-#define AHCI_CAP_SAM 0x00040000  /* Supports AHCI mode only */
-#define AHCI_CAP_SCLO 0x01000000 /* Supports Command List Override */
-#define AHCI_CAP_SAL 0x02000000  /* Supports Activity LED */
-#define AHCI_CAP_SALP 0x04000000 /* Supports Aggressive Link Power Management */
+#define AHCI_CAP_PSC 0x00002000   /* Partial State Capable */
+#define AHCI_CAP_SSC 0x00004000   /* Slumber State Capable */
+#define AHCI_CAP_PMD 0x00008000   /* PIO Multiple DRQ Block */
+#define AHCI_CAP_FBSS 0x00010000  /* FIS-based Switching Supported */
+#define AHCI_CAP_SPM 0x00020000   /* Supports Port Multiplier */
+#define AHCI_CAP_SAM 0x00040000   /* Supports AHCI mode only */
+#define AHCI_CAP_SCLO 0x01000000  /* Supports Command List Override */
+#define AHCI_CAP_SAL 0x02000000   /* Supports Activity LED */
+#define AHCI_CAP_SALP 0x04000000  /* Supports Aggressive Link Power Management \
+	                           */
 #define AHCI_CAP_SSS 0x08000000   /* Supports Staggered Spin-up */
 #define AHCI_CAP_SMPS 0x10000000  /* Supports Mechanical Presence Switch */
 #define AHCI_CAP_SSNTF 0x20000000 /* Supports SNotification Register */

@@ -15,15 +15,15 @@ recallocarray(void *ptr, size_t oldnmemb, size_t nmemb, size_t size)
 		errno = ENOMEM;
 		return NULL;
 	}
-	
+
 	size_t newsize = nmemb * size;
 	size_t oldsize = oldnmemb * size;
-	
+
 	void *newptr = realloc(ptr, newsize);
 	if (newptr != NULL && newsize > oldsize) {
 		memset((char *)newptr + oldsize, 0, newsize - oldsize);
 	}
-	
+
 	return newptr;
 }
 

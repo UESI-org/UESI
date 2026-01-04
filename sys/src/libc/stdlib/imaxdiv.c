@@ -31,7 +31,7 @@
  * SUCH DAMAGE.
  */
 
-#include <inttypes.h>		/* imaxdiv_t */
+#include <inttypes.h> /* imaxdiv_t */
 
 imaxdiv_t
 imaxdiv(intmax_t num, intmax_t denom)

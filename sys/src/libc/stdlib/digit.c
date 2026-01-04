@@ -2,7 +2,7 @@ int
 char_to_digit(char c, int base)
 {
 	int digit;
-	
+
 	if (c >= '0' && c <= '9') {
 		digit = c - '0';
 	} else if (c >= 'a' && c <= 'z') {
@@ -12,6 +12,6 @@ char_to_digit(char c, int base)
 	} else {
 		return -1;
 	}
-	
+
 	return (digit < base) ? digit : -1;
 }

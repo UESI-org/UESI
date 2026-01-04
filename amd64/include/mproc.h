@@ -46,8 +46,8 @@
 struct trapframe;
 
 struct mdproc {
-	struct trapframe *md_regs;      /* registers on current frame */
-	void *md_cpu_state;             /* Kernel context for scheduler (cpu_state_t *) */
+	struct trapframe *md_regs; /* registers on current frame */
+	void *md_cpu_state; /* Kernel context for scheduler (cpu_state_t *) */
 	int md_flags;
 	volatile int md_astpending;
 	uint8_t md_fpu_state[512] __attribute__((aligned(16)));

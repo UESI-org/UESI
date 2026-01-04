@@ -153,7 +153,8 @@ mutex_lock(mutex_t *mtx)
 		} else {
 			spinlock_release(&mtx->mtx_lock);
 			panic_fmt("mutex_lock: recursive lock on non-recursive "
-			          "mutex '%s'", mutex_name(mtx));
+			          "mutex '%s'",
+			          mutex_name(mtx));
 		}
 	}
 
@@ -210,8 +211,9 @@ mutex_trylock(mutex_t *mtx)
 	if (current_task == NULL) {
 		/* Early boot or interrupt context */
 		if ((mtx->mtx_type & MTX_SPIN) == 0) {
-			panic_fmt("mutex_trylock: no current task for mutex '%s'",
-			          mutex_name(mtx));
+			panic_fmt(
+			    "mutex_trylock: no current task for mutex '%s'",
+			    mutex_name(mtx));
 		}
 		return spinlock_try_acquire(&mtx->mtx_lock);
 	}
@@ -262,8 +264,9 @@ mutex_unlock(mutex_t *mtx)
 	if (current_task == NULL) {
 		/* Early boot or interrupt context */
 		if ((mtx->mtx_type & MTX_SPIN) == 0) {
-			panic_fmt("mutex_unlock: no current task for mutex '%s'",
-			          mutex_name(mtx));
+			panic_fmt(
+			    "mutex_unlock: no current task for mutex '%s'",
+			    mutex_name(mtx));
 		}
 		spinlock_release(&mtx->mtx_lock);
 		return;
@@ -328,10 +331,10 @@ mutex_locked(const mutex_t *mtx)
 task_t *
 mutex_owner(const mutex_t *mtx)
 {
-    if (mtx == NULL) {
-        return NULL;
-    }
-    return (task_t *)READ_ONCE(mtx->mtx_owner);
+	if (mtx == NULL) {
+		return NULL;
+	}
+	return (task_t *)READ_ONCE(mtx->mtx_owner);
 }
 
 #ifdef MTX_DEBUG
@@ -341,7 +344,9 @@ mutex_assert_locked(const mutex_t *mtx, const char *file, int line)
 {
 	if (!mutex_locked(mtx)) {
 		panic_fmt("%s:%d: mutex '%s' not locked",
-		          file, line, mutex_name(mtx));
+		          file,
+		          line,
+		          mutex_name(mtx));
 	}
 }
 
@@ -349,8 +354,8 @@ void
 mutex_assert_unlocked(const mutex_t *mtx, const char *file, int line)
 {
 	if (mutex_locked(mtx)) {
-		panic_fmt("%s:%d: mutex '%s' is locked",
-		          file, line, mutex_name(mtx));
+		panic_fmt(
+		    "%s:%d: mutex '%s' is locked", file, line, mutex_name(mtx));
 	}
 }
 
@@ -359,7 +364,9 @@ mutex_assert_owned(const mutex_t *mtx, const char *file, int line)
 {
 	if (!mutex_owned(mtx)) {
 		panic_fmt("%s:%d: mutex '%s' not owned by current task",
-		          file, line, mutex_name(mtx));
+		          file,
+		          line,
+		          mutex_name(mtx));
 	}
 }
 
@@ -381,7 +388,8 @@ mutex_print_stats(const mutex_t *mtx)
 	owner = (struct task *)mtx->mtx_owner;
 	if (owner != NULL) {
 		printf("  Locked: yes (by task %u: %s)\n",
-		       owner->tid, owner->name);
+		       owner->tid,
+		       owner->name);
 		printf("  Recursion count: %u\n", mtx->mtx_recurse);
 
 		if (mtx->mtx_acquire_time > 0) {
@@ -392,7 +400,8 @@ mutex_print_stats(const mutex_t *mtx)
 
 		if (mtx->mtx_file != NULL) {
 			printf("  Acquired at: %s:%d\n",
-			       mtx->mtx_file, mtx->mtx_line);
+			       mtx->mtx_file,
+			       mtx->mtx_line);
 		}
 	} else {
 		printf("  Locked: no\n");
@@ -406,7 +415,8 @@ mutex_print_stats(const mutex_t *mtx)
 		int count = 0;
 
 		printf("  Waiting tasks:\n");
-		for (entry = mtx->mtx_waitq_head; entry != NULL; entry = entry->next) {
+		for (entry = mtx->mtx_waitq_head; entry != NULL;
+		     entry = entry->next) {
 			count++;
 			if (entry->task != NULL) {
 				printf("    %d. Task %u: %s\n",

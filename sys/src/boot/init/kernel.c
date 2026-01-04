@@ -94,24 +94,25 @@ initialize_memory(void)
 	}
 }
 
-
 static void
 enable_fpu(void)
 {
 	uint64_t cr0, cr4;
-	
+
 	/* Clear EM (bit 2) and set MP (bit 1) in CR0 */
 	__asm__ volatile("mov %%cr0, %0" : "=r"(cr0));
-	cr0 &= ~(1 << 2);  /* Clear EM (emulation) */
-	cr0 |= (1 << 1);   /* Set MP (monitor coprocessor) */
-	__asm__ volatile("mov %0, %%cr0" :: "r"(cr0));
-	
+	cr0 &= ~(1 << 2); /* Clear EM (emulation) */
+	cr0 |= (1 << 1);  /* Set MP (monitor coprocessor) */
+	__asm__ volatile("mov %0, %%cr0" ::"r"(cr0));
+
 	/* Set OSFXSR (bit 9) and OSXMMEXCPT (bit 10) in CR4 */
 	__asm__ volatile("mov %%cr4, %0" : "=r"(cr4));
-	cr4 |= (1 << 9);   /* Set OSFXSR (OS supports FXSAVE/FXRSTOR) */
-	cr4 |= (1 << 10);  /* Set OSXMMEXCPT (OS supports unmasked SIMD exceptions) */
-	__asm__ volatile("mov %0, %%cr4" :: "r"(cr4));
-	
+	cr4 |= (1 << 9); /* Set OSFXSR (OS supports FXSAVE/FXRSTOR) */
+	cr4 |=
+	    (1
+	     << 10); /* Set OSXMMEXCPT (OS supports unmasked SIMD exceptions) */
+	__asm__ volatile("mov %0, %%cr4" ::"r"(cr4));
+
 	/* Initialize FPU */
 	__asm__ volatile("fninit");
 }
@@ -197,15 +198,15 @@ initialize_system_components(void)
 	isr_register_handler(32, (isr_handler_t)pit_handler);
 	debug_success("PIT initialized (100 Hz)");
 
-  tsc_init();
-  if(tsc_is_available()) {
-    debug_success("TSC initialized");
-    if (debug_is_enabled()) {
-      tsc_print_info();
-    }
-  } else {
-    debug_error("TSC not available");
-  }
+	tsc_init();
+	if (tsc_is_available()) {
+		debug_success("TSC initialized");
+		if (debug_is_enabled()) {
+			tsc_print_info();
+		}
+	} else {
+		debug_error("TSC not available");
+	}
 
 	scheduler_init(100);
 	debug_success("Scheduler initialized");

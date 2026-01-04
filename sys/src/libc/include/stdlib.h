@@ -57,9 +57,15 @@ long atol(const char *nptr);
 long long atoll(const char *nptr);
 
 long strtol(const char *__restrict nptr, char **__restrict endptr, int base);
-unsigned long strtoul(const char *__restrict nptr, char **__restrict endptr, int base);
-long long strtoll(const char *__restrict nptr, char **__restrict endptr, int base);
-unsigned long long strtoull(const char *__restrict nptr, char **__restrict endptr, int base);
+unsigned long strtoul(const char *__restrict nptr,
+                      char **__restrict endptr,
+                      int base);
+long long strtoll(const char *__restrict nptr,
+                  char **__restrict endptr,
+                  int base);
+unsigned long long strtoull(const char *__restrict nptr,
+                            char **__restrict endptr,
+                            int base);
 
 double atof(const char *nptr);
 double strtod(const char *__restrict nptr, char **__restrict endptr);
@@ -96,9 +102,14 @@ void srand(unsigned int seed);
 int rand_r(unsigned int *seedp);
 #endif
 
-void *bsearch(const void *key, const void *base, size_t nmemb, size_t size,
+void *bsearch(const void *key,
+              const void *base,
+              size_t nmemb,
+              size_t size,
               int (*compar)(const void *, const void *));
-void qsort(void *base, size_t nmemb, size_t size,
+void qsort(void *base,
+           size_t nmemb,
+           size_t size,
            int (*compar)(const void *, const void *));
 
 int mblen(const char *s, size_t n);

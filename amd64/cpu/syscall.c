@@ -55,11 +55,11 @@ is_user_range(const void *addr, size_t len)
 static task_t *
 scheduler_create_forked_task(struct proc *p)
 {
-    if (!p || !p->p_p) {
-        return NULL;
-    }
-	
-    return p;
+	if (!p || !p->p_p) {
+		return NULL;
+	}
+
+	return p;
 }
 
 static uint64_t
@@ -187,7 +187,8 @@ sys_exit(int status)
 		for (int i = 0; i < MAX_OPEN_FILES; i++) {
 			if (current->p_p->ps_fd_table[i].file != NULL) {
 				vfs_file_t *file =
-				    (vfs_file_t *)current->p_p->ps_fd_table[i].file;
+				    (vfs_file_t *)current->p_p->ps_fd_table[i]
+				        .file;
 				vfs_close(file);
 				current->p_p->ps_fd_table[i].file = NULL;
 				current->p_p->ps_fd_table[i].flags = 0;
@@ -398,7 +399,8 @@ sys_open(const char *path, uint32_t flags, mode_t mode)
 	}
 
 	current->p_p->ps_fd_table[fd].file = file;
-	current->p_p->ps_fd_table[fd].flags = (flags & O_CLOEXEC) ? FD_CLOEXEC : 0;
+	current->p_p->ps_fd_table[fd].flags =
+	    (flags & O_CLOEXEC) ? FD_CLOEXEC : 0;
 	return fd;
 }
 
@@ -491,7 +493,8 @@ sys_openat(int dirfd, const char *pathname, uint32_t flags, mode_t mode)
 		return -EBADF;
 	}
 
-	vfs_file_t *dir_file = (vfs_file_t *)current->p_p->ps_fd_table[dirfd].file;
+	vfs_file_t *dir_file =
+	    (vfs_file_t *)current->p_p->ps_fd_table[dirfd].file;
 	if (dir_file == NULL) {
 		return -EBADF;
 	}
@@ -598,7 +601,6 @@ sys_rmdir(const char *path)
 	return 0;
 }
 
-
 int64_t
 sys_unlink(const char *path)
 {
@@ -626,12 +628,12 @@ sys_unlink(const char *path)
 	if (ret == 0) {
 		if ((vnode->v_mode & VFS_IFMT) == VFS_IFDIR) {
 			vfs_vnode_unref(vnode);
-			return -EISDIR;  /* Can't unlink directories */
+			return -EISDIR; /* Can't unlink directories */
 		}
 		vfs_vnode_unref(vnode);
 	}
 
-	ret = vfs_unlink(path);  /* Reuse ret variable */
+	ret = vfs_unlink(path); /* Reuse ret variable */
 	if (ret != VFS_SUCCESS) {
 		return -vfs_errno(ret);
 	}
@@ -893,7 +895,8 @@ sys_dup(int oldfd)
 	}
 
 	current->p_p->ps_fd_table[newfd].file = file;
-	current->p_p->ps_fd_table[newfd].flags = 0; /* Don't inherit FD_CLOEXEC */
+	current->p_p->ps_fd_table[newfd].flags =
+	    0; /* Don't inherit FD_CLOEXEC */
 
 	uint64_t flags;
 	spinlock_acquire_irqsave(&file->f_lock, &flags);
@@ -936,7 +939,8 @@ sys_dup2(int oldfd, int newfd)
 	}
 
 	current->p_p->ps_fd_table[newfd].file = file;
-	current->p_p->ps_fd_table[newfd].flags = 0; /* Don't inherit FD_CLOEXEC */
+	current->p_p->ps_fd_table[newfd].flags =
+	    0; /* Don't inherit FD_CLOEXEC */
 
 	uint64_t flags;
 	spinlock_acquire_irqsave(&file->f_lock, &flags);
@@ -1262,7 +1266,8 @@ sys_fork(syscall_registers_t *regs)
 	for (int i = 0; i < MAX_OPEN_FILES; i++) {
 		child_ps->ps_fd_table[i] = parent_ps->ps_fd_table[i];
 		if (child_ps->ps_fd_table[i].file != NULL) {
-			vfs_file_t *file = (vfs_file_t *)child_ps->ps_fd_table[i].file;
+			vfs_file_t *file =
+			    (vfs_file_t *)child_ps->ps_fd_table[i].file;
 			/* Increment reference count */
 			uint64_t flags;
 			spinlock_acquire_irqsave(&file->f_lock, &flags);
@@ -1306,23 +1311,24 @@ sys_fork(syscall_registers_t *regs)
 	child_proc->p_md.md_regs = child_tf;
 	child_proc->p_md.md_flags = 0;
 
-	uint64_t kstack_top = (uint64_t)child_proc->p_kstack + 
-	                       PROCESS_KERNEL_STACK_SIZE;
-	
+	uint64_t kstack_top =
+	    (uint64_t)child_proc->p_kstack + PROCESS_KERNEL_STACK_SIZE;
+
 	kstack_top -= sizeof(cpu_state_t);
 	kstack_top &= ~0xFULL; /* 16-byte align */
-	
+
 	cpu_state_t *child_cpu_state = (cpu_state_t *)kstack_top;
 	memset(child_cpu_state, 0, sizeof(cpu_state_t));
 
 	extern void proc_fork_child_entry(void *arg);
-	
+
 	child_cpu_state->rip = (uint64_t)proc_fork_child_entry;
-	child_cpu_state->rdi = (uint64_t)child_proc;  /* Argument: pointer to child proc */
-	child_cpu_state->rsp = kstack_top;            /* Kernel stack pointer */
-	child_cpu_state->rbp = 0;                     /* Clear frame pointer */
+	child_cpu_state->rdi =
+	    (uint64_t)child_proc;          /* Argument: pointer to child proc */
+	child_cpu_state->rsp = kstack_top; /* Kernel stack pointer */
+	child_cpu_state->rbp = 0;          /* Clear frame pointer */
 	child_cpu_state->cr3 = child_ps->ps_vmspace->phys_addr;
-	child_cpu_state->rflags = 0x202;              /* IF=1, Reserved bit */
+	child_cpu_state->rflags = 0x202; /* IF=1, Reserved bit */
 	child_cpu_state->cs = GDT_SELECTOR_KERNEL_CODE;
 	child_cpu_state->ss = GDT_SELECTOR_KERNEL_DATA;
 
@@ -1836,8 +1842,8 @@ syscall_handler(syscall_registers_t *regs)
 
 	case SYSCALL_MKNOD:
 		ret = sys_mknod((const char *)regs->rdi,
-	                	(mode_t)regs->rsi,
-	                	(dev_t)regs->rdx);
+		                (mode_t)regs->rsi,
+		                (dev_t)regs->rdx);
 		break;
 
 	case SYSCALL_RMDIR:
@@ -1894,16 +1900,15 @@ syscall_handler(syscall_registers_t *regs)
 		ret = sys_getppid();
 		break;
 
-		case SYSCALL_MMAP: {
+	case SYSCALL_MMAP: {
 		void *result;
 
-		result = sys_mmap(
-		    (void *)regs->rdi,
-		    (size_t)regs->rsi,
-		    (int)regs->rdx,
-		    (int)regs->r10,
-		    (int)regs->r8,
-		    (off_t)regs->r9);
+		result = sys_mmap((void *)regs->rdi,
+		                  (size_t)regs->rsi,
+		                  (int)regs->rdx,
+		                  (int)regs->r10,
+		                  (int)regs->r8,
+		                  (off_t)regs->r9);
 
 		if (result == MAP_FAILED) {
 			ret = -ENOMEM;

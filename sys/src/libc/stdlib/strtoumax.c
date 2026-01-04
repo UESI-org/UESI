@@ -58,7 +58,7 @@ strtoumax(const char *nptr, char **endptr, int base)
 
 	s = nptr;
 	do {
-		c = (unsigned char) *s++;
+		c = (unsigned char)*s++;
 	} while (isspace(c));
 	if (c == '-') {
 		neg = 1;
@@ -68,8 +68,8 @@ strtoumax(const char *nptr, char **endptr, int base)
 		if (c == '+')
 			c = *s++;
 	}
-	if ((base == 0 || base == 16) && c == '0' &&
-	    (*s == 'x' || *s == 'X') && isxdigit((unsigned char)s[1])) {
+	if ((base == 0 || base == 16) && c == '0' && (*s == 'x' || *s == 'X') &&
+	    isxdigit((unsigned char)s[1])) {
 		c = s[1];
 		s += 2;
 		base = 16;
@@ -79,7 +79,7 @@ strtoumax(const char *nptr, char **endptr, int base)
 
 	cutoff = UINTMAX_MAX / (uintmax_t)base;
 	cutlim = UINTMAX_MAX % (uintmax_t)base;
-	for (acc = 0, any = 0;; c = (unsigned char) *s++) {
+	for (acc = 0, any = 0;; c = (unsigned char)*s++) {
 		if (isdigit(c))
 			c -= '0';
 		else if (isalpha(c))
@@ -103,7 +103,7 @@ strtoumax(const char *nptr, char **endptr, int base)
 	if (neg && any > 0)
 		acc = -acc;
 	if (endptr != 0)
-		*endptr = (char *) (any ? s - 1 : nptr);
+		*endptr = (char *)(any ? s - 1 : nptr);
 	return (acc);
 }
 DEF_STRONG(strtoumax);
