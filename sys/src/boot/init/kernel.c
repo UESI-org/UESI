@@ -36,6 +36,7 @@
 #include <sys/spinlock.h>
 #include <sys/sysinfo.h>
 #include <sys/ahci.h>
+#include <sys/time.h>
 
 spinlock_t my_lock;
 static blk_allocator_t g_block_alloc;
@@ -207,6 +208,8 @@ initialize_system_components(void)
 	} else {
 		debug_error("TSC not available");
 	}
+
+  timekeeping_init();
 
 	scheduler_init(100);
 	debug_success("Scheduler initialized");

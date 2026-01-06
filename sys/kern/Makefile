@@ -30,7 +30,9 @@ ARFLAGS := rcs
 SRCS := sys_kern.c \
 		sys_uname.c \
         sysinfo.c \
-		kern_mutex.c
+		kern_mutex.c \
+	kern_time.c
+	
 
 LIBKERN_SRCS := $(wildcard $(LIBKERNDIR)/*.c) $(LIBKERNDIR)/softfloat-support.c
 

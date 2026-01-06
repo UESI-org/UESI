@@ -392,3 +392,80 @@ gethostid(void)
 	/* gethostid returns a host ID value, not an error code */
 	return (int)syscall0(SYSCALL_GETHOSTID);
 }
+
+int
+gettimeofday(struct timeval *tv, struct timezone *tz)
+{
+	int64_t ret = syscall2(SYSCALL_GETTIMEOFDAY, (uint64_t)tv, (uint64_t)tz);
+	return (int)handle_syscall_result(ret);
+}
+
+/* 
+ * time() is implemented as a libc function, not a system call.
+ * This is the standard POSIX approach - time() calls gettimeofday()
+ * and extracts just the seconds, avoiding an unnecessary system call.
+ */
+time_t
+time(time_t *tloc)
+{
+	struct timeval tv;
+	
+	/* Call gettimeofday to get current time */
+	if (gettimeofday(&tv, NULL) != 0) {
+		/* gettimeofday failed, errno already set */
+		return (time_t)-1;
+	}
+	
+	/* Store result if tloc is provided */
+	if (tloc != NULL) {
+		*tloc = tv.tv_sec;
+	}
+	
+	return tv.tv_sec;
+}
+
+int
+clock_gettime(clockid_t clock_id, struct timespec *tp)
+{
+	int64_t ret = syscall2(SYSCALL_CLOCK_GETTIME, (uint64_t)clock_id, (uint64_t)tp);
+	return (int)handle_syscall_result(ret);
+}
+
+int
+clock_getres(clockid_t clock_id, struct timespec *res)
+{
+	int64_t ret = syscall2(SYSCALL_CLOCK_GETRES, (uint64_t)clock_id, (uint64_t)res);
+	return (int)handle_syscall_result(ret);
+}
+
+int
+nanosleep(const struct timespec *req, struct timespec *rem)
+{
+	int64_t ret = syscall2(SYSCALL_NANOSLEEP, (uint64_t)req, (uint64_t)rem);
+	return (int)handle_syscall_result(ret);
+}
+
+unsigned int
+sleep(unsigned int seconds)
+{
+	struct timespec req, rem;
+	req.tv_sec = seconds;
+	req.tv_nsec = 0;
+	
+	if (nanosleep(&req, &rem) == 0) {
+		return 0;
+	}
+	
+	/* If interrupted, return remaining seconds */
+	return (unsigned int)rem.tv_sec;
+}
+
+int
+usleep(useconds_t usec)
+{
+	struct timespec req;
+	req.tv_sec = usec / 1000000;
+	req.tv_nsec = (usec % 1000000) * 1000;
+	
+	return nanosleep(&req, NULL);
+}

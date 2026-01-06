@@ -6,6 +6,7 @@
 #include <fcntl.h>
 #include <gdt.h>
 #include <sys/sysinfo.h>
+#include <sys/time.h>
 #include <sys/utsname.h>
 #include <sys/stat.h>
 #include <sys/errno.h>
@@ -1794,6 +1795,138 @@ sys_uname(struct utsname *buf)
 	return (ret < 0) ? ret : 0;
 }
 
+int64_t
+sys_gettimeofday(struct timeval *tv, struct timezone *tz)
+{
+	if (tv != NULL) {
+		if (!is_user_range(tv, sizeof(struct timeval))) {
+			return -EFAULT;
+		}
+		
+		struct timeval ktv;
+		microtime(&ktv);
+		
+		tv->tv_sec = ktv.tv_sec;
+		tv->tv_usec = ktv.tv_usec;
+	}
+	
+	if (tz != NULL) {
+		if (!is_user_range(tz, sizeof(struct timezone))) {
+			return -EFAULT;
+		}
+		
+		/* Return UTC (no timezone offset) */
+		tz->tz_minuteswest = 0;
+		tz->tz_dsttime = DST_NONE;
+	}
+	
+	return 0;
+}
+
+int64_t
+sys_clock_gettime(clockid_t clock_id, struct timespec *tp)
+{
+	if (tp == NULL) {
+		return -EINVAL;
+	}
+	
+	if (!is_user_range(tp, sizeof(struct timespec))) {
+		return -EFAULT;
+	}
+	
+	struct timespec kts;
+	
+	switch (clock_id) {
+	case 0: /* CLOCK_REALTIME */
+		nanotime(&kts);
+		break;
+		
+	case 1: /* CLOCK_MONOTONIC */
+		nanouptime(&kts);
+		break;
+		
+	case 4: /* CLOCK_MONOTONIC_RAW */
+		nanouptime(&kts);
+		break;
+		
+	case 7: /* CLOCK_BOOTTIME */
+		nanouptime(&kts);
+		break;
+		
+	default:
+		return -EINVAL;
+	}
+	
+	tp->tv_sec = kts.tv_sec;
+	tp->tv_nsec = kts.tv_nsec;
+	
+	return 0;
+}
+
+int64_t
+sys_clock_getres(clockid_t clock_id, struct timespec *res)
+{
+	if (res == NULL) {
+		return -EINVAL;
+	}
+	
+	if (!is_user_range(res, sizeof(struct timespec))) {
+		return -EFAULT;
+	}
+	
+	/* All our clocks have nanosecond resolution thanks to TSC */
+	switch (clock_id) {
+	case 0: /* CLOCK_REALTIME */
+	case 1: /* CLOCK_MONOTONIC */
+	case 4: /* CLOCK_MONOTONIC_RAW */
+	case 7: /* CLOCK_BOOTTIME */
+		res->tv_sec = 0;
+		res->tv_nsec = 1; /* 1 nanosecond resolution */
+		break;
+		
+	default:
+		return -EINVAL;
+	}
+	
+	return 0;
+}
+
+int64_t
+sys_nanosleep(const struct timespec *req, struct timespec *rem)
+{
+	if (req == NULL) {
+		return -EINVAL;
+	}
+	
+	if (!is_user_range(req, sizeof(struct timespec))) {
+		return -EFAULT;
+	}
+	
+	if (rem != NULL && !is_user_range(rem, sizeof(struct timespec))) {
+		return -EFAULT;
+	}
+	
+	/* Validate timespec */
+	if (!timespecisvalid(req)) {
+		return -EINVAL;
+	}
+	
+	/* Convert to nanoseconds */
+	uint64_t sleep_ns = TIMESPEC_TO_NSEC(req);
+	
+	/* Use TSC for high-precision sleep */
+	extern void tsc_delay_ns(uint64_t nanoseconds);
+	tsc_delay_ns(sleep_ns);
+	
+	/* Sleep completed fully, set remainder to 0 if provided */
+	if (rem != NULL) {
+		rem->tv_sec = 0;
+		rem->tv_nsec = 0;
+	}
+	
+	return 0;
+}
+
 void
 syscall_handler(syscall_registers_t *regs)
 {
@@ -1942,6 +2075,26 @@ syscall_handler(syscall_registers_t *regs)
 
 	case SYSCALL_UNAME:
 		ret = sys_uname((struct utsname *)regs->rdi);
+		break;
+
+  case SYSCALL_GETTIMEOFDAY:
+		ret = sys_gettimeofday((struct timeval *)regs->rdi,
+		                       (struct timezone *)regs->rsi);
+		break;
+	
+	case SYSCALL_CLOCK_GETTIME:
+		ret = sys_clock_gettime((clockid_t)regs->rdi,
+		                        (struct timespec *)regs->rsi);
+		break;
+	
+	case SYSCALL_CLOCK_GETRES:
+		ret = sys_clock_getres((clockid_t)regs->rdi,
+		                       (struct timespec *)regs->rsi);
+		break;
+	
+	case SYSCALL_NANOSLEEP:
+		ret = sys_nanosleep((const struct timespec *)regs->rdi,
+		                    (struct timespec *)regs->rsi);
 		break;
 
 	default:

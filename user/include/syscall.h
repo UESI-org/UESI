@@ -6,6 +6,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <sys/types.h>
+#include <sys/time.h>
 
 #define SYSCALL_EXIT 1
 #define SYSCALL_FORK 2
@@ -32,6 +33,10 @@
 #define SYSCALL_MMAP 197
 #define SYSCALL_LSEEK 199
 #define SYSCALL_SYSINFO 214
+#define SYSCALL_GETTIMEOFDAY 418
+#define SYSCALL_CLOCK_GETTIME 427
+#define SYSCALL_CLOCK_GETRES 429
+#define SYSCALL_NANOSLEEP 430
 #define SYSCALL_STAT 439
 #define SYSCALL_FSTAT 440
 #define SYSCALL_LSTAT 441
@@ -50,6 +55,17 @@
 #define MAP_ANON MAP_ANONYMOUS
 
 #define MAP_FAILED ((void *)-1)
+
+#ifndef CLOCK_REALTIME
+#define CLOCK_REALTIME 0
+#define CLOCK_MONOTONIC 1
+#define CLOCK_PROCESS_CPUTIME_ID 2
+#define CLOCK_THREAD_CPUTIME_ID 3
+#define CLOCK_MONOTONIC_RAW 4
+#define CLOCK_REALTIME_COARSE 5
+#define CLOCK_MONOTONIC_COARSE 6
+#define CLOCK_BOOTTIME 7
+#endif
 
 struct sysinfo {
 	int64_t uptime;
@@ -100,5 +116,12 @@ int gethostname(char *name, size_t len);
 pid_t getppid(void);
 int gethostid(void);
 int sysinfo(struct sysinfo *info);
+int gettimeofday(struct timeval *tv, struct timezone *tz);
+time_t time(time_t *tloc);
+int clock_gettime(clockid_t clock_id, struct timespec *tp);
+int clock_getres(clockid_t clock_id, struct timespec *res);
+int nanosleep(const struct timespec *req, struct timespec *rem);
+unsigned int sleep(unsigned int seconds);
+int usleep(useconds_t usec);
 
 #endif

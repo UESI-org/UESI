@@ -1,10 +1,11 @@
 #ifndef SYSCALL_H
 #define SYSCALL_H
 
-#include <stdint.h>
 #include <stddef.h>
-#include <sys/types.h>
+#include <stdint.h>
 #include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/time.h>
 
 #define SYSCALL_EXIT 1
 #define SYSCALL_FORK 2
@@ -31,6 +32,10 @@
 #define SYSCALL_MMAP 197
 #define SYSCALL_LSEEK 199
 #define SYSCALL_SYSINFO 214
+#define SYSCALL_GETTIMEOFDAY 418
+#define SYSCALL_CLOCK_GETTIME 427
+#define SYSCALL_CLOCK_GETRES 429
+#define SYSCALL_NANOSLEEP 430
 #define SYSCALL_STAT 439
 #define SYSCALL_FSTAT 440
 #define SYSCALL_LSTAT 441
@@ -84,5 +89,9 @@ int64_t sys_getppid(void);
 int64_t sys_gethostid(void);
 int64_t sys_sysinfo(struct sysinfo *info);
 int uname(struct utsname *buf);
+int64_t sys_gettimeofday(struct timeval *tv, struct timezone *tz);
+int64_t sys_clock_gettime(clockid_t clock_id, struct timespec *tp);
+int64_t sys_clock_getres(clockid_t clock_id, struct timespec *res);
+int64_t sys_nanosleep(const struct timespec *req, struct timespec *rem);
 
 #endif
