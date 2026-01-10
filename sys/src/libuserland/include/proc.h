@@ -5,6 +5,7 @@
 #include <sys/queue.h>
 #include <sys/syslimits.h>
 #include <sys/atomic.h>
+#include <sys/spinlock.h>
 #include <sys/types.h>
 #include <sys/time.h>
 #include <stdint.h>
@@ -61,66 +62,85 @@ typedef struct fd_entry {
 	int flags;
 } fd_entry_t;
 
+/*
+ * Locking annotations:
+ * [I] - Immutable after initialization
+ * [a] - Atomic operations only
+ * [L] - Protected by ps_lock
+ * [G] - Protected by global allprocess_lock
+ * [H] - Protected by global pidhash_lock
+ */
+
 struct proc;
 struct process {
+	/* Synchronization */
+	spinlock_t ps_lock;              /* [I] Lock for this process structure */
+	
 	/* Reference counting */
 	volatile unsigned int ps_refcnt; /* [a] Reference count */
 
 	/* Identity */
 	pid_t ps_pid;             /* [I] Process identifier */
-	char ps_comm[_MAXCOMLEN]; /* Command name including NUL */
+	char ps_comm[_MAXCOMLEN]; /* [I] Command name including NUL */
 
 	/* Main thread */
-	struct proc *ps_mainproc; /* Main thread in process */
+	struct proc *ps_mainproc; /* [L] Main thread in process */
 
 	/* Thread list */
-	TAILQ_HEAD(, proc) ps_threads; /* Threads in this process */
-	unsigned int ps_threadcnt;     /* Number of threads */
+	TAILQ_HEAD(, proc) ps_threads; /* [L] Threads in this process */
+	unsigned int ps_threadcnt;     /* [a] Number of threads */
 
 	/* Process relationships */
-	struct process *ps_pptr;          /* Pointer to parent process */
-	LIST_ENTRY(process) ps_sibling;   /* List of sibling processes */
-	LIST_HEAD(, process) ps_children; /* List of children */
-	LIST_ENTRY(process) ps_list;      /* List of all processes */
-	LIST_ENTRY(process) ps_hash;      /* Hash chain */
+	struct process *ps_pptr;          /* [L] Pointer to parent process */
+	LIST_ENTRY(process) ps_sibling;   /* [L] List of sibling processes */
+	LIST_HEAD(, process) ps_children; /* [L] List of children */
+	LIST_ENTRY(process) ps_list;      /* [G] List of all processes */
+	LIST_ENTRY(process) ps_hash;      /* [H] Hash chain */
 
 	/* Memory management */
-	page_directory_t *ps_vmspace; /* Address space */
-	uint64_t ps_strings;          /* User pointers to argv/env */
-	uint64_t ps_brk;              /* Program break for heap */
+	page_directory_t *ps_vmspace; /* [L] Address space */
+	uint64_t ps_strings;          /* [L] User pointers to argv/env */
+	uint64_t ps_brk;              /* [L] Program break for heap */
 
 	/* State and flags */
 	unsigned int ps_flags; /* [a] PS_* flags */
-	int ps_xexit;          /* Exit status for wait */
-	int ps_xsig;           /* Stopping or killing signal */
+	int ps_xexit;          /* [L] Exit status for wait */
+	int ps_xsig;           /* [L] Stopping or killing signal */
 
-	fd_entry_t ps_fd_table[MAX_OPEN_FILES];
+	fd_entry_t ps_fd_table[MAX_OPEN_FILES]; /* [L] File descriptor table */
 
 	/* Accounting */
-	struct tusage ps_tu;      /* Accumulated times */
-	struct timespec ps_start; /* Process start time */
+	struct tusage ps_tu;      /* [L] Accumulated times */
+	struct timespec ps_start; /* [I] Process start time */
 
 	/* Single-threading support */
-	struct proc *ps_single; /* Thread for single-threading */
+	struct proc *ps_single; /* [L] Thread for single-threading */
 };
 
+/*
+ * Locking annotations:
+ * [I] - Immutable after initialization
+ * [a] - Atomic operations only
+ * [S] - Protected by scheduler lock
+ * [G] - Protected by global allproc_lock
+ * [H] - Protected by global tidhash_lock
+ */
 struct proc {
 	/* Run queue linkage */
 	TAILQ_ENTRY(proc) p_runq; /* [S] Current run/sleep queue */
-	TAILQ_ENTRY(proc)
-	p_list; /* List of all threads - TAILQ for easy iteration */
-	LIST_ENTRY(proc) p_hash; /* TID hash chain */
+	TAILQ_ENTRY(proc) p_list; /* [G] List of all threads */
+	LIST_ENTRY(proc) p_hash;  /* [H] TID hash chain */
 
 	/* Process association */
 	struct process *p_p;          /* [I] The process of this thread */
-	TAILQ_ENTRY(proc) p_thr_link; /* Threads in process linkage */
+	TAILQ_ENTRY(proc) p_thr_link; /* [L] Threads in process linkage (protected by ps_lock) */
 
 	/* Identity */
-	pid_t p_tid;             /* Thread identifier */
-	char p_name[_MAXCOMLEN]; /* Thread name */
+	pid_t p_tid;             /* [I] Thread identifier */
+	char p_name[_MAXCOMLEN]; /* [I] Thread name */
 
 	/* State */
-	int p_flag;       /* P_* flags */
+	int p_flag;       /* [S] P_* flags */
 	char p_stat;      /* [S] Process status (SIDL, SRUN, etc) */
 	uint8_t p_runpri; /* [S] Runqueue priority */
 
@@ -128,9 +148,9 @@ struct proc {
 	page_directory_t *p_vmspace; /* [I] Copy of ps_vmspace */
 
 	/* Stacks */
-	void *p_kstack;        /* Kernel stack */
-	uint64_t p_kstack_top; /* Top of kernel stack */
-	uint64_t p_ustack_top; /* Top of user stack */
+	void *p_kstack;        /* [I] Kernel stack */
+	uint64_t p_kstack_top; /* [I] Top of kernel stack */
+	uint64_t p_ustack_top; /* [I] Top of user stack */
 
 	/* Machine-dependent */
 	struct mdproc p_md; /* Machine-dependent fields */
@@ -138,11 +158,11 @@ struct proc {
 	/* Scheduling */
 	const volatile void *p_wchan; /* [S] Sleep address */
 	const char *p_wmesg;          /* [S] Reason for sleep */
-	unsigned int p_cpticks;       /* Ticks of CPU time */
-	uint64_t p_slptime;           /* Time since last blocked */
+	unsigned int p_cpticks;       /* [S] Ticks of CPU time */
+	uint64_t p_slptime;           /* [S] Time since last blocked */
 
 	/* Accounting */
-	struct tusage p_tu; /* Accumulated times */
+	struct tusage p_tu; /* [S] Accumulated times */
 
 	/* CPU affinity */
 	struct cpu_info *p_cpu; /* [S] CPU running on */
@@ -180,6 +200,8 @@ struct proc *tfind(pid_t tid);     /* Find thread by TID */
 
 void proc_enter_usermode(struct proc *p, uint64_t entry, uint64_t stack)
     __attribute__((noreturn));
+
+void proc_fork_child_entry(void *arg) __attribute__((noreturn));
 
 static inline void
 process_addref(struct process *ps)
