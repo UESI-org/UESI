@@ -47,10 +47,10 @@ is_user_range(const void *addr, size_t len)
 	uint64_t start = (uint64_t)addr;
 	uint64_t end = start + len;
 
-	if (end < start)
+	if (end < start || end > USER_SPACE_END)
 		return false;
 
-	return is_user_address(addr) && end <= USER_SPACE_END;
+	return is_user_address(addr);
 }
 
 static task_t *
@@ -233,8 +233,6 @@ sys_read(int fd, void *buf, size_t count)
 		bool got_newline = false;
 
 		while (bytes_read < count && !got_newline) {
-			asm volatile("sti");
-
 			while (!keyboard_has_key()) {
 				asm volatile("sti; hlt");
 			}
@@ -625,8 +623,8 @@ sys_unlink(const char *path)
 	}
 
 	vnode_t *vnode;
-	int ret = vfs_lookup(path, &vnode);
-	if (ret == 0) {
+	int lookup_ret = vfs_lookup(path, &vnode);
+	if (lookup_ret == 0) {
 		if ((vnode->v_mode & VFS_IFMT) == VFS_IFDIR) {
 			vfs_vnode_unref(vnode);
 			return -EISDIR; /* Can't unlink directories */
@@ -634,7 +632,7 @@ sys_unlink(const char *path)
 		vfs_vnode_unref(vnode);
 	}
 
-	ret = vfs_unlink(path); /* Reuse ret variable */
+	int ret = vfs_unlink(path);
 	if (ret != VFS_SUCCESS) {
 		return -vfs_errno(ret);
 	}
@@ -1465,19 +1463,25 @@ sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 	struct limine_hhdm_response *hhdm = boot_get_hhdm();
 	uint64_t hhdm_offset = hhdm ? hhdm->offset : 0;
 
-	for (size_t i = 0; i < num_pages; i++) {
+for (size_t i = 0; i < num_pages; i++) {
 		uint64_t virt_page = virt_addr + (i * PAGE_SIZE);
 
 		void *page_virt = pmm_alloc();
 		if (page_virt == NULL) {
 			tty_printf("[MMAP DEBUG] Failed to allocate page %lu\n",
 			           (unsigned long)i);
+			/* Clean up previously allocated pages */
 			for (size_t j = 0; j < i; j++) {
-				paging_unmap_range(ps->ps_vmspace,
-				                   virt_addr + (j * PAGE_SIZE),
-				                   1);
+				uint64_t cleanup_virt = virt_addr + (j * PAGE_SIZE);
+				uint64_t phys_addr = mmu_get_physical_address(
+				    ps->ps_vmspace, cleanup_virt);
+				if (phys_addr != 0) {
+					paging_unmap_range(ps->ps_vmspace, cleanup_virt, 1);
+					void *cleanup_page = (void *)(phys_addr + hhdm_offset);
+					pmm_free(cleanup_page);
+				}
 			}
-			return (void *)(intptr_t)-EINVAL;
+			return (void *)(intptr_t)-ENOMEM;
 		}
 
 		memset(page_virt, 0, PAGE_SIZE);
@@ -1489,12 +1493,18 @@ sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 			tty_printf("[MMAP DEBUG] Failed to map page at 0x%lx\n",
 			           virt_page);
 			pmm_free(page_virt);
+			/* Clean up previously allocated pages */
 			for (size_t j = 0; j < i; j++) {
-				paging_unmap_range(ps->ps_vmspace,
-				                   virt_addr + (j * PAGE_SIZE),
-				                   1);
+				uint64_t cleanup_virt = virt_addr + (j * PAGE_SIZE);
+				uint64_t phys_addr = mmu_get_physical_address(
+				    ps->ps_vmspace, cleanup_virt);
+				if (phys_addr != 0) {
+					paging_unmap_range(ps->ps_vmspace, cleanup_virt, 1);
+					void *cleanup_page = (void *)(phys_addr + hhdm_offset);
+					pmm_free(cleanup_page);
+				}
 			}
-			return (void *)(intptr_t)-EINVAL;
+			return (void *)(intptr_t)-ENOMEM;
 		}
 
 		tty_printf(

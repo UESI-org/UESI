@@ -11,7 +11,7 @@ syscall0(uint64_t syscall_num)
 	asm volatile("int $0x80"
 	             : "=a"(ret)
 	             : "a"(syscall_num)
-	             : "memory", "rcx", "r11");
+	             : "memory", "rcx", "r11", "cc");
 	return ret;
 }
 
@@ -23,7 +23,7 @@ syscall1(uint64_t syscall_num, uint64_t arg1)
 	asm volatile("int $0x80"
 	             : "=a"(ret)
 	             : "a"(syscall_num), "D"(arg1)
-	             : "memory", "rcx", "r11");
+	             : "memory", "rcx", "r11", "cc");
 	return ret;
 }
 
@@ -35,7 +35,7 @@ syscall2(uint64_t syscall_num, uint64_t arg1, uint64_t arg2)
 	asm volatile("int $0x80"
 	             : "=a"(ret)
 	             : "a"(syscall_num), "D"(arg1), "S"(arg2)
-	             : "memory", "rcx", "r11");
+	             : "memory", "rcx", "r11", "cc");
 	return ret;
 }
 
@@ -47,8 +47,20 @@ syscall3(uint64_t syscall_num, uint64_t arg1, uint64_t arg2, uint64_t arg3)
 	asm volatile("int $0x80"
 	             : "=a"(ret)
 	             : "a"(syscall_num), "D"(arg1), "S"(arg2), "d"(arg3)
-	             : "memory", "rcx", "r11");
+	             : "memory", "rcx", "r11", "cc");
 	return ret;
+}
+
+static inline int64_t
+syscall4(uint64_t syscall_num, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4)
+{
+    int64_t ret;
+    register uint64_t r10 asm("r10") = arg4;
+    asm volatile("int $0x80"
+                 : "=a"(ret)
+                 : "a"(syscall_num), "D"(arg1), "S"(arg2), "d"(arg3), "r"(r10)
+                 : "memory", "rcx", "r11");
+    return ret;
 }
 
 /* System call with 6 arguments - needed for mmap */
@@ -75,7 +87,7 @@ syscall6(uint64_t syscall_num,
 	               "r"(r10),
 	               "r"(r8),
 	               "r"(r9)
-	             : "memory", "rcx", "r11");
+	             : "memory", "rcx", "r11", "cc");
 	return ret;
 }
 
@@ -131,16 +143,11 @@ creat(const char *path, mode_t mode)
 int64_t
 openat(int dirfd, const char *pathname, uint32_t flags, mode_t mode)
 {
-	/* System call with 4 arguments */
-	int64_t ret;
-	asm volatile("int $0x80"
-	             : "=a"(ret)
-	             : "a"((uint64_t)SYSCALL_OPENAT),
-	               "D"((uint64_t)dirfd),
-	               "S"((uint64_t)pathname),
-	               "d"((uint64_t)flags),
-	               "r"((uint64_t)mode) /* This will go in r10 */
-	             : "memory", "rcx", "r11");
+	int64_t ret = syscall4(SYSCALL_OPENAT,
+	                       (uint64_t)dirfd,
+	                       (uint64_t)pathname,
+	                       (uint64_t)flags,
+	                       (uint64_t)mode);
 	return handle_syscall_result(ret);
 }
 
