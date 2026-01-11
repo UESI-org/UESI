@@ -143,10 +143,6 @@ sys_exit(int status)
 		if (p != NULL && p->p_p != NULL && p->p_p->ps_vmspace != NULL) {
 			struct process *ps = p->p_p;
 
-			tty_printf("[SYSCALL] Cleaning up memory mappings for "
-			           "task %d\n",
-			           current->p_tid);
-
 			extern struct limine_hhdm_response *boot_get_hhdm(void);
 			struct limine_hhdm_response *hhdm = boot_get_hhdm();
 			uint64_t hhdm_offset = hhdm ? hhdm->offset : 0;
@@ -177,11 +173,6 @@ sys_exit(int status)
 
 					current_page += PAGE_SIZE;
 				}
-
-				tty_printf("[SYSCALL] Unmapped memory range "
-				           "0x%lx - 0x%lx\n",
-				           start,
-				           end);
 			}
 		}
 
@@ -195,11 +186,6 @@ sys_exit(int status)
 				current->p_p->ps_fd_table[i].flags = 0;
 			}
 		}
-
-		tty_printf("[SYSCALL] Task %d (%s) exiting with status %d\n",
-		           current->p_tid,
-		           current->p_name,
-		           status);
 
 		scheduler_exit_task(status);
 
@@ -722,8 +708,6 @@ sys_fcntl(int fd, int cmd, uint64_t arg)
 		file->f_refcount++;
 		spinlock_release_irqrestore(&file->f_lock, flags);
 
-		tty_printf(
-		    "[FCNTL] F_DUPFD: duplicated fd %d -> fd %d\n", fd, newfd);
 		return newfd;
 	}
 
@@ -762,10 +746,6 @@ sys_fcntl(int fd, int cmd, uint64_t arg)
 		file->f_refcount++;
 		spinlock_release_irqrestore(&file->f_lock, flags);
 
-		tty_printf(
-		    "[FCNTL] F_DUPFD_CLOEXEC: duplicated fd %d -> fd %d\n",
-		    fd,
-		    newfd);
 		return newfd;
 	}
 
@@ -902,7 +882,6 @@ sys_dup(int oldfd)
 	file->f_refcount++;
 	spinlock_release_irqrestore(&file->f_lock, flags);
 
-	tty_printf("[DUP] Duplicated fd %d -> fd %d\n", oldfd, newfd);
 	return newfd;
 }
 
@@ -946,7 +925,6 @@ sys_dup2(int oldfd, int newfd)
 	file->f_refcount++;
 	spinlock_release_irqrestore(&file->f_lock, flags);
 
-	tty_printf("[DUP2] Duplicated fd %d -> fd %d\n", oldfd, newfd);
 	return newfd;
 }
 
@@ -1394,24 +1372,14 @@ sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 {
 	struct proc *p = proc_get_current();
 
-	tty_printf("[MMAP DEBUG] Called: addr=%p len=%lu prot=%d flags=%d\n",
-	           addr,
-	           (unsigned long)length,
-	           prot,
-	           flags);
-
 	if (p == NULL) {
-		tty_printf("[MMAP DEBUG] No current proc!\n");
 		return (void *)(intptr_t)-EINVAL;
 	}
 
 	struct process *ps = p->p_p;
 	if (ps == NULL || ps->ps_vmspace == NULL) {
-		tty_printf("[MMAP DEBUG] No process or vmspace!\n");
 		return (void *)(intptr_t)-EINVAL;
 	}
-
-	tty_printf("[MMAP DEBUG] Process found: pid=%d\n", ps->ps_pid);
 
 	if (length == 0) {
 		return (void *)(intptr_t)-EINVAL;
@@ -1445,10 +1413,6 @@ sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 		}
 	}
 
-	tty_printf("[MMAP DEBUG] Mapping at virt=0x%lx, %lu pages\n",
-	           virt_addr,
-	           (unsigned long)num_pages);
-
 	uint64_t page_flags = PAGE_PRESENT | PAGE_USER;
 
 	if (prot & PROT_WRITE) {
@@ -1468,8 +1432,6 @@ for (size_t i = 0; i < num_pages; i++) {
 
 		void *page_virt = pmm_alloc();
 		if (page_virt == NULL) {
-			tty_printf("[MMAP DEBUG] Failed to allocate page %lu\n",
-			           (unsigned long)i);
 			/* Clean up previously allocated pages */
 			for (size_t j = 0; j < i; j++) {
 				uint64_t cleanup_virt = virt_addr + (j * PAGE_SIZE);
@@ -1490,8 +1452,6 @@ for (size_t i = 0; i < num_pages; i++) {
 
 		if (!paging_map_range(
 		        ps->ps_vmspace, virt_page, phys_page, 1, page_flags)) {
-			tty_printf("[MMAP DEBUG] Failed to map page at 0x%lx\n",
-			           virt_page);
 			pmm_free(page_virt);
 			/* Clean up previously allocated pages */
 			for (size_t j = 0; j < i; j++) {
@@ -1506,19 +1466,11 @@ for (size_t i = 0; i < num_pages; i++) {
 			}
 			return (void *)(intptr_t)-ENOMEM;
 		}
-
-		tty_printf(
-		    "[MMAP DEBUG] Mapped page %lu: virt=0x%lx phys=0x%lx\n",
-		    (unsigned long)i,
-		    virt_page,
-		    phys_page);
 	}
 
 	if (virt_addr + aligned_length > ps->ps_brk) {
 		ps->ps_brk = virt_addr + aligned_length;
 	}
-
-	tty_printf("[MMAP DEBUG] Success! Returning 0x%lx\n", virt_addr);
 
 	return (void *)virt_addr;
 }
@@ -1548,10 +1500,6 @@ sys_munmap(void *addr, size_t length)
 	size_t aligned_length = (length + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
 	size_t num_pages = aligned_length / PAGE_SIZE;
 
-	tty_printf("[MUNMAP DEBUG] Unmapping virt=0x%lx, %lu pages\n",
-	           virt_addr,
-	           (unsigned long)num_pages);
-
 	extern struct limine_hhdm_response *boot_get_hhdm(void);
 	struct limine_hhdm_response *hhdm = boot_get_hhdm();
 	uint64_t hhdm_offset = hhdm ? hhdm->offset : 0;
@@ -1569,8 +1517,6 @@ sys_munmap(void *addr, size_t length)
 			pmm_free(page_virt);
 		}
 	}
-
-	tty_printf("[MUNMAP DEBUG] Success!\n");
 
 	return 0;
 }
