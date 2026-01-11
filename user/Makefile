@@ -33,7 +33,7 @@ FEATURE_FLAGS := -D_POSIX_C_SOURCE=202405L \
 CFLAGS := $(FEATURE_FLAGS) -Wall -Wextra -std=gnu11 -ffreestanding -nostdlib -nostdinc \
           -fno-builtin -fno-stack-protector -O2 -ffunction-sections -fdata-sections \
           -Iinclude -I$(LIBC_INC_DIR) -I$(SYSINCDIR) -I$(SYS1INCDIR) -I$(ARCHINCDIR) \
-          -Wno-builtin-macro-redefined
+          -Wno-builtin-macro-redefined -DNDEBUG
 
 LDFLAGS := -nostdlib -z max-page-size=0x1000
 

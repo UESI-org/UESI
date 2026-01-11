@@ -46,7 +46,7 @@ CFLAGS := -Wall -Wextra -std=gnu11 \
     $(CPPFLAGS) \
     -I$(INCDIR) -I$(SYSINCDIR) -I$(SYSINCDIR1) -I$(ARCHINCDIR) \
     -I$(BOOTINCDIR) -I$(SOFTFLOATDIR) \
-    -nostdlib -fno-builtin -s
+    -nostdlib -fno-builtin -s -DNDEBUG
 
 .PHONY: all clean rebuild install help
 
