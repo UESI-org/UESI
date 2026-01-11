@@ -10,11 +10,9 @@ TARGET := $(LIBDIR)/libkern.a
 
 INCLUDES := -I.. -I../.. -I../../amd64/include -I../sys -I../src/libc/include -I../src/libmem/include -I../src/libprintf/include -I../src/libuserland/include -I../src/boot/include -I$(LIBKERNDIR) -nostdinc
 
-FEATURE_FLAGS := -D__POSIX_VISIBLE=200809 \
-                 -D__XPG_VISIBLE=700 \
-                 -D__ISO_C_VISIBLE=2011 \
-                 -D_BSD_SOURCE \
-                 -DNL_TEXTMAX=128
+FEATURE_FLAGS := -D_POSIX_C_SOURCE=202405L \
+                 -D_XOPEN_SOURCE=700 \
+                 -D_BSD_SOURCE
 
 CFLAGS := $(FEATURE_FLAGS) -D_KERNEL -Wall -Wextra -std=gnu11 -ffreestanding -fno-stack-protector \
           -fno-stack-check -fno-lto -fno-PIC -ffunction-sections -fdata-sections \
@@ -28,9 +26,9 @@ ASFLAGS := --64
 ARFLAGS := rcs
 
 SRCS := sys_kern.c \
-		sys_uname.c \
+	sys_uname.c \
         sysinfo.c \
-		kern_mutex.c \
+	kern_mutex.c \
 	kern_time.c
 	
 

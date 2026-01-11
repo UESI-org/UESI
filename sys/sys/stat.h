@@ -58,9 +58,12 @@ struct stat {
 	time_t st_ctime;      /* Time of last status change */
 };
 
-#ifdef _KERNEL
-/* Empty for now until full implementation */
-#endif
+extern int chmod(const char *path, mode_t mode);
+extern int fstat(int fd, struct stat *buf);
+extern int mknod(const char *path, mode_t mode, dev_t dev);
+extern int mkdir(const char *path, mode_t mode);
+extern int stat(const char *path, struct stat *buf);
+extern int lstat(const char *path, struct stat *buf);
 
 __END_DECLS
 

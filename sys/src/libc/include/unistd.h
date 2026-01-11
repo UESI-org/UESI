@@ -56,12 +56,12 @@ typedef __intptr_t intptr_t;
 __BEGIN_DECLS
 
 /* 1003.1-1990 */
-void _exit(int) __dead;
+extern void _exit(int status) __attribute__((noreturn));
 int access(const char *, int);
 unsigned int alarm(unsigned int);
 int chdir(const char *);
 int chown(const char *, uid_t, gid_t);
-int close(int);
+extern int64_t close(int fd);
 int dup(int);
 int dup2(int, int);
 int execl(const char *, const char *, ...) __attribute__((__sentinel__));
@@ -70,7 +70,7 @@ int execlp(const char *, const char *, ...) __attribute__((__sentinel__));
 int execv(const char *, char *const *);
 int execve(const char *, char *const *, char *const *);
 int execvp(const char *, char *const *);
-pid_t fork(void);
+extern pid_t fork(void);
 long fpathconf(int, int);
 char *getcwd(char *, size_t) __warn_unused_result;
 gid_t getegid(void);
@@ -79,28 +79,28 @@ gid_t getgid(void);
 int getgroups(int, gid_t *);
 char *getlogin(void);
 pid_t getpgrp(void);
-pid_t getpid(void);
-pid_t getppid(void);
+extern pid_t getpid(void);
+extern pid_t getppid(void);
 uid_t getuid(void);
 int isatty(int);
 int link(const char *, const char *);
-off_t lseek(int, off_t, int);
+extern off_t lseek(int fd, off_t offset, int whence);
 long pathconf(const char *, int);
 int pause(void);
 int pipe(int *);
-ssize_t read(int, void *, size_t);
-int rmdir(const char *);
+extern int64_t read(int fd, void *buf, size_t count);
+extern int rmdir(const char *path);
 int setgid(gid_t);
 int setpgid(pid_t, pid_t);
 pid_t setsid(void);
 int setuid(uid_t);
-unsigned int sleep(unsigned int);
+extern unsigned int sleep(unsigned int seconds);
 long sysconf(int);
 pid_t tcgetpgrp(int);
 int tcsetpgrp(int, pid_t);
 char *ttyname(int);
-int unlink(const char *);
-ssize_t write(int, const void *, size_t);
+extern int unlink(const char *path);
+extern int64_t write(int fd, const void *buf, size_t count);
 
 /* 1003.2-1992 */
 #if __POSIX_VISIBLE >= 199209 || __XPG_VISIBLE
@@ -126,7 +126,7 @@ int getlogin_r(char *, size_t);
 #if __POSIX_VISIBLE >= 200112 || __XPG_VISIBLE >= 420
 int fchown(int, uid_t, gid_t);
 int fchdir(int);
-int gethostname(char *, size_t);
+extern int gethostname(char *name, size_t len);
 int readlink(const char *__restrict, char *__restrict, size_t);
 int setegid(gid_t);
 int seteuid(uid_t);
@@ -154,7 +154,7 @@ int nice(int);
 #if __XPG_VISIBLE >= 400
 char *crypt(const char *, const char *);
 int encrypt(char *, int);
-long gethostid(void);
+extern int gethostid(void);
 int lockf(int, int, off_t);
 int setpgrp(pid_t, pid_t);
 int setregid(gid_t, gid_t);
@@ -163,7 +163,7 @@ void swab(const void *__restrict, void *__restrict, ssize_t);
 void sync(void);
 int truncate(const char *, off_t);
 useconds_t ualarm(useconds_t, useconds_t);
-int usleep(useconds_t);
+extern int usleep(useconds_t usec);
 pid_t vfork(void);
 #endif
 
@@ -175,11 +175,11 @@ ssize_t pwrite(int, const void *, size_t, off_t);
 
 /* X/Open Portability Guide >= Issue 5 */
 #if __XPG_VISIBLE >= 500
-int brk(void *);
+extern void *brk(void *addr);
 int getdtablesize(void);
 int getpagesize(void);
 char *getpass(const char *);
-void *sbrk(intptr_t);
+extern void *sbrk(intptr_t increment);
 #endif
 
 /* X/Open Portability Guide >= Issue 6 */

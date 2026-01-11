@@ -185,7 +185,6 @@ struct flock {
 #define AT_REMOVEDIR 0x08
 #endif
 
-#ifdef _KERNEL
 extern int64_t open(const char *path, uint32_t flags, mode_t mode);
 extern int64_t creat(const char *path, mode_t mode);
 extern int fcntl(int fd, int cmd, ...);
@@ -194,7 +193,6 @@ extern int64_t openat(int dirfd,
                       const char *pathname,
                       uint32_t flags,
                       mode_t mode);
-#endif
 #endif
 
 #endif /* !_SYS_FCNTL_H_ */

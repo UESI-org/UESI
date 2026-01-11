@@ -1,14 +1,19 @@
 CC ?= x86_64-elf-gcc
 AR := ar
 ARFLAGS := rcs
+
 INCDIR := include
 SYSINCDIR := ../../../sys
+SYSINCDIR1 := ../../../sys/sys
 ARCHINCDIR := ../../../amd64/include
 BOOTINCDIR := ../boot/include
+
 SRCDIR := string
 GENDIR := gen
 SOFTFLOATDIR := softfloat
 STDLIBDIR := stdlib
+STDIODIR := stdio
+
 OBJDIR := obj
 LIBDIR := lib
 TARGET := $(LIBDIR)/libc.a
@@ -17,31 +22,31 @@ SRCS := $(wildcard $(SRCDIR)/*.c)
 GENSRC := $(wildcard $(GENDIR)/*.c)
 SOFTFLOATSRC := $(wildcard $(SOFTFLOATDIR)/*.c)
 STDLIBSRC := $(wildcard $(STDLIBDIR)/*.c)
+STDIOSRC := $(wildcard $(STDIODIR)/*.c)
 
 OBJS := $(SRCS:$(SRCDIR)/%.c=$(OBJDIR)/%.o) \
         $(GENSRC:$(GENDIR)/%.c=$(OBJDIR)/gen_%.o) \
         $(SOFTFLOATSRC:$(SOFTFLOATDIR)/%.c=$(OBJDIR)/softfloat_%.o) \
-        $(STDLIBSRC:$(STDLIBDIR)/%.c=$(OBJDIR)/stdlib_%.o)
+        $(STDLIBSRC:$(STDLIBDIR)/%.c=$(OBJDIR)/stdlib_%.o) \
+        $(STDIOSRC:$(STDIODIR)/%.c=$(OBJDIR)/stdio_%.o)
 
-FEATURE_FLAGS := -D__POSIX_VISIBLE=202405 \
-                 -D__XPG_VISIBLE=700 \
-                 -D__ISO_C_VISIBLE=2011 \
-                 -D__BSD_VISIBLE=1 \
-                 -DNL_TEXTMAX=128 \
+FEATURE_FLAGS := -D_POSIX_C_SOURCE=202405L \
+                 -D_XOPEN_SOURCE=700 \
+                 -D_BSD_SOURCE \
                  -D_KERNEL \
                  -DSOFTFLOAT_FOR_GCC
 
 CPPFLAGS := $(FEATURE_FLAGS)
 
-CFLAGS := -Wall -Wextra -std=gnu11 -ffreestanding -fno-stack-protector \
-    -fno-stack-check -fno-lto -fno-PIC -ffunction-sections -fdata-sections \
+CFLAGS := -Wall -Wextra -std=gnu11 \
+    -ffreestanding -fno-stack-protector -fno-stack-check \
+    -fno-lto -fno-PIC -ffunction-sections -fdata-sections \
     -m64 -march=x86-64 -mabi=sysv \
     -mno-red-zone -mcmodel=kernel -O2 \
     $(CPPFLAGS) \
-    -I$(INCDIR) -I$(SYSINCDIR) -I$(ARCHINCDIR) -I$(BOOTINCDIR) -I$(SOFTFLOATDIR) \
+    -I$(INCDIR) -I$(SYSINCDIR) -I$(SYSINCDIR1) -I$(ARCHINCDIR) \
+    -I$(BOOTINCDIR) -I$(SOFTFLOATDIR) \
     -nostdlib -fno-builtin -s
-
-INCLUDES := -I$(INCDIR) -I$(SYSINCDIR) -I$(ARCHINCDIR) -I$(BOOTINCDIR) -I$(SOFTFLOATDIR)
 
 .PHONY: all clean rebuild install help
 
@@ -69,6 +74,9 @@ $(OBJDIR)/softfloat_%.o: $(SOFTFLOATDIR)/%.c | $(OBJDIR)
 $(OBJDIR)/stdlib_%.o: $(STDLIBDIR)/%.c | $(OBJDIR)
 	$(CC) $(CFLAGS) -c $< -o $@ -MMD -MP
 
+$(OBJDIR)/stdio_%.o: $(STDIODIR)/%.c | $(OBJDIR)
+	$(CC) $(CFLAGS) -c $< -o $@ -MMD -MP
+
 clean:
 	rm -rf $(OBJDIR) $(LIBDIR)
 	@echo "Cleaned build artifacts"
@@ -76,38 +84,32 @@ clean:
 rebuild: clean all
 
 install: $(TARGET)
-	@echo "Installing libc.a..."
+	@echo "Installing libc..."
 	@mkdir -p ../../lib
 	cp $(TARGET) ../../lib/
+
 	@mkdir -p ../../include
 	cp $(INCDIR)/string.h ../../include/
+	cp $(INCDIR)/stdio.h ../../include/
+
 	@if [ -f $(SOFTFLOATDIR)/softfloat.h ]; then \
 		cp $(SOFTFLOATDIR)/softfloat.h ../../include/; \
 		echo "Installed softfloat.h"; \
 	fi
+
 	@echo "Installation complete"
 
 help:
-	@echo "Makefile for libc.a (with softfloat support)"
+	@echo "Makefile for freestanding libc (kernel-safe)"
+	@echo ""
+	@echo "Directories:"
+	@echo "  string/ stdlib/ stdio/ gen/ softfloat/"
 	@echo ""
 	@echo "Targets:"
-	@echo "  all      - Build libc.a (default)"
-	@echo "  clean    - Remove all build artifacts"
-	@echo "  rebuild  - Clean and rebuild"
-	@echo "  install  - Install library and headers"
-	@echo "  help     - Show this help message"
-	@echo ""
-	@echo "Feature visibility flags:"
-	@echo "  __POSIX_VISIBLE=200809  - POSIX.1-2008"
-	@echo "  __XPG_VISIBLE=700       - X/Open 7 (XSI)"
-	@echo "  __ISO_C_VISIBLE=2011    - ISO C11"
-	@echo "  __BSD_VISIBLE=1         - BSD extensions"
-	@echo "  _KERNEL                 - Kernel build"
-	@echo "  SOFTFLOAT_FOR_GCC       - GCC softfloat compatibility"
-	@echo ""
-	@echo "Components:"
-	@echo "  - string functions ($(SRCDIR)/)"
-	@echo "  - general functions ($(GENDIR)/)"
-	@echo "  - softfloat library ($(SOFTFLOATDIR)/)"
+	@echo "  all      - Build libc.a"
+	@echo "  clean    - Remove build artifacts"
+	@echo "  rebuild  - Clean + build"
+	@echo "  install  - Install libc and headers"
+	@echo "  help     - Show this message"
 
 -include $(OBJS:.o=.d)

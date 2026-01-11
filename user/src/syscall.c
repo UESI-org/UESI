@@ -359,6 +359,14 @@ _exit(int status)
 }
 
 int
+isatty(int fd)
+{
+    /* For now, consider fd 0, 1, 2 as TTY, others not
+     * TODO: use ioctl or similar */
+    return (fd >= 0 && fd <= 2) ? 1 : 0;
+}
+
+int
 sysinfo(struct sysinfo *info)
 {
 	int64_t ret = syscall1(SYSCALL_SYSINFO, (uint64_t)info);

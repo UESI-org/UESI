@@ -74,4 +74,7 @@ typedef union {
 	__int64_t __mbstateL; /* for alignment */
 } __mbstate_t;
 
+/* File position for stdio - used by fgetpos/fsetpos and internally by stdio */
+typedef __off_t __fpos_t;
+
 #endif /* !_SYS__TYPES_H_ */
