@@ -393,9 +393,17 @@ vsnprintf(char *str, size_t size, const char *fmt, va_list ap)
 {
 	FILE f;
 	int ret;
+	char dummy;
 
-	if (size == 0)
-		return 0;
+	/* Handle size == 0 case - still need to count chars */
+	if (size == 0) {
+		/* Use dummy buffer to count */
+		memset(&f, 0, sizeof(f));
+		f._flags = __SWR | __SSTR;
+		f._bf._base = f._p = (unsigned char *)&dummy;
+		f._bf._size = f._w = 0;
+		return vfprintf(&f, fmt, ap);
+	}
 
 	/* Create a fake FILE for string output */
 	memset(&f, 0, sizeof(f));
@@ -405,6 +413,7 @@ vsnprintf(char *str, size_t size, const char *fmt, va_list ap)
 	
 	ret = vfprintf(&f, fmt, ap);
 	*f._p = '\0';
+
 	return ret;
 }
 

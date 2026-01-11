@@ -133,7 +133,14 @@ freopen(const char *file, const char *mode, FILE *fp)
 		 * Re-open the current file with the new mode. This is used
 		 * primarily when changing the mode of a stream.
 		 */
-		if ((f = fcntl(fp->_file, F_DUPFD_CLOEXEC, 0)) < 0) {
+#ifdef F_DUPFD_CLOEXEC
+		f = fcntl(fp->_file, F_DUPFD_CLOEXEC, 0);
+#else
+		f = fcntl(fp->_file, F_DUPFD, 0);
+		if (f >= 0)
+			(void)fcntl(f, F_SETFD, FD_CLOEXEC);
+#endif
+		if (f < 0) {
 			fp->_flags = 0;
 			return NULL;
 		}

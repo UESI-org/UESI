@@ -33,11 +33,21 @@ __sccl(char *tab, const char *fmt)
 	if (c == 0)
 		return fmt - 1;	/* format ended too soon */
 
-	/* Now set the entries corresponding to the actual scanset to the
+	/*
+	 * Now set the entries corresponding to the actual scanset to the
 	 * opposite of the above. The first character may be ']' (or '-')
 	 * without being special; the last character may be '-'.
 	 */
 	v = 1 - v;
+	
+	/* Handle ] as first character: []...] or [^]...] */
+	if (c == ']') {
+		tab[c] = v;
+		c = *fmt++;
+		if (c == 0)
+			return fmt - 1;
+	}
+	
 	for (;;) {
 		tab[c] = v;		/* take character c */
 doswitch:
@@ -47,7 +57,8 @@ doswitch:
 			return fmt - 1;
 
 		case '-':
-			/* A scanset of the form [01+-] is defined as `the digit 0, the
+			/*
+			 * A scanset of the form [01+-] is defined as `the digit 0, the
 			 * digit 1, the character +, the character -', but the effect of a
 			 * scanset such as [a-zA-Z0-9] is implementation defined.  The V7
 			 * Unix scanf treats `a-z' as `the letters a through z', but treats
@@ -59,7 +70,7 @@ doswitch:
 			 * stored in the table (c).
 			 */
 			n = *fmt;
-			if (n == ']' || n < c) {
+			if (n == ']' || n < c || n == 0) {
 				c = '-';
 				break;	/* resume the for(;;) */
 			}
@@ -69,7 +80,8 @@ doswitch:
 				tab[++c] = v;
 			} while (c < n);
 			c = n;
-			/* Alas, the V7 Unix scanf also treats formats such as [a-c-e] as
+			/*
+			 * Alas, the V7 Unix scanf also treats formats such as [a-c-e] as
 			 * `the letters a through e'. This too is permitted by the
 			 * standard....
 			 */

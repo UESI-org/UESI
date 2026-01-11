@@ -125,19 +125,25 @@ __sflush(FILE *fp)
 		return 0;
 
 	n = fp->_p - p;		/* write this much */
-	if (n > 0) {
-		if (fp->_write != NULL) {
-			if ((*fp->_write)(fp->_cookie, (char *)p, n) != n) {
-				fp->_flags |= __SERR;
-				return EOF;
-			}
-		} else {
-			if (write(fp->_file, p, n) != n) {
-				fp->_flags |= __SERR;
-				return EOF;
-			}
+	
+	if (n <= 0) {
+		fp->_p = p;
+		fp->_w = t & (__SLBF|__SNBF) ? 0 : fp->_bf._size;
+		return 0;
+	}
+	
+	if (fp->_write != NULL) {
+		if ((*fp->_write)(fp->_cookie, (char *)p, n) != n) {
+			fp->_flags |= __SERR;
+			return EOF;
+		}
+	} else {
+		if (write(fp->_file, p, n) != n) {
+			fp->_flags |= __SERR;
+			return EOF;
 		}
 	}
+	
 	fp->_p = p;
 	fp->_w = t & (__SLBF|__SNBF) ? 0 : fp->_bf._size;
 	return 0;

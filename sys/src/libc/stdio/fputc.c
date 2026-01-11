@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 #include <unistd.h>
 #include "stdio_internal.h"
 
@@ -85,6 +86,11 @@ fputs(const char *s, FILE *fp)
 	struct __suio uio;
 	struct __siov iov;
 
+	if (s == NULL || fp == NULL) {
+		errno = EINVAL;
+		return EOF;
+	}
+
 	len = strlen(s);
 	if (len == 0)
 		return 0;
@@ -105,6 +111,11 @@ puts(const char *s)
 	size_t c;
 	struct __suio uio;
 	struct __siov iov[2];
+	
+	if (s == NULL) {
+		errno = EINVAL;
+		return EOF;
+	}
 	
 	iov[0].iov_base = (void *)s;
 	iov[0].iov_len = c = strlen(s);

@@ -42,8 +42,10 @@ setvbuf(FILE *fp, char *buf, int mode, size_t size)
 	 */
 	ret = 0;
 	(void)__sflush(fp);
+	
 	if (HASUB(fp))
 		FREEUB(fp);
+	
 	fp->_r = fp->_lbfsize = 0;
 	flags = fp->_flags;
 	if (flags & __SMBF)

@@ -97,15 +97,18 @@ gets(char *buf)
 {
 	int c;
 	char *s;
+	size_t count = 0;
 
-	for (s = buf; (c = getchar()) != '\n';)
-		if (c == EOF)
+	for (s = buf; (c = getchar()) != '\n';) {
+		if (c == EOF) {
 			if (s == buf)
 				return NULL;
-			else
-				break;
-		else
-			*s++ = c;
+			break;
+		}
+		*s++ = c;
+		if (++count >= 4096)
+			break;
+	}
 	*s = '\0';
 	return buf;
 }

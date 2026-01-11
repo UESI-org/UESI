@@ -47,6 +47,7 @@ fwrite(const void *buf, size_t size, size_t count, FILE *fp)
 {
 	size_t n;
 	const char *p;
+	const char *p_start;  /* Track start for return calculation */
 	int w;
 
 	/*
@@ -55,7 +56,7 @@ fwrite(const void *buf, size_t size, size_t count, FILE *fp)
 	if ((n = count * size) == 0)
 		return 0;
 
-	p = buf;
+	p = p_start = buf;
 	
 	/*
 	 * ANSI and SUSv2 require that we will not modify the buffer
@@ -71,42 +72,40 @@ fwrite(const void *buf, size_t size, size_t count, FILE *fp)
 			w = (*fp->_write)(fp->_cookie, p, n);
 		else
 			w = write(fp->_file, p, n);
-		return w == (int)n ? count : w / size;
+		return w == (int)n ? count : (size_t)w / size;
 	}
 	if (fp->_flags & __SLBF) {
 		/*
 		 * Line buffered: like fully buffered, but we
 		 * must check for newlines.
 		 */
-		size_t i;
-		do {
-			i = 0;
-			while (i < n) {
-				if (p[i] == '\n') {
-					i++;	/* include the newline */
-					goto linebreak;
-				}
+		while (n > 0) {
+			size_t i = 0;
+			/* Find next newline or end of data */
+			while (i < n && p[i] != '\n')
 				i++;
-			}
-		linebreak:
-			/* Copy up to and including newline (if any) */
+			if (i < n)
+				i++;	/* include the newline */
+			
+			/* Write this chunk */
 			while (i > 0) {
+				if (fp->_bf._base == NULL)
+					__smakebuf(fp);
 				if (--fp->_w < 0) {
 					if (__sflush(fp))
 						goto err;
-					if (fp->_bf._base == NULL)
-						__smakebuf(fp);
 					fp->_w = fp->_bf._size - 1;
 				}
 				*fp->_p++ = *p++;
 				i--;
+				n--;
 			}
-			n -= (p - (const char *)buf);
-			if (n == 0 || i > 0) {
+			/* Flush if we wrote a newline */
+			if (n == 0 || p[-1] == '\n') {
 				if (__sflush(fp))
 					goto err;
 			}
-		} while (n > 0);
+		}
 	} else {
 		/*
 		 * Fully buffered: fill partially full buffer, if any,
@@ -148,5 +147,5 @@ fwrite(const void *buf, size_t size, size_t count, FILE *fp)
 	return count;
 
 err:
-	return (p - (const char *)buf) / size;
+	return (size_t)(p - p_start) / size;
 }

@@ -123,13 +123,24 @@ tmpfile(void)
 	char name[L_tmpnam];
 	int fd;
 	FILE *fp;
+	static unsigned int counter = 0;
+	int attempts = 0;
 
-	/* Create a unique temporary filename */
-	snprintf(name, sizeof(name), "/tmp/tmp.%d.%d",
-		getpid(), tmpfile_counter++);
+	/* Try up to 1000 times to create unique file */
+	while (attempts++ < 1000) {
+		/* Create a unique temporary filename */
+		snprintf(name, sizeof(name), "/tmp/tmp.%d.%u.%d",
+			getpid(), counter++, attempts);
 
-	/* Open with O_EXCL to ensure uniqueness */
-	fd = open(name, O_RDWR | O_CREAT | O_EXCL | O_CLOEXEC, 0600);
+		/* Open with O_EXCL to ensure uniqueness (atomic) */
+		fd = open(name, O_RDWR | O_CREAT | O_EXCL | O_CLOEXEC, 0600);
+		if (fd >= 0)
+			break;
+		
+		if (errno != EEXIST)
+			return NULL;
+	}
+	
 	if (fd < 0)
 		return NULL;
 
