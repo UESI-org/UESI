@@ -41,13 +41,12 @@ fread(void *buf, size_t size, size_t count, FILE *fp)
 	fp->_p += resid;
 	return count;
 }
-
 size_t
 fwrite(const void *buf, size_t size, size_t count, FILE *fp)
 {
 	size_t n;
 	const char *p;
-	const char *p_start;  /* Track start for return calculation */
+	const char *p_start;
 	int w;
 
 	/*
@@ -58,12 +57,6 @@ fwrite(const void *buf, size_t size, size_t count, FILE *fp)
 
 	p = p_start = buf;
 	
-	/*
-	 * ANSI and SUSv2 require that we will not modify the buffer
-	 * if size or count are 0.  Since n == 0 in this case, we
-	 * know that we will not do any writes.  Thus, we can skip
-	 * the fflush and the main loop.
-	 */
 	if (fp->_flags & __SNBF) {
 		/*
 		 * Unbuffered: write directly.
@@ -74,78 +67,98 @@ fwrite(const void *buf, size_t size, size_t count, FILE *fp)
 			w = write(fp->_file, p, n);
 		return w == (int)n ? count : (size_t)w / size;
 	}
+	
 	if (fp->_flags & __SLBF) {
 		/*
-		 * Line buffered: like fully buffered, but we
-		 * must check for newlines.
+		 * Line buffered: write data, flushing on newlines.
 		 */
-		while (n > 0) {
-			size_t i = 0;
-			/* Find next newline or end of data */
-			while (i < n && p[i] != '\n')
-				i++;
-			if (i < n)
-				i++;	/* include the newline */
+		const char *scan = p;
+		const char *end = p + n;
+		
+		while (scan < end) {
+			const char *nl = memchr(scan, '\n', end - scan);
+			size_t chunk_len;
 			
-			/* Write this chunk */
-			while (i > 0) {
+			if (nl != NULL)
+				chunk_len = nl - scan + 1;  /* include the newline */
+			else
+				chunk_len = end - scan;
+			
+			/* Write this chunk character by character through buffer */
+			while (chunk_len > 0) {
 				if (fp->_bf._base == NULL)
 					__smakebuf(fp);
-				if (--fp->_w < 0) {
+				
+				/* Try to copy to buffer */
+				size_t avail = fp->_w;
+				size_t to_copy = chunk_len < avail ? chunk_len : avail;
+				
+				if (to_copy > 0) {
+					memcpy(fp->_p, scan, to_copy);
+					fp->_p += to_copy;
+					fp->_w -= to_copy;
+					scan += to_copy;
+					chunk_len -= to_copy;
+				}
+				
+				/* Flush if buffer is full or we just wrote a newline */
+				if (fp->_w == 0 || (to_copy > 0 && scan[-1] == '\n')) {
 					if (__sflush(fp))
 						goto err;
-					fp->_w = fp->_bf._size - 1;
 				}
-				*fp->_p++ = *p++;
-				i--;
-				n--;
 			}
-			/* Flush if we wrote a newline */
-			if (n == 0 || p[-1] == '\n') {
-				if (__sflush(fp))
-					goto err;
-			}
+			
+			/* Move to next chunk if we had a newline */
+			if (nl != NULL && scan < end)
+				continue;
 		}
 	} else {
 		/*
-		 * Fully buffered: fill partially full buffer, if any,
-		 * then flush.  Afterwards, write the data using the
-		 * write function directly.
+		 * Fully buffered: fill buffer, flush when full.
 		 */
 		do {
 			if (fp->_bf._base == NULL)
 				__smakebuf(fp);
 			
-			w = fp->_bf._size;
-			if (fp->_p > fp->_bf._base && (w -= fp->_p - fp->_bf._base) > 0) {
+			w = fp->_w;
+			if (w > 0) {
+				/* Space available in buffer */
 				if ((size_t)w > n)
 					w = n;
-				(void)memcpy((void *)fp->_p, (void *)p, w);
+				memcpy(fp->_p, p, w);
 				fp->_p += w;
 				fp->_w -= w;
-			} else if (n >= (size_t)(w = fp->_bf._size)) {
-				/* write directly */
+			} else if (n >= (size_t)fp->_bf._size) {
+				/* Data larger than buffer - flush and write directly */
 				if (fp->_p > fp->_bf._base && __sflush(fp))
 					goto err;
+				
+				w = fp->_bf._size;
+				if ((size_t)w > n)
+					w = n;
+				
 				if (fp->_write != NULL)
 					w = (*fp->_write)(fp->_cookie, p, w);
 				else
 					w = write(fp->_file, p, w);
+				
 				if (w <= 0)
 					goto err;
 			} else {
-				/* fill buffer */
-				w = n;
-				(void)memcpy((void *)fp->_p, (void *)p, w);
-				fp->_p += w;
-				fp->_w -= w;
+				/* Buffer is full, flush it */
+				if (__sflush(fp))
+					goto err;
+				continue;
 			}
+			
 			p += w;
 			n -= w;
 		} while (n > 0);
 	}
+	
 	return count;
 
 err:
+	fp->_flags |= __SERR;
 	return (size_t)(p - p_start) / size;
 }

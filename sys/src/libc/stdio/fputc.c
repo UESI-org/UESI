@@ -95,6 +95,13 @@ fputs(const char *s, FILE *fp)
 	if (len == 0)
 		return 0;
 
+	if (!(fp->_flags & (__SNBF | __SLBF)) && len < (size_t)fp->_w) {
+		memcpy(fp->_p, s, len);
+		fp->_p += len;
+		fp->_w -= len;
+		return 0;
+	}
+
 	iov.iov_base = (void *)s;
 	iov.iov_len = uio.uio_resid = len;
 	uio.uio_iov = &iov;
@@ -102,8 +109,9 @@ fputs(const char *s, FILE *fp)
 
 	if (__sfvwrite(fp, &uio) != 0)
 		return EOF;
-	return len;
+	return 0;
 }
+
 
 int
 puts(const char *s)

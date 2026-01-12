@@ -17,7 +17,6 @@ fflush(FILE *fp)
 	}
 	return __sflush(fp);
 }
-
 int
 setvbuf(FILE *fp, char *buf, int mode, size_t size)
 {
@@ -88,17 +87,18 @@ nbf:
 				fp->_bf._size = BUFSIZ;
 			}
 		} else {
+			/* We allocated the buffer, so mark it */
 			flags |= __SMBF;
 			fp->_bf._base = fp->_p = (unsigned char *)buf;
 			fp->_bf._size = size;
 		}
 	} else {
 		/*
-		 * User supplied buffer.  Verify that it's properly aligned
-		 * and sized.
+		 * User supplied buffer - make sure we don't free it later
 		 */
 		fp->_bf._base = fp->_p = (unsigned char *)buf;
 		fp->_bf._size = size;
+		/* User buffer, so __SMBF should NOT be set */
 	}
 
 	/*

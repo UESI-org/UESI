@@ -124,6 +124,12 @@ __sflush(FILE *fp)
 	if ((p = fp->_bf._base) == NULL)
 		return 0;
 
+	if (t & __SSTR) {
+		fp->_p = p;
+		fp->_w = t & (__SLBF|__SNBF) ? 0 : fp->_bf._size;
+		return 0;
+	}
+
 	n = fp->_p - p;		/* write this much */
 	
 	if (n <= 0) {
@@ -153,15 +159,16 @@ __sflush(FILE *fp)
 int
 __srefill(FILE *fp)
 {
-	/* make sure stdio is set up */
+	/* Make sure stdio is set up */
 	if (fp->_r == 0)
 		fp->_flags &= ~__SEOF;
 	if (fp->_flags & __SEOF)
 		return EOF;
 
-	/* if not already reading, switch to reading */
+	/* If not already reading, switch to reading */
 	if ((fp->_flags & __SRD) == 0) {
 		if (fp->_flags & __SWR) {
+			/* Switching from write to read - flush first */
 			if (__sflush(fp))
 				return EOF;
 			fp->_flags &= ~__SWR;
@@ -169,18 +176,27 @@ __srefill(FILE *fp)
 			fp->_lbfsize = 0;
 		}
 		fp->_flags |= __SRD;
+	} else {
+		/*
+		 * Already reading - if we have an ungetc buffer,
+		 * we need to handle it properly.
+		 */
+		if (HASUB(fp)) {
+			/* Restore the real buffer before refilling */
+			if (fp->_r == 0) {
+				fp->_p = fp->_bf._base;
+				fp->_r = 0;
+				FREEUB(fp);
+			} else {
+				/* Still have ungetc data, don't refill yet */
+				return 0;
+			}
+		}
 	}
 
-	/* setup buffer if needed */
+	/* Setup buffer if needed */
 	if (fp->_bf._base == NULL)
 		__smakebuf(fp);
-
-	/*
-	 * Before reading, we need to clear the ungetc buffer
-	 * if we have been doing ungetc.
-	 */
-	if (HASUB(fp))
-		FREEUB(fp);
 
 	fp->_p = fp->_bf._base;
 	if (fp->_read != NULL)
@@ -220,9 +236,11 @@ __smakebuf(FILE *fp)
 		fp->_bf._size = 1;
 		return;
 	}
+	
 	fp->_flags |= __SMBF;
 	fp->_bf._base = fp->_p = p;
 	fp->_bf._size = size;
+	
 	if (couldbetty && isatty(fp->_file))
 		fp->_flags |= __SLBF;
 }

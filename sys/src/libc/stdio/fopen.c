@@ -96,6 +96,7 @@ freopen(const char *file, const char *mode, FILE *fp)
 {
 	int f;
 	int flags, oflags;
+	int oldfd = -1;
 
 	if ((flags = __sflags(mode, &oflags)) == 0) {
 		(void)fclose(fp);
@@ -103,20 +104,21 @@ freopen(const char *file, const char *mode, FILE *fp)
 	}
 
 	/*
-	 * There are actually programs that depend on being able to "freopen"
-	 * descriptors that weren't originally open.  Keep this from breaking.
 	 * Remember whether the stream was open to begin with, and which file
-	 * descriptor (if any) was associated with it.  If it was attached to
-	 * a descriptor, defer closing it; freopen("/dev/stdin", "r", stdin)
-	 * should work.  This is unnecessary if it was not a Unix file.
+	 * descriptor (if any) was associated with it.
 	 */
 	if (fp->_flags == 0) {
 		fp->_flags = __SEOF;	/* hold on to it */
+		oldfd = -1;
 	} else {
-		/* flush the stream; ANSI doesn't require this. */
+		/* flush the stream */
 		if (fp->_flags & __SWR)
 			(void)__sflush(fp);
-		/* if close is NULL, closing is a no-op, hence pointless */
+		
+		/* Remember old fd for NULL file case */
+		oldfd = fp->_file;
+		
+		/* Close via close function if available */
 		if (fp->_close != NULL)
 			(void)(*fp->_close)(fp->_cookie);
 		else if (fp->_file >= 0)
@@ -124,31 +126,50 @@ freopen(const char *file, const char *mode, FILE *fp)
 	}
 
 	if (file != NULL) {
+		/* Opening a new file */
 		if ((f = open(file, oflags, 0666)) < 0) {
 			fp->_flags = 0;	/* release */
 			return NULL;
 		}
 	} else {
 		/*
-		 * Re-open the current file with the new mode. This is used
-		 * primarily when changing the mode of a stream.
+		 * Re-open the same file with new mode.
+		 * We need to get a new fd with the new flags.
 		 */
+		if (oldfd < 0) {
+			errno = EBADF;
+			fp->_flags = 0;
+			return NULL;
+		}
+		
+		/* Dup the old fd to get a new one we can apply new flags to */
 #ifdef F_DUPFD_CLOEXEC
-		f = fcntl(fp->_file, F_DUPFD_CLOEXEC, 0);
+		f = fcntl(oldfd, F_DUPFD_CLOEXEC, 0);
 #else
-		f = fcntl(fp->_file, F_DUPFD, 0);
+		f = fcntl(oldfd, F_DUPFD, 0);
 		if (f >= 0)
 			(void)fcntl(f, F_SETFD, FD_CLOEXEC);
 #endif
+		
+		/* Now close the old fd */
+		if (oldfd >= 0)
+			close(oldfd);
+		
 		if (f < 0) {
 			fp->_flags = 0;
 			return NULL;
 		}
+		
+		/* Set the access mode on the new fd */
+		int fdflags = fcntl(f, F_GETFL, 0);
+		if (fdflags >= 0) {
+			fdflags = (fdflags & ~O_ACCMODE) | (oflags & O_ACCMODE);
+			(void)fcntl(f, F_SETFL, fdflags);
+		}
 	}
 
 	/*
-	 * Set up the new file descriptor, which will be used in preference
-	 * to the old one (if the old one was open).
+	 * Set up the new file descriptor.
 	 */
 	fp->_file = f;
 	fp->_flags = flags;
@@ -158,11 +179,12 @@ freopen(const char *file, const char *mode, FILE *fp)
 	fp->_seek = NULL;
 	fp->_close = NULL;
 	
-	/* reset buffer state */
+	/* Reset buffer state */
 	fp->_p = NULL;
 	fp->_r = 0;
 	fp->_w = 0;
 	fp->_ub._base = NULL;
+	fp->_ub._size = 0;
 
 	if (oflags & O_APPEND)
 		(void)__sseek((void *)fp, (fpos_t)0, SEEK_END);

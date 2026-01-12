@@ -13,7 +13,7 @@ ungetc(int c, FILE *fp)
 
 	if ((fp->_flags & __SRD) == 0) {
 		/*
-		 * Not currently reading, so set up the buffer for ungetc.
+		 * Not currently reading, so set up for reading.
 		 */
 		if (fp->_flags & __SWR) {
 			if (__sflush(fp))
@@ -29,25 +29,25 @@ ungetc(int c, FILE *fp)
 
 	/*
 	 * If we are in the middle of ungetc'ing, just continue.
-	 * This may require expanding the current ungetc buffer.
 	 */
 	if (HASUB(fp)) {
 		if (fp->_r >= fp->_ub._size && __submore(fp))
 			return EOF;
 		*--fp->_p = c;
 		fp->_r++;
+		fp->_flags &= ~__SEOF;  /* Clear EOF on successful ungetc */
 		return c;
 	}
 
 	/*
 	 * If we can handle this by simply backing up, do so,
-	 * but never replace the original character.
-	 * (This makes sscanf() work when scanning `const' data.)
+	 * but never replace a different character.
 	 */
 	if (fp->_bf._base != NULL && fp->_p > fp->_bf._base &&
 	    fp->_p[-1] == c) {
 		fp->_p--;
 		fp->_r++;
+		fp->_flags &= ~__SEOF;  /* Clear EOF on successful ungetc */
 		return c;
 	}
 
@@ -62,6 +62,7 @@ ungetc(int c, FILE *fp)
 	fp->_ubuf[sizeof(fp->_ubuf) - 1] = c;
 	fp->_p = &fp->_ubuf[sizeof(fp->_ubuf) - 1];
 	fp->_r = 1;
+	fp->_flags &= ~__SEOF;  /* Clear EOF on successful ungetc */
 	return c;
 }
 

@@ -19,8 +19,12 @@
 #define SIZEINT		0x200		/* size_t */
 #define PTRINT		0x400		/* ptrdiff_t */
 
-static char *__ultoa(char *s, unsigned long val, int base, int uppercase);
-static char *__ulltoa(char *s, unsigned long long val, int base, int uppercase);
+size_t len;
+
+static char *__ultoa(char *buf_end, unsigned long val,
+    int base, int uppercase, size_t *len);
+static char *__ulltoa(char *buf_end, unsigned long long val,
+    int base, int uppercase, size_t *len);
 
 int
 vfprintf(FILE *fp, const char *fmt, va_list ap)
@@ -192,9 +196,9 @@ unsignednumber:
 			}
 number:
 			if (flags & LLONGINT)
-				cp = __ulltoa(buf + sizeof(buf), ull, base, ch == 'X');
+				cp = __ulltoa(buf + sizeof(buf), ull, base, ch == 'X', &len);
 			else
-				cp = __ultoa(buf + sizeof(buf), ul, base, ch == 'X');
+				cp = __ultoa(buf + sizeof(buf), ul, base, ch == 'X', &len);
 			
 			if (flags & ALT && base == 8 && *cp != '0')
 				*--cp = '0';
@@ -282,7 +286,7 @@ strout:
 
 		case 'p':
 			ul = (unsigned long)va_arg(ap, void *);
-			cp = __ultoa(buf + sizeof(buf), ul, 16, 0);
+			cp = __ultoa(buf + sizeof(buf), ul, 16, 0, &len);
 			*--cp = 'x';
 			*--cp = '0';
 			n = (buf + sizeof(buf)) - cp;
@@ -445,37 +449,55 @@ vdprintf(int fd, const char *fmt, va_list ap)
 #endif
 
 static char *
-__ultoa(char *s, unsigned long val, int base, int uppercase)
+__ultoa(char *buf_end, unsigned long val, int base, int uppercase, size_t *len)
 {
 	char *digits = uppercase ? "0123456789ABCDEF" : "0123456789abcdef";
+	char *s = buf_end;
+	size_t count = 0;
 	
 	*--s = '\0';
+	count++;
+	
 	if (val == 0) {
 		*--s = '0';
+		count++;
+		if (len) *len = count;
 		return s;
 	}
 	
 	while (val) {
 		*--s = digits[val % base];
 		val /= base;
+		count++;
 	}
+	
+	if (len) *len = count;
 	return s;
 }
 
 static char *
-__ulltoa(char *s, unsigned long long val, int base, int uppercase)
+__ulltoa(char *buf_end, unsigned long long val, int base, int uppercase, size_t *len)
 {
 	char *digits = uppercase ? "0123456789ABCDEF" : "0123456789abcdef";
+	char *s = buf_end;
+	size_t count = 0;
 	
 	*--s = '\0';
+	count++;
+	
 	if (val == 0) {
 		*--s = '0';
+		count++;
+		if (len) *len = count;
 		return s;
 	}
 	
 	while (val) {
 		*--s = digits[val % base];
 		val /= base;
+		count++;
 	}
+	
+	if (len) *len = count;
 	return s;
 }
