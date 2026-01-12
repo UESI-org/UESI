@@ -19,8 +19,6 @@
 #define SIZEINT		0x200		/* size_t */
 #define PTRINT		0x400		/* ptrdiff_t */
 
-size_t len;
-
 static char *__ultoa(char *buf_end, unsigned long val,
     int base, int uppercase, size_t *len);
 static char *__ulltoa(char *buf_end, unsigned long long val,
@@ -38,6 +36,7 @@ vfprintf(FILE *fp, const char *fmt, va_list ap)
 	int base;
 	int ret = 0;
 	char padc;
+	size_t len;
 
 	for (p = fmt; (ch = *p++) != '\0';) {
 		if (ch != '%') {

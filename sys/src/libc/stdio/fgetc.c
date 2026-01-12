@@ -99,6 +99,8 @@ gets(char *buf)
 	char *s;
 	size_t count = 0;
 
+	__attribute__((__deprecated__("gets is unsafe, use fgets instead")));
+
 	for (s = buf; (c = getchar()) != '\n';) {
 		if (c == EOF) {
 			if (s == buf)
