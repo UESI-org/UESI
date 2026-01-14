@@ -1,6 +1,7 @@
 #ifndef _STDLIB_H_
 #define _STDLIB_H_
 
+#include <sys/types.h>
 #include <sys/cdefs.h>
 #include <sys/_null.h>
 #include <sys/_types.h>
@@ -52,20 +53,14 @@ int unsetenv(const char *name);
 int putenv(char *string);
 #endif
 
-int atoi(const char *nptr);
-long atol(const char *nptr);
-long long atoll(const char *nptr);
+int atoi(const char *str);
+long atol(const char *str);
+long long atoll(const char *str);
 
-long strtol(const char *__restrict nptr, char **__restrict endptr, int base);
-unsigned long strtoul(const char *__restrict nptr,
-                      char **__restrict endptr,
-                      int base);
-long long strtoll(const char *__restrict nptr,
-                  char **__restrict endptr,
-                  int base);
-unsigned long long strtoull(const char *__restrict nptr,
-                            char **__restrict endptr,
-                            int base);
+long strtol(const char *nptr, char **endptr, int base);
+unsigned long strtoul(const char *nptr, char **endptr, int base);
+long long strtoll(const char *nptr, char **endptr, int base);
+unsigned long long strtoull(const char *nptr, char **endptr, int base);
 
 double atof(const char *nptr);
 double strtod(const char *__restrict nptr, char **__restrict endptr);
@@ -91,22 +86,17 @@ typedef struct {
 	long long rem;
 } lldiv_t;
 
-div_t div(int numer, int denom);
-ldiv_t ldiv(long numer, long denom);
-lldiv_t lldiv(long long numer, long long denom);
+div_t div(int num, int denom);
+ldiv_t ldiv(long num, long denom);
+lldiv_t lldiv(long long num, long long denom);
 
 int rand(void);
-void srand(unsigned int seed);
+int rand_r(u_int *seed);
+void srand(u_int seed);
+void srand_deterministic(u_int seed);
 
-#if __POSIX_VISIBLE >= 200112
-int rand_r(unsigned int *seedp);
-#endif
-
-void *bsearch(const void *key,
-              const void *base,
-              size_t nmemb,
-              size_t size,
-              int (*compar)(const void *, const void *));
+void *bsearch(const void *key, const void *base0, size_t nmemb, size_t size,
+    int (*compar)(const void *, const void *));
 void qsort(void *base,
            size_t nmemb,
            size_t size,
