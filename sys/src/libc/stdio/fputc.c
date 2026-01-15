@@ -16,6 +16,11 @@ __swbuf(int c, FILE *fp)
 {
 	int n;
 
+	if (fp->_flags & __SSTR) {
+		fp->_flags |= __SERR;
+		return EOF;
+	}
+
 	fp->_w = fp->_lbfsize;
 	if (fp->_flags & __SNBF) {
 		unsigned char ch = c;
