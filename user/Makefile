@@ -41,11 +41,20 @@ SOURCES := $(filter-out $(SYSCALL_SRC),$(wildcard $(SRC_DIR)/*.c))
 OBJS := $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(SOURCES))
 PROGRAMS := $(patsubst $(SRC_DIR)/%.c,$(BIN_DIR)/%,$(SOURCES))
 
-LIBC_STRING := $(wildcard $(LIBC_SRC_DIR)/string/*.c)
-LIBC_GEN    := $(wildcard $(LIBC_SRC_DIR)/gen/*.c)
-LIBC_STDLIB := $(wildcard $(LIBC_SRC_DIR)/stdlib/*.c)
-LIBC_STDIO  := $(wildcard $(LIBC_SRC_DIR)/stdio/*.c)
-LIBC_SOURCES := $(LIBC_STRING) $(LIBC_GEN) $(LIBC_STDLIB) $(LIBC_STDIO)
+LIBC_STRING  := $(wildcard $(LIBC_SRC_DIR)/string/*.c)
+LIBC_GEN     := $(wildcard $(LIBC_SRC_DIR)/gen/*.c)
+LIBC_STDLIB  := $(wildcard $(LIBC_SRC_DIR)/stdlib/*.c)
+LIBC_STDIO   := $(wildcard $(LIBC_SRC_DIR)/stdio/*.c)
+LIBC_TIME    := $(wildcard $(LIBC_SRC_DIR)/time/*.c)
+LIBC_MATH    := $(wildcard $(LIBC_SRC_DIR)/math/*.c)
+
+LIBC_SOURCES := $(LIBC_STRING) \
+                $(LIBC_GEN) \
+                $(LIBC_STDLIB) \
+                $(LIBC_STDIO) \
+                $(LIBC_TIME) \
+                $(LIBC_MATH)
+
 LIBC_OBJS := $(patsubst $(LIBC_SRC_DIR)/%.c,$(LIB_DIR)/%.o,$(LIBC_SOURCES))
 
 .PHONY: all clean
@@ -55,7 +64,10 @@ all: $(LDS_SCRIPT) $(CRT0) $(CRTI) $(CRTN) $(SYSCALL_OBJ) $(LIBUSER) $(PROGRAMS)
 $(OBJ_DIR) $(BIN_DIR) $(LIB_DIR):
 	mkdir -p $@
 
-$(LIB_DIR)/string $(LIB_DIR)/gen $(LIB_DIR)/stdlib $(LIB_DIR)/stdio:
+$(LIB_DIR)/string $(LIB_DIR)/gen $(LIB_DIR)/stdlib $(LIB_DIR)/stdio $(LIB_DIR)/time:
+	mkdir -p $@
+
+$(LIB_DIR)/string $(LIB_DIR)/gen $(LIB_DIR)/stdlib $(LIB_DIR)/stdio $(LIB_DIR)/time $(LIB_DIR)/math:
 	mkdir -p $@
 
 $(CRT0): $(CRT0_SRC) | $(LIB_DIR)
@@ -77,7 +89,9 @@ $(SYSCALL_OBJ): $(SYSCALL_SRC) | $(OBJ_DIR)
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(LIB_DIR)/%.o: $(LIBC_SRC_DIR)/%.c | $(LIB_DIR) $(LIB_DIR)/string $(LIB_DIR)/gen $(LIB_DIR)/stdlib $(LIB_DIR)/stdio
+$(LIB_DIR)/%.o: $(LIBC_SRC_DIR)/%.c | \
+	$(LIB_DIR) $(LIB_DIR)/string $(LIB_DIR)/gen \
+	$(LIB_DIR)/stdlib $(LIB_DIR)/stdio $(LIB_DIR)/time $(LIB_DIR)/math
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(LIBUSER): $(LIBC_OBJS) | $(LIB_DIR)

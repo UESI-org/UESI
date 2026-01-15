@@ -36,9 +36,9 @@
 #define _STRING_H_
 
 #include <sys/cdefs.h>
+#include <sys/_types.h>
 #include <namespace.h>
 #include <sys/_null.h>
-#include <sys/_types.h>
 
 /*
  * POSIX mandates that certain string functions not present in ISO C

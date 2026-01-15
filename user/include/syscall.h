@@ -120,7 +120,6 @@ int gethostid(void);
 int uname(struct utsname *buf);
 int sysinfo(struct sysinfo *info);
 int gettimeofday(struct timeval *tv, struct timezone *tz);
-time_t time(time_t *tloc);
 int clock_gettime(clockid_t clock_id, struct timespec *tp);
 int clock_getres(clockid_t clock_id, struct timespec *res);
 int nanosleep(const struct timespec *req, struct timespec *rem);

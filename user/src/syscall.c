@@ -415,30 +415,6 @@ gettimeofday(struct timeval *tv, struct timezone *tz)
 	return (int)handle_syscall_result(ret);
 }
 
-/* 
- * time() is implemented as a libc function, not a system call.
- * This is the standard POSIX approach - time() calls gettimeofday()
- * and extracts just the seconds, avoiding an unnecessary system call.
- */
-time_t
-time(time_t *tloc)
-{
-	struct timeval tv;
-	
-	/* Call gettimeofday to get current time */
-	if (gettimeofday(&tv, NULL) != 0) {
-		/* gettimeofday failed, errno already set */
-		return (time_t)-1;
-	}
-	
-	/* Store result if tloc is provided */
-	if (tloc != NULL) {
-		*tloc = tv.tv_sec;
-	}
-	
-	return tv.tv_sec;
-}
-
 int
 clock_gettime(clockid_t clock_id, struct timespec *tp)
 {

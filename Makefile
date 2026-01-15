@@ -76,7 +76,10 @@ userland:
 
 $(USERLAND_PROG):
 	@echo "[*] Building userland program..."
-	@$(MAKE) -C $(USER_DIR) CC=$(CC) LD=$(LD) AR=$(AR)
+	@$(MAKE) -C $(USER_DIR) \
+		CC=$(CC) \
+		LD=$(LD) \
+		AR=$(AR)
 
 $(BUILD_DIR)/uesi.elf: boot
 	@mkdir -p $(BUILD_DIR)

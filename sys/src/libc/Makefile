@@ -13,6 +13,8 @@ GENDIR := gen
 SOFTFLOATDIR := softfloat
 STDLIBDIR := stdlib
 STDIODIR := stdio
+TIMEDIR := time
+MATHDIR := math
 
 OBJDIR := obj
 LIBDIR := lib
@@ -23,30 +25,44 @@ GENSRC := $(wildcard $(GENDIR)/*.c)
 SOFTFLOATSRC := $(wildcard $(SOFTFLOATDIR)/*.c)
 STDLIBSRC := $(wildcard $(STDLIBDIR)/*.c)
 STDIOSRC := $(wildcard $(STDIODIR)/*.c)
+TIMESRC := $(wildcard $(TIMEDIR)/*.c)
+MATHSRC := $(wildcard $(MATHDIR)/*.c)
 
-OBJS := $(SRCS:$(SRCDIR)/%.c=$(OBJDIR)/%.o) \
-        $(GENSRC:$(GENDIR)/%.c=$(OBJDIR)/gen_%.o) \
-        $(SOFTFLOATSRC:$(SOFTFLOATDIR)/%.c=$(OBJDIR)/softfloat_%.o) \
-        $(STDLIBSRC:$(STDLIBDIR)/%.c=$(OBJDIR)/stdlib_%.o) \
-        $(STDIOSRC:$(STDIODIR)/%.c=$(OBJDIR)/stdio_%.o)
+OBJS := \
+	$(SRCS:$(SRCDIR)/%.c=$(OBJDIR)/%.o) \
+	$(GENSRC:$(GENDIR)/%.c=$(OBJDIR)/gen_%.o) \
+	$(SOFTFLOATSRC:$(SOFTFLOATDIR)/%.c=$(OBJDIR)/softfloat_%.o) \
+	$(STDLIBSRC:$(STDLIBDIR)/%.c=$(OBJDIR)/stdlib_%.o) \
+	$(STDIOSRC:$(STDIODIR)/%.c=$(OBJDIR)/stdio_%.o) \
+	$(TIMESRC:$(TIMEDIR)/%.c=$(OBJDIR)/time_%.o) \
+	$(MATHSRC:$(MATHDIR)/%.c=$(OBJDIR)/math_%.o)
 
-FEATURE_FLAGS := -D_POSIX_C_SOURCE=202405L \
-                 -D_XOPEN_SOURCE=700 \
-                 -D_BSD_SOURCE \
-                 -D_KERNEL \
-                 -DSOFTFLOAT_FOR_GCC
+FEATURE_FLAGS := \
+	-D_POSIX_C_SOURCE=202405L \
+	-D_XOPEN_SOURCE=700 \
+	-D_BSD_SOURCE \
+	-DSOFTFLOAT_FOR_GCC
 
 CPPFLAGS := $(FEATURE_FLAGS)
 
-CFLAGS := -Wall -Wextra -std=gnu11 \
-    -ffreestanding -fno-stack-protector -fno-stack-check \
-    -fno-lto -fno-PIC -ffunction-sections -fdata-sections \
-    -m64 -march=x86-64 -mabi=sysv \
-    -mno-red-zone -mcmodel=kernel -O2 \
-    $(CPPFLAGS) \
-    -I$(INCDIR) -I$(SYSINCDIR) -I$(SYSINCDIR1) -I$(ARCHINCDIR) \
-    -I$(BOOTINCDIR) -I$(SOFTFLOATDIR) \
-    -nostdlib -fno-builtin -s -DNDEBUG
+CFLAGS := \
+	-Wall -Wextra -std=gnu11 \
+	-ffreestanding \
+	-fno-stack-protector -fno-stack-check \
+	-fno-lto -fno-PIC \
+	-ffunction-sections -fdata-sections \
+	-m64 -march=x86-64 -mabi=sysv \
+	-mno-red-zone -mcmodel=kernel \
+	-O2 \
+	$(CPPFLAGS) \
+	-I$(INCDIR) \
+	-I$(SYSINCDIR) \
+	-I$(SYSINCDIR1) \
+	-I$(ARCHINCDIR) \
+	-I$(BOOTINCDIR) \
+	-I$(SOFTFLOATDIR) \
+	-nostdlib -fno-builtin -DNDEBUG \
+	-s
 
 .PHONY: all clean rebuild install help
 
@@ -60,7 +76,7 @@ $(LIBDIR):
 
 $(TARGET): $(OBJDIR) $(LIBDIR) $(OBJS)
 	$(AR) $(ARFLAGS) $@ $(OBJS)
-	@echo "Built $@ with $(words $(OBJS)) object files"
+	@echo "Built $@ ($(words $(OBJS)) objects)"
 
 $(OBJDIR)/%.o: $(SRCDIR)/%.c | $(OBJDIR)
 	$(CC) $(CFLAGS) -c $< -o $@ -MMD -MP
@@ -77,6 +93,12 @@ $(OBJDIR)/stdlib_%.o: $(STDLIBDIR)/%.c | $(OBJDIR)
 $(OBJDIR)/stdio_%.o: $(STDIODIR)/%.c | $(OBJDIR)
 	$(CC) $(CFLAGS) -c $< -o $@ -MMD -MP
 
+$(OBJDIR)/time_%.o: $(TIMEDIR)/%.c | $(OBJDIR)
+	$(CC) $(CFLAGS) -c $< -o $@ -MMD -MP
+
+$(OBJDIR)/math_%.o: $(MATHDIR)/%.c | $(OBJDIR)
+	$(CC) $(CFLAGS) -c $< -o $@ -MMD -MP
+
 clean:
 	rm -rf $(OBJDIR) $(LIBDIR)
 	@echo "Cleaned build artifacts"
@@ -85,12 +107,14 @@ rebuild: clean all
 
 install: $(TARGET)
 	@echo "Installing libc..."
-	@mkdir -p ../../lib
+	@mkdir -p ../../lib ../../include
+
 	cp $(TARGET) ../../lib/
 
-	@mkdir -p ../../include
 	cp $(INCDIR)/string.h ../../include/
 	cp $(INCDIR)/stdio.h ../../include/
+	cp $(INCDIR)/stdlib.h ../../include/
+	cp $(INCDIR)/math.h ../../include/
 
 	@if [ -f $(SOFTFLOATDIR)/softfloat.h ]; then \
 		cp $(SOFTFLOATDIR)/softfloat.h ../../include/; \
@@ -100,10 +124,10 @@ install: $(TARGET)
 	@echo "Installation complete"
 
 help:
-	@echo "Makefile for freestanding libc (kernel-safe)"
+	@echo "Freestanding libc Makefile"
 	@echo ""
-	@echo "Directories:"
-	@echo "  string/ stdlib/ stdio/ gen/ softfloat/"
+	@echo "Modules:"
+	@echo "  string stdlib stdio time math gen softfloat"
 	@echo ""
 	@echo "Targets:"
 	@echo "  all      - Build libc.a"

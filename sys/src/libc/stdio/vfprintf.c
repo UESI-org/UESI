@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <limits.h>
+#include <math.h>
 #include "stdio_internal.h"
 
 #define ALT		   0x001		/* alternate form */
@@ -23,6 +24,62 @@ static char *__ultoa(char *buf_end, unsigned long val,
     int base, int uppercase, size_t *len);
 static char *__ulltoa(char *buf_end, unsigned long long val,
     int base, int uppercase, size_t *len);
+
+static int
+__dtoa_f(char *buf, size_t bufsize, double value, int prec, int flags, char *sign)
+{
+	int i, intlen;
+	unsigned long long intpart, fracpart, scale;
+	char *p = buf;
+	
+	/* Handle special cases */
+	if (__isnan(value)) {
+		return snprintf(buf, bufsize, "nan");
+	}
+	if (__isinf(value)) {
+		if (value < 0) *sign = '-';
+		return snprintf(buf, bufsize, "inf");
+	}
+	
+	/* Handle sign */
+	if (value < 0) {
+		*sign = '-';
+		value = -value;
+	}
+	
+	/* Default precision is 6 */
+	if (prec < 0) prec = 6;
+	
+	/* Round */
+	scale = 1;
+	for (i = 0; i < prec; i++)
+		scale *= 10;
+	value = value * scale + 0.5;
+	
+	/* Split into integer and fractional parts */
+	intpart = (unsigned long long)(value / scale);
+	fracpart = (unsigned long long)value % scale;
+	
+	/* Format integer part */
+	p = __ulltoa(buf + bufsize, intpart, 10, 0, NULL);
+	intlen = (buf + bufsize) - p - 1;
+	memmove(buf, p, intlen);
+	
+	/* Add decimal point and fractional part */
+	if (prec > 0 || (flags & ALT)) {
+		buf[intlen++] = '.';
+		if (prec > 0) {
+			for (i = prec - 1; i >= 0; i--) {
+				buf[intlen + i] = '0' + (fracpart % 10);
+				fracpart /= 10;
+			}
+			intlen += prec;
+		}
+	}
+	
+	buf[intlen] = '\0';
+	return intlen;
+}
 
 int
 vfprintf(FILE *fp, const char *fmt, va_list ap)
@@ -307,6 +364,23 @@ strout:
 				return -1;
 			ret++;
 			break;
+
+		case 'f':
+		case 'F':
+			{
+				double d = va_arg(ap, double);
+				n = __dtoa_f(buf, sizeof(buf), d, prec, flags, &sign);
+				cp = buf;
+				
+				/* Add sign */
+				if (sign) {
+					memmove(cp + 1, cp, n + 1);
+					*cp = sign;
+					n++;
+				}
+				
+				goto strout;
+			}
 
 		default:
 			if (fputc('%', fp) == EOF)

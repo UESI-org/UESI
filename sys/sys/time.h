@@ -409,7 +409,9 @@ uint64_t nsecuptime(void);
 uint64_t getnsecuptime(void);
 
 struct proc;
+#ifdef _KERNEL
 int clock_gettime(struct proc *, clockid_t, struct timespec *);
+#endif
 
 struct clockrequest;
 void itimer_update(struct clockrequest *, void *, void *);
