@@ -18,10 +18,10 @@ OBJS := $(SRCS:%.c=$(OBJDIR)/%.o)
 CFLAGS := -Wall -Wextra -std=gnu11 -ffreestanding -fno-stack-protector \
           -fno-stack-check -fno-lto -fno-PIC -ffunction-sections -fdata-sections \
           -m64 -march=x86-64 -mabi=sysv -mno-80387 -mno-mmx -mno-sse -mno-sse2 \
-          -mno-red-zone -mcmodel=kernel -O2 -nostdlib -fno-builtin -s
+          -mno-red-zone -mcmodel=kernel -O2 -nostdlib -fno-builtin -s -DPRINTF_INCLUDE_CONFIG_H
 
 INCLUDES := -I$(INCDIR) -I$(BOOTINCDIR) -I$(SYSINCDIR) -I$(ARCHINCDIR) \
-            -I$(LIBMEMINCDIR) -I$(LIBCINCDIR)
+            -I$(LIBMEMINCDIR) -I$(LIBCINCDIR) -I../libprintf/include
 
 .PHONY: all clean rebuild install help
 

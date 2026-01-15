@@ -16,93 +16,93 @@ struct vnode_operations;
 
 #define VFS_SUCCESS 0
 
-#define VFS_IFMT 0170000   /* Type of file mask */
-#define VFS_IFIFO 0010000  /* Named pipe (fifo) */
-#define VFS_IFCHR 0020000  /* Character special */
-#define VFS_IFDIR 0040000  /* Directory */
-#define VFS_IFBLK 0060000  /* Block special */
-#define VFS_IFREG 0100000  /* Regular file */
-#define VFS_IFLNK 0120000  /* Symbolic link */
-#define VFS_IFSOCK 0140000 /* Socket */
+#define VFS_IFMT 0170000
+#define VFS_IFIFO 0010000
+#define VFS_IFCHR 0020000
+#define VFS_IFDIR 0040000
+#define VFS_IFBLK 0060000
+#define VFS_IFREG 0100000
+#define VFS_IFLNK 0120000
+#define VFS_IFSOCK 0140000
 
-#define VFS_O_RDONLY 0x0000 /* Open for reading only */
-#define VFS_O_WRONLY 0x0001 /* Open for writing only */
-#define VFS_O_RDWR 0x0002   /* Open for reading and writing */
-#define VFS_O_APPEND 0x0008 /* Write to file in append mode */
-#define VFS_O_CREAT 0x0200  /* Create file if it doesn't exist */
-#define VFS_O_TRUNC 0x0400  /* Truncate to zero length */
-#define VFS_O_EXCL 0x0800   /* Error if create and file exists */
+#define VFS_O_RDONLY 0x0000
+#define VFS_O_WRONLY 0x0001
+#define VFS_O_RDWR 0x0002
+#define VFS_O_APPEND 0x0008
+#define VFS_O_CREAT 0x0200
+#define VFS_O_TRUNC 0x0400
+#define VFS_O_EXCL 0x0800
 
-#define VFS_SEEK_SET 0 /* Seek from beginning */
-#define VFS_SEEK_CUR 1 /* Seek from current position */
-#define VFS_SEEK_END 2 /* Seek from end */
+#define VFS_SEEK_SET 0
+#define VFS_SEEK_CUR 1
+#define VFS_SEEK_END 2
 
 #define VFS_MAX_PATH 4096
 #define VFS_MAX_NAME 256
 #define VFS_MAX_SYMLINK_DEPTH 8
 
+#ifndef F_OK
+#define F_OK 0
+#define X_OK 1
+#define W_OK 2
+#define R_OK 4
+#endif
+
 typedef struct vfs_stat {
-	dev_t st_dev;         /* Device ID */
-	ino_t st_ino;         /* Inode number */
-	mode_t st_mode;       /* File type and mode */
-	nlink_t st_nlink;     /* Number of hard links */
-	uid_t st_uid;         /* User ID of owner */
-	gid_t st_gid;         /* Group ID of owner */
-	dev_t st_rdev;        /* Device ID (if special file) */
-	off_t st_size;        /* Total size in bytes */
-	blksize_t st_blksize; /* Block size for filesystem I/O */
-	blkcnt_t st_blocks;   /* Number of 512B blocks allocated */
-	time_t st_atime;      /* Time of last access */
-	time_t st_mtime;      /* Time of last modification */
-	time_t st_ctime;      /* Time of last status change */
+	dev_t st_dev;
+	ino_t st_ino;
+	mode_t st_mode;
+	nlink_t st_nlink;
+	uid_t st_uid;
+	gid_t st_gid;
+	dev_t st_rdev;
+	off_t st_size;
+	blksize_t st_blksize;
+	blkcnt_t st_blocks;
+	time_t st_atime;
+	time_t st_mtime;
+	time_t st_ctime;
 } vfs_stat_t;
 
 typedef struct vfs_dirent {
-	ino_t d_ino;               /* Inode number */
-	off_t d_off;               /* Offset to next dirent */
-	uint16_t d_reclen;         /* Length of this record */
-	uint8_t d_type;            /* Type of file */
-	char d_name[VFS_MAX_NAME]; /* Filename */
+	ino_t d_ino;
+	off_t d_off;
+	uint16_t d_reclen;
+	uint8_t d_type;
+	char d_name[VFS_MAX_NAME];
 } vfs_dirent_t;
 
 typedef struct vnode {
-	ino_t v_ino;     /* Inode number */
-	mode_t v_mode;   /* File mode and type */
-	uid_t v_uid;     /* Owner user ID */
-	gid_t v_gid;     /* Owner group ID */
-	off_t v_size;    /* File size in bytes */
-	nlink_t v_nlink; /* Number of hard links */
-	dev_t v_rdev;    /* Device ID (for device files) */
-
-	time_t v_atime; /* Access time */
-	time_t v_mtime; /* Modification time */
-	time_t v_ctime; /* Status change time */
-
-	uint32_t v_flags;    /* VNode flags */
-	uint32_t v_refcount; /* Reference count */
-
-	struct vfs_mount *v_mount;      /* Mounted filesystem */
-	struct vnode_operations *v_ops; /* VNode operations */
-	void *v_private;                /* Filesystem-specific data */
-
-	spinlock_t v_lock;    /* VNode lock */
-	struct vnode *v_next; /* Next vnode in hash */
+	ino_t v_ino;
+	mode_t v_mode;
+	uid_t v_uid;
+	gid_t v_gid;
+	off_t v_size;
+	nlink_t v_nlink;
+	dev_t v_rdev;
+	time_t v_atime;
+	time_t v_mtime;
+	time_t v_ctime;
+	uint32_t v_flags;
+	uint32_t v_refcount;
+	struct vfs_mount *v_mount;
+	struct vnode_operations *v_ops;
+	void *v_private;
+	spinlock_t v_lock;
+	struct vnode *v_next;
 } vnode_t;
 
-#define VNODE_FLAG_DIRTY 0x0001  /* Vnode has been modified */
-#define VNODE_FLAG_LOCKED 0x0002 /* Vnode is locked */
-#define VNODE_FLAG_ROOT 0x0004   /* This is a root vnode */
+#define VNODE_FLAG_DIRTY 0x0001
+#define VNODE_FLAG_LOCKED 0x0002
+#define VNODE_FLAG_ROOT 0x0004
 
 typedef struct vnode_operations {
-	/* File operations */
 	ssize_t (*read)(vnode_t *vnode, void *buf, size_t count, off_t offset);
 	ssize_t (*write)(vnode_t *vnode,
 	                 const void *buf,
 	                 size_t count,
 	                 off_t offset);
 	int (*truncate)(vnode_t *vnode, off_t length);
-
-	/* Directory operations */
 	int (*readdir)(vnode_t *vnode, vfs_dirent_t *dirent, off_t *offset);
 	int (*lookup)(vnode_t *dir, const char *name, vnode_t **result);
 	int (*create)(vnode_t *dir,
@@ -115,70 +115,75 @@ typedef struct vnode_operations {
 	int (*link)(vnode_t *dir, const char *name, vnode_t *target);
 	int (*symlink)(vnode_t *dir, const char *name, const char *target);
 	int (*readlink)(vnode_t *vnode, char *buf, size_t bufsize);
-
-	/* Attribute operations */
 	int (*getattr)(vnode_t *vnode, vfs_stat_t *stat);
 	int (*setattr)(vnode_t *vnode, vfs_stat_t *stat);
-
-	/* Lifecycle */
 	int (*sync)(vnode_t *vnode);
 	void (*release)(vnode_t *vnode);
 } vnode_ops_t;
 
 typedef struct vfs_mount {
-	char *mnt_point;    /* Mount point path */
-	char *mnt_device;   /* Device name (optional) */
-	uint32_t mnt_flags; /* Mount flags */
-
-	vnode_t *mnt_root;              /* Root vnode of this filesystem */
-	struct vfs_operations *mnt_ops; /* Filesystem operations */
-	void *mnt_private;              /* Filesystem-specific data */
-
-	spinlock_t mnt_lock;        /* Mount lock */
-	struct vfs_mount *mnt_next; /* Next mount in list */
+	char *mnt_point;
+	char *mnt_device;
+	uint32_t mnt_flags;
+	vnode_t *mnt_root;
+	struct vfs_operations *mnt_ops;
+	void *mnt_private;
+	spinlock_t mnt_lock;
+	struct vfs_mount *mnt_next;
 } vfs_mount_t;
 
-#define VFS_MNT_RDONLY 0x0001 /* Read-only mount */
-#define VFS_MNT_NOSUID 0x0002 /* Ignore suid/sgid bits */
-#define VFS_MNT_NOEXEC 0x0004 /* Disallow program execution */
-#define VFS_MNT_NODEV 0x0008  /* Disallow device files */
+#define VFS_MNT_RDONLY 0x0001
+#define VFS_MNT_NOSUID 0x0002
+#define VFS_MNT_NOEXEC 0x0004
+#define VFS_MNT_NODEV 0x0008
 
 typedef struct vfs_operations {
-	const char *fs_name; /* Filesystem type name */
-
-	/* Mount/unmount */
+	const char *fs_name;
 	int (*mount)(const char *device,
 	             const char *mountpoint,
 	             uint32_t flags,
 	             void *data,
 	             vfs_mount_t **mnt);
 	int (*unmount)(vfs_mount_t *mnt, uint32_t flags);
-
-	/* Filesystem-wide operations */
 	int (*statfs)(vfs_mount_t *mnt, void *statbuf);
 	int (*sync)(vfs_mount_t *mnt);
-
-	/* VNode allocation */
 	int (*alloc_vnode)(vfs_mount_t *mnt, ino_t ino, vnode_t **vnode);
 	void (*free_vnode)(vnode_t *vnode);
 } vfs_ops_t;
 
 typedef struct vfs_file {
-	vnode_t *f_vnode;    /* Associated vnode */
-	off_t f_offset;      /* Current file position */
-	uint32_t f_flags;    /* File flags (O_RDONLY, etc.) */
-	uint32_t f_refcount; /* Reference count */
-	spinlock_t f_lock;   /* File lock */
+	vnode_t *f_vnode;
+	off_t f_offset;
+	uint32_t f_flags;
+	uint32_t f_refcount;
+	spinlock_t f_lock;
 } vfs_file_t;
 
 typedef struct vfs_dentry {
-	char *d_name;                /* Component name */
-	vnode_t *d_vnode;            /* Associated vnode */
-	struct vfs_dentry *d_parent; /* Parent dentry */
-	struct vfs_dentry *d_next;   /* Next in hash chain */
-	uint32_t d_hash;             /* Hash value */
-	spinlock_t d_lock;           /* Dentry lock */
+	char *d_name;
+	vnode_t *d_vnode;
+	struct vfs_dentry *d_parent;
+	struct vfs_dentry *d_next;
+	uint32_t d_hash;
+	spinlock_t d_lock;
 } vfs_dentry_t;
+
+typedef struct vfs_context {
+	vnode_t *cwd;
+	vnode_t *root;
+	spinlock_t lock;
+	mode_t umask;
+} vfs_context_t;
+
+typedef struct vfs_stats {
+	uint64_t lookups;
+	uint64_t cache_hits;
+	uint64_t cache_misses;
+	uint64_t reads;
+	uint64_t writes;
+	uint64_t creates;
+	uint64_t deletes;
+} vfs_stats_t;
 
 int vfs_init(void);
 
@@ -191,6 +196,7 @@ int vfs_mount(const char *device,
               uint32_t flags,
               void *data);
 int vfs_unmount(const char *mountpoint, uint32_t flags);
+vfs_mount_t *vfs_find_mount(const char *path);
 
 vnode_t *vfs_vnode_alloc(vfs_mount_t *mnt, ino_t ino);
 void vfs_vnode_free(vnode_t *vnode);
@@ -206,6 +212,8 @@ int vfs_close(vfs_file_t *file);
 ssize_t vfs_read(vfs_file_t *file, void *buf, size_t count);
 ssize_t vfs_write(vfs_file_t *file, const void *buf, size_t count);
 off_t vfs_seek(vfs_file_t *file, off_t offset, int whence);
+vfs_file_t *vfs_file_dup(vfs_file_t *file);
+
 int vfs_stat(const char *path, vfs_stat_t *stat);
 int vfs_fstat(vfs_file_t *file, vfs_stat_t *stat);
 int vfs_lstat(const char *path, vfs_stat_t *stat);
@@ -234,11 +242,23 @@ int vfs_is_absolute_path(const char *path);
 int vfs_normalize_path(const char *path, char *normalized);
 const char *vfs_basename(const char *path);
 const char *vfs_dirname(const char *path, char *buf, size_t bufsize);
+bool vfs_is_valid_filename(const char *name);
+bool vfs_path_is_under(const char *path, const char *root);
 
 vfs_dentry_t *vfs_dentry_lookup(const char *path);
 int vfs_dentry_add(const char *path, vnode_t *vnode);
 void vfs_dentry_remove(const char *path);
 void vfs_dentry_purge(void);
+
+vfs_context_t *vfs_context_create(void);
+vfs_context_t *vfs_context_dup(vfs_context_t *ctx);
+void vfs_context_free(vfs_context_t *ctx);
+int vfs_chdir(vfs_context_t *ctx, const char *path);
+int vfs_getcwd(vfs_context_t *ctx, char *buf, size_t size);
+
+void vfs_get_stats(vfs_stats_t *stats);
+void vfs_reset_stats(void);
+void vfs_print_stats(void);
 
 void vfs_dump_mounts(void);
 void vfs_dump_vnodes(void);
