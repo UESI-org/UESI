@@ -1150,9 +1150,14 @@ vfs_chmod(const char *path, mode_t mode)
 		return ret;
 
 	uint64_t flags;
+	time_t now = vfs_now();
+
 	spinlock_acquire_irqsave(&vnode->v_lock, &flags);
+
 	vnode->v_mode = (vnode->v_mode & VFS_IFMT) | (mode & ~VFS_IFMT);
+	vnode->v_ctime = now;
 	vnode->v_flags |= VNODE_FLAG_DIRTY;
+
 	spinlock_release_irqrestore(&vnode->v_lock, flags);
 
 	vfs_vnode_unref(vnode);
@@ -1162,19 +1167,24 @@ vfs_chmod(const char *path, mode_t mode)
 int
 vfs_chown(const char *path, uid_t uid, gid_t gid)
 {
-	vnode_t *vnode;
-	int ret = vfs_lookup(path, &vnode);
+	vnode_t *vn;
+	int ret = vfs_lookup(path, &vn);
 	if (ret != 0)
 		return ret;
 
-	uint64_t flags;
-	spinlock_acquire_irqsave(&vnode->v_lock, &flags);
-	vnode->v_uid = uid;
-	vnode->v_gid = gid;
-	vnode->v_flags |= VNODE_FLAG_DIRTY;
-	spinlock_release_irqrestore(&vnode->v_lock, flags);
+	time_t now = vfs_now();
+	uint64_t f;
 
-	vfs_vnode_unref(vnode);
+	spinlock_acquire_irqsave(&vn->v_lock, &f);
+	if (uid != (uid_t)-1)
+		vn->v_uid = uid;
+	if (gid != (gid_t)-1)
+		vn->v_gid = gid;
+	vn->v_ctime = now;
+	vn->v_flags |= VNODE_FLAG_DIRTY;
+	spinlock_release_irqrestore(&vn->v_lock, f);
+
+	vfs_vnode_unref(vn);
 	return VFS_SUCCESS;
 }
 
@@ -1408,75 +1418,95 @@ vfs_mknod(const char *path, mode_t mode, dev_t dev)
 int
 vfs_unlink(const char *path)
 {
-	if (path == NULL)
-		return -EINVAL;
-
-	vnode_t *parent;
+	vnode_t *parent, *target;
 	char *name;
+	int ret;
 
-	int ret = vfs_lookup_parent(path, &parent, &name);
+	ret = vfs_lookup_parent(path, &parent, &name);
 	if (ret != 0)
 		return ret;
 
-	if (parent->v_ops == NULL || parent->v_ops->unlink == NULL) {
-		kfree(name);
-		vfs_vnode_unref(parent);
-		return -ENOSYS;
+	ret = vfs_lookup(path, &target);
+	if (ret != 0)
+		goto out_parent;
+
+	if (!parent->v_ops || !parent->v_ops->unlink) {
+		ret = -ENOSYS;
+		goto out_target;
 	}
+
+	time_t now = vfs_now();
+	uint64_t f;
 
 	ret = parent->v_ops->unlink(parent, name);
+	if (ret != 0)
+		goto out_target;
 
-	if (ret == 0) {
-		vfs_update_mtime(parent);
-		vfs_dentry_remove(path);
-		
-		uint64_t flags;
-		spinlock_acquire_irqsave(&vfs_stats_lock, &flags);
-		vfs_stats.deletes++;
-		spinlock_release_irqrestore(&vfs_stats_lock, flags);
-	}
+	spinlock_acquire_irqsave(&target->v_lock, &f);
+	if (target->v_nlink > 0)
+		target->v_nlink--;
+	target->v_ctime = now;
+	target->v_flags |= VNODE_FLAG_DIRTY;
+	spinlock_release_irqrestore(&target->v_lock, f);
 
+	spinlock_acquire_irqsave(&parent->v_lock, &f);
+	parent->v_mtime = now;
+	parent->v_ctime = now;
+	parent->v_flags |= VNODE_FLAG_DIRTY;
+	spinlock_release_irqrestore(&parent->v_lock, f);
+
+out_target:
+	vfs_vnode_unref(target);
+out_parent:
 	kfree(name);
 	vfs_vnode_unref(parent);
-
 	return ret;
 }
 
 int
 vfs_link(const char *oldpath, const char *newpath)
 {
-	if (oldpath == NULL || newpath == NULL)
-		return -EINVAL;
+	vnode_t *target, *parent;
+	char *name;
+	int ret;
 
-	vnode_t *target;
-	int ret = vfs_lookup(oldpath, &target);
+	ret = vfs_lookup(oldpath, &target);
 	if (ret != 0)
 		return ret;
 
-	vnode_t *parent;
-	char *name;
 	ret = vfs_lookup_parent(newpath, &parent, &name);
-	if (ret != 0) {
-		vfs_vnode_unref(target);
-		return ret;
+	if (ret != 0)
+		goto out_target;
+
+	if (!parent->v_ops || !parent->v_ops->link) {
+		ret = -ENOSYS;
+		goto out_parent;
 	}
 
-	if (parent->v_ops == NULL || parent->v_ops->link == NULL) {
-		kfree(name);
-		vfs_vnode_unref(parent);
-		vfs_vnode_unref(target);
-		return -ENOSYS;
-	}
+	time_t now = vfs_now();
+	uint64_t f;
 
 	ret = parent->v_ops->link(parent, name, target);
+	if (ret != 0)
+		goto out_parent;
 
-	if (ret == 0)
-		vfs_update_mtime(parent);
+	spinlock_acquire_irqsave(&target->v_lock, &f);
+	target->v_nlink++;
+	target->v_ctime = now;
+	target->v_flags |= VNODE_FLAG_DIRTY;
+	spinlock_release_irqrestore(&target->v_lock, f);
 
+	spinlock_acquire_irqsave(&parent->v_lock, &f);
+	parent->v_mtime = now;
+	parent->v_ctime = now;
+	parent->v_flags |= VNODE_FLAG_DIRTY;
+	spinlock_release_irqrestore(&parent->v_lock, f);
+
+out_parent:
 	kfree(name);
 	vfs_vnode_unref(parent);
+out_target:
 	vfs_vnode_unref(target);
-
 	return ret;
 }
 

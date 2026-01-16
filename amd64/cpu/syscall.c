@@ -125,11 +125,13 @@ find_free_region(vmm_address_space_t *space, size_t size)
 static inline int
 vfs_errno(int vfs_ret)
 {
-	if (vfs_ret == VFS_SUCCESS)
-		return 0;
-	if (vfs_ret < 0)
-		return -vfs_ret;
-	return EIO;
+    if (vfs_ret == VFS_SUCCESS || vfs_ret == 0)
+        return 0;
+    
+    if (vfs_ret < 0)
+        return -vfs_ret;
+    
+    return vfs_ret;
 }
 
 void

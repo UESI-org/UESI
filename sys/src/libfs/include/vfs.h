@@ -25,6 +25,10 @@ struct vnode_operations;
 #define VFS_IFLNK 0120000
 #define VFS_IFSOCK 0140000
 
+#define VFS_ISDIR(m) (((m) & VFS_IFMT) == VFS_IFDIR)
+#define VFS_ISREG(m) (((m) & VFS_IFMT) == VFS_IFREG)
+#define VFS_ISLNK(m) (((m) & VFS_IFMT) == VFS_IFLNK)
+
 #define VFS_O_RDONLY 0x0000
 #define VFS_O_WRONLY 0x0001
 #define VFS_O_RDWR 0x0002
