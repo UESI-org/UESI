@@ -15,6 +15,7 @@ STDLIBDIR := stdlib
 STDIODIR := stdio
 TIMEDIR := time
 MATHDIR := math
+DIRENTDIR := dirent
 
 OBJDIR := obj
 LIBDIR := lib
@@ -27,6 +28,7 @@ STDLIBSRC := $(wildcard $(STDLIBDIR)/*.c)
 STDIOSRC := $(wildcard $(STDIODIR)/*.c)
 TIMESRC := $(wildcard $(TIMEDIR)/*.c)
 MATHSRC := $(wildcard $(MATHDIR)/*.c)
+DIRENTSRC := $(wildcard $(DIRENTDIR)/*.c)
 
 OBJS := \
 	$(SRCS:$(SRCDIR)/%.c=$(OBJDIR)/%.o) \
@@ -35,7 +37,8 @@ OBJS := \
 	$(STDLIBSRC:$(STDLIBDIR)/%.c=$(OBJDIR)/stdlib_%.o) \
 	$(STDIOSRC:$(STDIODIR)/%.c=$(OBJDIR)/stdio_%.o) \
 	$(TIMESRC:$(TIMEDIR)/%.c=$(OBJDIR)/time_%.o) \
-	$(MATHSRC:$(MATHDIR)/%.c=$(OBJDIR)/math_%.o)
+	$(MATHSRC:$(MATHDIR)/%.c=$(OBJDIR)/math_%.o) \
+	$(DIRENTSRC:$(DIRENTDIR)/%.c=$(OBJDIR)/dirent_%.o)
 
 FEATURE_FLAGS := \
 	-D_POSIX_C_SOURCE=202405L \
@@ -99,6 +102,9 @@ $(OBJDIR)/time_%.o: $(TIMEDIR)/%.c | $(OBJDIR)
 $(OBJDIR)/math_%.o: $(MATHDIR)/%.c | $(OBJDIR)
 	$(CC) $(CFLAGS) -c $< -o $@ -MMD -MP
 
+$(OBJDIR)/dirent_%.o: $(DIRENTDIR)/%.c | $(OBJDIR)
+	$(CC) $(CFLAGS) -c $< -o $@ -MMD -MP
+
 clean:
 	rm -rf $(OBJDIR) $(LIBDIR)
 	@echo "Cleaned build artifacts"
@@ -115,6 +121,7 @@ install: $(TARGET)
 	cp $(INCDIR)/stdio.h ../../include/
 	cp $(INCDIR)/stdlib.h ../../include/
 	cp $(INCDIR)/math.h ../../include/
+	cp $(INCDIR)/dirent.h ../../include/
 
 	@if [ -f $(SOFTFLOATDIR)/softfloat.h ]; then \
 		cp $(SOFTFLOATDIR)/softfloat.h ../../include/; \

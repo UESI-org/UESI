@@ -57,10 +57,10 @@ __BEGIN_DECLS
 
 /* 1003.1-1990 */
 extern void _exit(int status) __attribute__((noreturn));
-int access(const char *, int);
+extern int access(const char *pathname, int mode);
 unsigned int alarm(unsigned int);
-int chdir(const char *);
-int chown(const char *, uid_t, gid_t);
+extern int chdir(const char *path);
+extern int chown(const char *pathname, uid_t owner, gid_t group);
 extern int64_t close(int fd);
 int dup(int);
 int dup2(int, int);
@@ -72,7 +72,7 @@ int execve(const char *, char *const *, char *const *);
 int execvp(const char *, char *const *);
 extern pid_t fork(void);
 long fpathconf(int, int);
-char *getcwd(char *, size_t) __warn_unused_result;
+extern char *getcwd(char *buf, size_t size);
 gid_t getegid(void);
 uid_t geteuid(void);
 gid_t getgid(void);
@@ -83,7 +83,7 @@ extern pid_t getpid(void);
 extern pid_t getppid(void);
 uid_t getuid(void);
 int isatty(int);
-int link(const char *, const char *);
+extern int link(const char *oldpath, const char *newpath);
 extern off_t lseek(int fd, off_t offset, int whence);
 long pathconf(const char *, int);
 int pause(void);
@@ -118,19 +118,19 @@ extern int optreset;
 #if __POSIX_VISIBLE >= 199506 || __XPG_VISIBLE
 int fsync(int);
 int fdatasync(int);
-int ftruncate(int, off_t);
+extern int ftruncate(int fd, off_t length);
 int getlogin_r(char *, size_t);
 #endif
 
 /* 1003.1-2001 */
 #if __POSIX_VISIBLE >= 200112 || __XPG_VISIBLE >= 420
 int fchown(int, uid_t, gid_t);
-int fchdir(int);
+extern int fchdir(int fd);
 extern int gethostname(char *name, size_t len);
-int readlink(const char *__restrict, char *__restrict, size_t);
+extern ssize_t readlink(const char *path, char *buf, size_t bufsiz);
 int setegid(gid_t);
 int seteuid(uid_t);
-int symlink(const char *, const char *);
+extern int symlink(const char *target, const char *linkpath);
 #endif
 
 /* 1003.1-2008 */
@@ -161,7 +161,7 @@ int setregid(gid_t, gid_t);
 int setreuid(uid_t, uid_t);
 void swab(const void *__restrict, void *__restrict, ssize_t);
 void sync(void);
-int truncate(const char *, off_t);
+extern int truncate(const char *path, off_t length);
 useconds_t ualarm(useconds_t, useconds_t);
 extern int usleep(useconds_t usec);
 pid_t vfork(void);

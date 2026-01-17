@@ -8,6 +8,7 @@ SYSINCDIR := ../../../sys
 ARCHINCDIR := ../../../amd64/include
 LIBMEMINCDIR := ../libmem/include
 LIBCINCDIR := ../libc/include
+LIBFSINCDIR := ../libfs/include
 LIBPRINTFINCDIR := ../libprintf/include
 OBJDIR := obj
 LIBDIR := lib
@@ -34,7 +35,7 @@ CFLAGS := -Wall -Wextra -std=gnu11 -ffreestanding -fno-stack-protector \
           -nostdlib -fno-builtin -s
 
 INCLUDES := -I$(INCDIR) -I$(BOOTINCDIR) -I$(SYSINCDIR) -I$(ARCHINCDIR) \
-            -I$(LIBMEMINCDIR) -I$(LIBCINCDIR) -I$(LIBPRINTFINCDIR)
+            -I$(LIBMEMINCDIR) -I$(LIBCINCDIR) -I$(LIBFSINCDIR) -I$(LIBPRINTFINCDIR)
 
 .PHONY: all clean rebuild install help
 

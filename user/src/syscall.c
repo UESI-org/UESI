@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include <stdarg.h>
 #include <fcntl.h>
 #include <syscall.h>
@@ -169,6 +170,122 @@ int
 unlink(const char *path)
 {
 	int64_t ret = syscall1(SYSCALL_UNLINK, (uint64_t)path);
+	return (int)handle_syscall_result(ret);
+}
+
+char *
+getcwd(char *buf, size_t size)
+{
+	/* If buf is NULL, allocate buffer */
+	char *allocated = NULL;
+	if (buf == NULL) {
+		if (size == 0) {
+			size = 4096;
+		}
+		allocated = malloc(size);
+		if (allocated == NULL) {
+			errno = ENOMEM;
+			return NULL;
+		}
+		buf = allocated;
+	}
+
+	int64_t ret = syscall2(SYSCALL_GETCWD, (uint64_t)buf, (uint64_t)size);
+
+	if (ret < 0) {
+		errno = (int)(-ret);
+		if (allocated) {
+			free(allocated);
+		}
+		return NULL;
+	}
+
+	errno = 0;
+	return buf;
+}
+
+int
+chdir(const char *path)
+{
+	int64_t ret = syscall1(SYSCALL_CHDIR, (uint64_t)path);
+	return (int)handle_syscall_result(ret);
+}
+
+int
+fchdir(int fd)
+{
+	int64_t ret = syscall1(SYSCALL_FCHDIR, (uint64_t)fd);
+	return (int)handle_syscall_result(ret);
+}
+
+int
+getdents(int fd, void *dirp, size_t count)
+{
+	int64_t ret = syscall3(SYSCALL_GETDENTS, (uint64_t)fd, (uint64_t)dirp, (uint64_t)count);
+	return (int)handle_syscall_result(ret);
+}
+
+int
+symlink(const char *target, const char *linkpath)
+{
+	int64_t ret = syscall2(SYSCALL_SYMLINK, (uint64_t)target, (uint64_t)linkpath);
+	return (int)handle_syscall_result(ret);
+}
+
+ssize_t
+readlink(const char *path, char *buf, size_t bufsiz)
+{
+	int64_t ret = syscall3(SYSCALL_READLINK, (uint64_t)path, (uint64_t)buf, (uint64_t)bufsiz);
+	
+	/* readlink returns number of bytes placed in buf, or -1 on error */
+	if (ret < 0) {
+		errno = (int)(-ret);
+		return -1;
+	}
+	
+	errno = 0;
+	return (ssize_t)ret;
+}
+
+int
+link(const char *oldpath, const char *newpath)
+{
+	int64_t ret = syscall2(SYSCALL_LINK, (uint64_t)oldpath, (uint64_t)newpath);
+	return (int)handle_syscall_result(ret);
+}
+
+int
+rename(const char *oldpath, const char *newpath)
+{
+	int64_t ret = syscall2(SYSCALL_RENAME, (uint64_t)oldpath, (uint64_t)newpath);
+	return (int)handle_syscall_result(ret);
+}
+
+int
+truncate(const char *path, off_t length)
+{
+	int64_t ret = syscall2(SYSCALL_TRUNCATE, (uint64_t)path, (uint64_t)length);
+	return (int)handle_syscall_result(ret);
+}
+
+int
+ftruncate(int fd, off_t length)
+{
+	int64_t ret = syscall2(SYSCALL_FTRUNCATE, (uint64_t)fd, (uint64_t)length);
+	return (int)handle_syscall_result(ret);
+}
+
+int
+access(const char *pathname, int mode)
+{
+	int64_t ret = syscall2(SYSCALL_ACCESS, (uint64_t)pathname, (uint64_t)mode);
+	return (int)handle_syscall_result(ret);
+}
+
+int
+chown(const char *pathname, uid_t owner, gid_t group)
+{
+	int64_t ret = syscall3(SYSCALL_CHOWN, (uint64_t)pathname, (uint64_t)owner, (uint64_t)group);
 	return (int)handle_syscall_result(ret);
 }
 

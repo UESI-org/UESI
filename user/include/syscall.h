@@ -15,24 +15,37 @@
 #define SYSCALL_OPEN 5
 #define SYSCALL_CLOSE 6
 #define SYSCALL_CREAT 8
+#define SYSCALL_LINK 9
 #define SYSCALL_UNLINK 10
+#define SYSCALL_CHDIR 12
+#define SYSCALL_FCHDIR 13
 #define SYSCALL_CHMOD 15
+#define SYSCALL_CHOWN 16
 #define SYSCALL_BRK 17
 #define SYSCALL_GETPID 20
+#define SYSCALL_ACCESS 33
 #define SYSCALL_GETPPID 39
 #define SYSCALL_DUP 41
+#define SYSCALL_SYMLINK 57
+#define SYSCALL_READLINK 58
 #define SYSCALL_MUNMAP 73
 #define SYSCALL_MPROTECT 74
 #define SYSCALL_GETHOSTNAME 87
 #define SYSCALL_DUP2 90
 #define SYSCALL_FCNTL 92
+#define SYSCALL_RENAME 128
 #define SYSCALL_MKDIR 136
 #define SYSCALL_RMDIR 137
 #define SYSCALL_GETHOSTID 142
 #define SYSCALL_UNAME 164
 #define SYSCALL_MMAP 197
 #define SYSCALL_LSEEK 199
+#define SYSCALL_TRUNCATE 200
+#define SYSCALL_FTRUNCATE 201
 #define SYSCALL_SYSINFO 214
+#define SYSCALL_GETDENTS64 220
+#define SYSCALL_GETDENTS 272
+#define SYSCALL_GETCWD 296
 #define SYSCALL_GETTIMEOFDAY 418
 #define SYSCALL_CLOCK_GETTIME 427
 #define SYSCALL_CLOCK_GETRES 429
@@ -98,6 +111,18 @@ int64_t openat(int dirfd, const char *pathname, uint32_t flags, mode_t mode);
 int mkdir(const char *path, mode_t mode);
 int rmdir(const char *path);
 int unlink(const char *path);
+char *getcwd(char *buf, size_t size);
+int chdir(const char *path);
+int fchdir(int fd);
+int getdents(int fd, void *dirp, size_t count);
+int symlink(const char *target, const char *linkpath);
+ssize_t readlink(const char *path, char *buf, size_t bufsiz);
+int link(const char *oldpath, const char *newpath);
+int rename(const char *oldpath, const char *newpath);
+int truncate(const char *path, off_t length);
+int ftruncate(int fd, off_t length);
+int access(const char *pathname, int mode);
+int chown(const char *pathname, uid_t owner, gid_t group);
 int mknod(const char *path, mode_t mode, dev_t dev);
 int chmod(const char *path, mode_t mode);
 int dup(int oldfd);

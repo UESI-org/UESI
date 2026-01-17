@@ -189,6 +189,11 @@ sys_exit(int status)
 			}
 		}
 
+		if (current->p_p->ps_vfs_ctx) {
+			vfs_context_free(current->p_p->ps_vfs_ctx);
+			current->p_p->ps_vfs_ctx = NULL;
+		}
+
 		scheduler_exit_task(status);
 
 		while (1) {
@@ -629,6 +634,501 @@ sys_unlink(const char *path)
 }
 
 int64_t
+sys_getcwd(char *buf, size_t size)
+{
+	if (buf == NULL || size == 0) {
+		return -EINVAL;
+	}
+
+	if (!is_user_range(buf, size)) {
+		return -EFAULT;
+	}
+
+	struct proc *p = proc_get_current();
+	if (p == NULL || p->p_p == NULL) {
+		return -ESRCH;
+	}
+
+	vfs_context_t *ctx = p->p_p->ps_vfs_ctx;
+	if (ctx == NULL) {
+		/* No VFS context - return root */
+		if (size < 2) {
+			return -ERANGE;
+		}
+		buf[0] = '/';
+		buf[1] = '\0';
+		return (int64_t)buf;
+	}
+
+	int ret = vfs_getcwd(ctx, buf, size);
+	if (ret != 0) {
+		return -vfs_errno(ret);
+	}
+
+	return (int64_t)buf;
+}
+
+int64_t
+sys_chdir(const char *path)
+{
+	if (path == NULL) {
+		return -EINVAL;
+	}
+
+	if (!is_user_address(path)) {
+		return -EFAULT;
+	}
+
+	size_t path_len = 0;
+	const char *p = path;
+	while (is_user_address(p) && *p != '\0' && path_len < VFS_MAX_PATH) {
+		p++;
+		path_len++;
+	}
+
+	if (path_len == 0) {
+		return -EINVAL;
+	}
+
+	if (path_len >= VFS_MAX_PATH) {
+		return -ENAMETOOLONG;
+	}
+
+	struct proc *proc = proc_get_current();
+	if (proc == NULL || proc->p_p == NULL) {
+		return -ESRCH;
+	}
+
+	vfs_context_t *ctx = proc->p_p->ps_vfs_ctx;
+	if (ctx == NULL) {
+		/* Create VFS context if it doesn't exist */
+		ctx = vfs_context_create();
+		if (ctx == NULL) {
+			return -ENOMEM;
+		}
+		proc->p_p->ps_vfs_ctx = ctx;
+	}
+
+	int ret = vfs_chdir(ctx, path);
+	if (ret != 0) {
+		return -vfs_errno(ret);
+	}
+
+	return 0;
+}
+
+int64_t
+sys_fchdir(int fd)
+{
+	task_t *current = scheduler_get_current_task();
+	if (current == NULL) {
+		return -ESRCH;
+	}
+
+	if (fd < 0 || fd >= MAX_OPEN_FILES) {
+		return -EBADF;
+	}
+
+	vfs_file_t *file = (vfs_file_t *)current->p_p->ps_fd_table[fd].file;
+	if (file == NULL) {
+		return -EBADF;
+	}
+
+	vnode_t *vnode = file->f_vnode;
+	if ((vnode->v_mode & VFS_IFMT) != VFS_IFDIR) {
+		return -ENOTDIR;
+	}
+
+	/* We need to construct a path from the vnode - for now, not implemented */
+	/* TODO: Implement reverse path lookup from vnode */
+	return -ENOTSUP;
+}
+
+int64_t
+sys_getdents(int fd, void *dirp, size_t count)
+{
+	if (dirp == NULL || count == 0) {
+		return -EINVAL;
+	}
+
+	if (!is_user_range(dirp, count)) {
+		return -EFAULT;
+	}
+
+	task_t *current = scheduler_get_current_task();
+	if (current == NULL) {
+		return -ESRCH;
+	}
+
+	if (fd < 0 || fd >= MAX_OPEN_FILES) {
+		return -EBADF;
+	}
+
+	vfs_file_t *file = (vfs_file_t *)current->p_p->ps_fd_table[fd].file;
+	if (file == NULL) {
+		return -EBADF;
+	}
+
+	vnode_t *vnode = file->f_vnode;
+	if ((vnode->v_mode & VFS_IFMT) != VFS_IFDIR) {
+		return -ENOTDIR;
+	}
+
+	/* Linux dirent structure */
+	struct linux_dirent {
+		unsigned long d_ino;
+		unsigned long d_off;
+		unsigned short d_reclen;
+		char d_name[];
+	};
+
+	char *buf = (char *)dirp;
+	size_t bytes_written = 0;
+
+	while (bytes_written < count) {
+		vfs_dirent_t vfs_dirent;
+		int ret = vfs_readdir(file, &vfs_dirent);
+
+		if (ret != 0) {
+			/* End of directory or error */
+			if (bytes_written > 0) {
+				return bytes_written;
+			}
+			return (ret == -ENOENT) ? 0 : -vfs_errno(ret);
+		}
+
+		/* Calculate required space for this entry */
+		size_t name_len = strlen(vfs_dirent.d_name);
+		size_t reclen = sizeof(struct linux_dirent) + name_len + 1;
+		reclen = (reclen + sizeof(long) - 1) & ~(sizeof(long) - 1);
+
+		if (bytes_written + reclen > count) {
+			/* Not enough space for this entry */
+			break;
+		}
+
+		struct linux_dirent *dent = (struct linux_dirent *)(buf + bytes_written);
+		dent->d_ino = vfs_dirent.d_ino;
+		dent->d_off = vfs_dirent.d_off;
+		dent->d_reclen = reclen;
+		memcpy(dent->d_name, vfs_dirent.d_name, name_len + 1);
+
+		/* Add d_type at the end (Linux extension) */
+		char *type_ptr = (char *)dent + reclen - 1;
+		*type_ptr = vfs_dirent.d_type;
+
+		bytes_written += reclen;
+	}
+
+	return bytes_written;
+}
+
+int64_t
+sys_symlink(const char *target, const char *linkpath)
+{
+	if (target == NULL || linkpath == NULL) {
+		return -EINVAL;
+	}
+
+	if (!is_user_address(target) || !is_user_address(linkpath)) {
+		return -EFAULT;
+	}
+
+	size_t target_len = 0;
+	const char *p = target;
+	while (is_user_address(p) && *p != '\0' && target_len < VFS_MAX_PATH) {
+		p++;
+		target_len++;
+	}
+
+	size_t link_len = 0;
+	p = linkpath;
+	while (is_user_address(p) && *p != '\0' && link_len < VFS_MAX_PATH) {
+		p++;
+		link_len++;
+	}
+
+	if (target_len == 0 || link_len == 0) {
+		return -EINVAL;
+	}
+
+	if (target_len >= VFS_MAX_PATH || link_len >= VFS_MAX_PATH) {
+		return -ENAMETOOLONG;
+	}
+
+	int ret = vfs_symlink(target, linkpath);
+	if (ret != 0) {
+		return -vfs_errno(ret);
+	}
+
+	return 0;
+}
+
+int64_t
+sys_readlink(const char *path, char *buf, size_t bufsiz)
+{
+	if (path == NULL || buf == NULL || bufsiz == 0) {
+		return -EINVAL;
+	}
+
+	if (!is_user_address(path)) {
+		return -EFAULT;
+	}
+
+	if (!is_user_range(buf, bufsiz)) {
+		return -EFAULT;
+	}
+
+	size_t path_len = 0;
+	const char *p = path;
+	while (is_user_address(p) && *p != '\0' && path_len < VFS_MAX_PATH) {
+		p++;
+		path_len++;
+	}
+
+	if (path_len == 0) {
+		return -EINVAL;
+	}
+
+	if (path_len >= VFS_MAX_PATH) {
+		return -ENAMETOOLONG;
+	}
+
+	int ret = vfs_readlink(path, buf, bufsiz);
+	if (ret < 0) {
+		return -vfs_errno(ret);
+	}
+
+	return ret;
+}
+
+int64_t
+sys_link(const char *oldpath, const char *newpath)
+{
+	if (oldpath == NULL || newpath == NULL) {
+		return -EINVAL;
+	}
+
+	if (!is_user_address(oldpath) || !is_user_address(newpath)) {
+		return -EFAULT;
+	}
+
+	size_t old_len = 0;
+	const char *p = oldpath;
+	while (is_user_address(p) && *p != '\0' && old_len < VFS_MAX_PATH) {
+		p++;
+		old_len++;
+	}
+
+	size_t new_len = 0;
+	p = newpath;
+	while (is_user_address(p) && *p != '\0' && new_len < VFS_MAX_PATH) {
+		p++;
+		new_len++;
+	}
+
+	if (old_len == 0 || new_len == 0) {
+		return -EINVAL;
+	}
+
+	if (old_len >= VFS_MAX_PATH || new_len >= VFS_MAX_PATH) {
+		return -ENAMETOOLONG;
+	}
+
+	int ret = vfs_link(oldpath, newpath);
+	if (ret != 0) {
+		return -vfs_errno(ret);
+	}
+
+	return 0;
+}
+
+int64_t
+sys_rename(const char *oldpath, const char *newpath)
+{
+	if (oldpath == NULL || newpath == NULL) {
+		return -EINVAL;
+	}
+
+	if (!is_user_address(oldpath) || !is_user_address(newpath)) {
+		return -EFAULT;
+	}
+
+	size_t old_len = 0;
+	const char *p = oldpath;
+	while (is_user_address(p) && *p != '\0' && old_len < VFS_MAX_PATH) {
+		p++;
+		old_len++;
+	}
+
+	size_t new_len = 0;
+	p = newpath;
+	while (is_user_address(p) && *p != '\0' && new_len < VFS_MAX_PATH) {
+		p++;
+		new_len++;
+	}
+
+	if (old_len == 0 || new_len == 0) {
+		return -EINVAL;
+	}
+
+	if (old_len >= VFS_MAX_PATH || new_len >= VFS_MAX_PATH) {
+		return -ENAMETOOLONG;
+	}
+
+	int ret = vfs_rename(oldpath, newpath);
+	if (ret != 0) {
+		return -vfs_errno(ret);
+	}
+
+	return 0;
+}
+
+int64_t
+sys_truncate(const char *path, off_t length)
+{
+	if (path == NULL) {
+		return -EINVAL;
+	}
+
+	if (length < 0) {
+		return -EINVAL;
+	}
+
+	if (!is_user_address(path)) {
+		return -EFAULT;
+	}
+
+	size_t path_len = 0;
+	const char *p = path;
+	while (is_user_address(p) && *p != '\0' && path_len < VFS_MAX_PATH) {
+		p++;
+		path_len++;
+	}
+
+	if (path_len == 0) {
+		return -EINVAL;
+	}
+
+	if (path_len >= VFS_MAX_PATH) {
+		return -ENAMETOOLONG;
+	}
+
+	int ret = vfs_truncate(path, length);
+	if (ret != 0) {
+		return -vfs_errno(ret);
+	}
+
+	return 0;
+}
+
+int64_t
+sys_ftruncate(int fd, off_t length)
+{
+	if (length < 0) {
+		return -EINVAL;
+	}
+
+	task_t *current = scheduler_get_current_task();
+	if (current == NULL) {
+		return -ESRCH;
+	}
+
+	if (fd < 0 || fd >= MAX_OPEN_FILES) {
+		return -EBADF;
+	}
+
+	vfs_file_t *file = (vfs_file_t *)current->p_p->ps_fd_table[fd].file;
+	if (file == NULL) {
+		return -EBADF;
+	}
+
+	if (!(file->f_flags & (VFS_O_WRONLY | VFS_O_RDWR))) {
+		return -EINVAL;
+	}
+
+	vnode_t *vnode = file->f_vnode;
+	if (vnode->v_ops == NULL || vnode->v_ops->truncate == NULL) {
+		return -EINVAL;
+	}
+
+	int ret = vnode->v_ops->truncate(vnode, length);
+	if (ret != 0) {
+		return -vfs_errno(ret);
+	}
+
+	return 0;
+}
+
+int64_t
+sys_access(const char *path, int mode)
+{
+	if (path == NULL) {
+		return -EINVAL;
+	}
+
+	if (!is_user_address(path)) {
+		return -EFAULT;
+	}
+
+	size_t path_len = 0;
+	const char *p = path;
+	while (is_user_address(p) && *p != '\0' && path_len < VFS_MAX_PATH) {
+		p++;
+		path_len++;
+	}
+
+	if (path_len == 0) {
+		return -EINVAL;
+	}
+
+	if (path_len >= VFS_MAX_PATH) {
+		return -ENAMETOOLONG;
+	}
+
+	int ret = vfs_access(path, mode);
+	if (ret != 0) {
+		return -vfs_errno(ret);
+	}
+
+	return 0;
+}
+
+int64_t
+sys_chown(const char *path, uid_t owner, gid_t group)
+{
+	if (path == NULL) {
+		return -EINVAL;
+	}
+
+	if (!is_user_address(path)) {
+		return -EFAULT;
+	}
+
+	size_t path_len = 0;
+	const char *p = path;
+	while (is_user_address(p) && *p != '\0' && path_len < VFS_MAX_PATH) {
+		p++;
+		path_len++;
+	}
+
+	if (path_len == 0) {
+		return -EINVAL;
+	}
+
+	if (path_len >= VFS_MAX_PATH) {
+		return -ENAMETOOLONG;
+	}
+
+	int ret = vfs_chown(path, owner, group);
+	if (ret != 0) {
+		return -vfs_errno(ret);
+	}
+
+	return 0;
+}
+
+int64_t
 sys_chmod(const char *path, mode_t mode)
 {
 	if (!is_user_address(path)) {
@@ -875,18 +1375,16 @@ sys_dup(int oldfd)
 		return -EMFILE;
 	}
 
-	current->p_p->ps_fd_table[newfd].file = file;
-	current->p_p->ps_fd_table[newfd].flags =
-	    0; /* Don't inherit FD_CLOEXEC */
+	vfs_file_t *dup_file = vfs_file_dup(file);
+	if (dup_file == NULL) {
+		return -ENOMEM;
+	}
 
-	uint64_t flags;
-	spinlock_acquire_irqsave(&file->f_lock, &flags);
-	file->f_refcount++;
-	spinlock_release_irqrestore(&file->f_lock, flags);
+	current->p_p->ps_fd_table[newfd].file = dup_file;
+	current->p_p->ps_fd_table[newfd].flags = 0;
 
 	return newfd;
 }
-
 int64_t
 sys_dup2(int oldfd, int newfd)
 {
@@ -918,14 +1416,13 @@ sys_dup2(int oldfd, int newfd)
 		vfs_close(old_file);
 	}
 
-	current->p_p->ps_fd_table[newfd].file = file;
-	current->p_p->ps_fd_table[newfd].flags =
-	    0; /* Don't inherit FD_CLOEXEC */
+	vfs_file_t *dup_file = vfs_file_dup(file);
+	if (dup_file == NULL) {
+		return -ENOMEM;
+	}
 
-	uint64_t flags;
-	spinlock_acquire_irqsave(&file->f_lock, &flags);
-	file->f_refcount++;
-	spinlock_release_irqrestore(&file->f_lock, flags);
+	current->p_p->ps_fd_table[newfd].file = dup_file;
+	current->p_p->ps_fd_table[newfd].flags = 0;
 
 	return newfd;
 }
@@ -1253,6 +1750,20 @@ sys_fork(syscall_registers_t *regs)
 			file->f_refcount++;
 			spinlock_release_irqrestore(&file->f_lock, flags);
 		}
+	}
+
+	/* Duplicate VFS context */
+	if (parent_ps->ps_vfs_ctx) {
+		child_ps->ps_vfs_ctx =
+	    vfs_context_dup(parent_ps->ps_vfs_ctx);
+
+		if (!child_ps->ps_vfs_ctx) {
+			proc_free(child_proc);
+			process_free(child_ps);
+			return -ENOMEM;
+		}
+	} else {
+		child_ps->ps_vfs_ctx = NULL;
 	}
 
 	struct trapframe *child_tf = (struct trapframe *)pmm_alloc();
@@ -1943,6 +2454,55 @@ syscall_handler(syscall_registers_t *regs)
 
 	case SYSCALL_UNLINK:
 		ret = sys_unlink((const char *)regs->rdi);
+		break;
+
+		case SYSCALL_GETCWD:
+		ret = sys_getcwd((char *)regs->rdi, (size_t)regs->rsi);
+		break;
+
+	case SYSCALL_CHDIR:
+		ret = sys_chdir((const char *)regs->rdi);
+		break;
+
+	case SYSCALL_FCHDIR:
+		ret = sys_fchdir((int)regs->rdi);
+		break;
+
+	case SYSCALL_GETDENTS:
+	case SYSCALL_GETDENTS64:
+		ret = sys_getdents((int)regs->rdi, (void *)regs->rsi, (size_t)regs->rdx);
+		break;
+
+	case SYSCALL_SYMLINK:
+		ret = sys_symlink((const char *)regs->rdi, (const char *)regs->rsi);
+		break;
+
+	case SYSCALL_READLINK:
+		ret = sys_readlink((const char *)regs->rdi, (char *)regs->rsi, (size_t)regs->rdx);
+		break;
+
+	case SYSCALL_LINK:
+		ret = sys_link((const char *)regs->rdi, (const char *)regs->rsi);
+		break;
+
+	case SYSCALL_RENAME:
+		ret = sys_rename((const char *)regs->rdi, (const char *)regs->rsi);
+		break;
+
+	case SYSCALL_TRUNCATE:
+		ret = sys_truncate((const char *)regs->rdi, (off_t)regs->rsi);
+		break;
+
+	case SYSCALL_FTRUNCATE:
+		ret = sys_ftruncate((int)regs->rdi, (off_t)regs->rsi);
+		break;
+
+	case SYSCALL_ACCESS:
+		ret = sys_access((const char *)regs->rdi, (int)regs->rsi);
+		break;
+
+	case SYSCALL_CHOWN:
+		ret = sys_chown((const char *)regs->rdi, (uid_t)regs->rsi, (gid_t)regs->rdx);
 		break;
 
 	case SYSCALL_CHMOD:

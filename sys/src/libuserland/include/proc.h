@@ -1,13 +1,13 @@
 #ifndef _SYS_PROC_H_
 #define _SYS_PROC_H_
 
-#include <mproc.h>
 #include <sys/queue.h>
 #include <sys/syslimits.h>
 #include <sys/atomic.h>
 #include <sys/spinlock.h>
 #include <sys/types.h>
 #include <sys/time.h>
+#include <mproc.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
@@ -72,6 +72,7 @@ typedef struct fd_entry {
  */
 
 struct proc;
+struct vfs_context;
 struct process {
 	/* Synchronization */
 	spinlock_t ps_lock;              /* [I] Lock for this process structure */
@@ -108,6 +109,9 @@ struct process {
 	int ps_xsig;           /* [L] Stopping or killing signal */
 
 	fd_entry_t ps_fd_table[MAX_OPEN_FILES]; /* [L] File descriptor table */
+
+	/* VFS context */
+	struct vfs_context *ps_vfs_ctx; /* [L] VFS context (cwd, root, umask) */
 
 	/* Accounting */
 	struct tusage ps_tu;      /* [L] Accumulated times */
