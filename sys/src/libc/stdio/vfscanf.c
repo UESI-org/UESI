@@ -179,80 +179,82 @@ literal:
 			nread++;
 			break;
 
-		case 'd':
-			c = CT_INT;
-			ccfn = (unsigned long (*)(const char *, char **, int))strtol;
-			base = 10;
-			goto number;
+	case 'd':
+    	c = CT_INT;
+    	ccfn = (unsigned long (*)(const char *, char **, int))strtol;
+    	base = 10;
+    	goto number;
 
-		case 'i':
-			c = CT_INT;
-			ccfn = (unsigned long (*)(const char *, char **, int))strtol;
-			base = 0;
-			goto number;
+	case 'i':
+    	c = CT_INT;
+    	ccfn = (unsigned long (*)(const char *, char **, int))strtol;
+    	base = 0;
+    	goto number;
 
-		case 'o':
-			c = CT_INT;
-			ccfn = strtoul;
-			base = 8;
-			goto number;
+	case 'o':
+    	c = CT_INT;
+    	ccfn = strtoul;
+    	base = 8;
+    	goto number;
 
-		case 'u':
-			c = CT_INT;
-			ccfn = strtoul;
-			base = 10;
-			goto number;
+	case 'u':
+    	c = CT_INT;
+    	ccfn = strtoul;
+    	base = 10;
+    	goto number;
 
-		case 'x':
-		case 'X':
-			c = CT_INT;
-			ccfn = strtoul;
-			base = 16;
+	case 'x':
+	case 'X':
+    	c = CT_INT;
+    	ccfn = strtoul;
+    	base = 16;
 
-number:
-			/* Collect the number */
-			p = buf;
-			n = fgetc(fp);
-			
-			/* Handle sign */
-			if (n == '+' || n == '-') {
-				*p++ = n;
-				n = fgetc(fp);
-				nread++;
-			}
+	number:
+    	while ((n = fgetc(fp)) != EOF && isspace(n))
+        	nread++;
+    	if (n == EOF)
+        	return nassigned;
+    	ungetc(n, fp);  /* Put back first non-whitespace char */
+    
+    	p = buf;
+    	n = fgetc(fp);
+    
+    	if (n == '+' || n == '-') {
+        	*p++ = n;
+        	n = fgetc(fp);
+        	nread++;
+    	}
 
-			/* Collect digits */
-			while ((width == 0 || width-- > 0) && n != EOF) {
-				if (isdigit(n) || (base == 16 && isxdigit(n))) {
-					*p++ = n;
-					n = fgetc(fp);
-					nread++;
-				} else
-					break;
-			}
-			if (n != EOF)
-				ungetc(n, fp);
-			*p = '\0';
+    	while ((width == 0 || width-- > 0) && n != EOF) {
+        	if (isdigit(n) || (base == 16 && isxdigit(n))) {
+            	*p++ = n;
+            	n = fgetc(fp);
+            	nread++;
+        	} else
+            	break;
+    	}
+    	if (n != EOF)
+        	ungetc(n, fp);
+    	*p = '\0';
 
-			if (p == buf)
-				return nassigned;
+    	if (p == buf)
+        	return nassigned;
 
-			/* Convert */
-			if (!(flags & SUPPRESS)) {
-				unsigned long res = (*ccfn)(buf, NULL, base);
-				if (flags & LLONGINT)
-					*va_arg(ap, long long *) = res;
-				else if (flags & SIZEINT)
-					*va_arg(ap, size_t *) = res;
-				else if (flags & LONGINT)
-					*va_arg(ap, long *) = res;
-				else if (flags & SHORTINT)
-					*va_arg(ap, short *) = (short)res;
-				else
-					*va_arg(ap, int *) = (int)res;
-				nassigned++;
-			}
-			break;
+    	if (!(flags & SUPPRESS)) {
+        	unsigned long res = (*ccfn)(buf, NULL, base);
+        	if (flags & LLONGINT)
+            	*va_arg(ap, long long *) = res;
+        	else if (flags & SIZEINT)
+            	*va_arg(ap, size_t *) = res;
+        	else if (flags & LONGINT)
+            	*va_arg(ap, long *) = res;
+        	else if (flags & SHORTINT)
+            	*va_arg(ap, short *) = (short)res;
+        	else
+            	*va_arg(ap, int *) = (int)res;
+        	nassigned++;
+    	}
+    	break;
 
 		case 'c':
 			if (width == 0)

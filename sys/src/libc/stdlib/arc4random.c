@@ -30,7 +30,6 @@ chacha_block(uint32_t out[16], const uint32_t in[16])
 	uint32_t x[16];
 	memcpy(x, in, sizeof(x));
 
-	/* 10 double-rounds = 20 rounds */
 	for (int i = 0; i < 10; i++) {
 		chacha_quarterround(&x[0], &x[4], &x[8],  &x[12]);
 		chacha_quarterround(&x[1], &x[5], &x[9],  &x[13]);
@@ -43,40 +42,75 @@ chacha_block(uint32_t out[16], const uint32_t in[16])
 		chacha_quarterround(&x[3], &x[4], &x[9],  &x[14]);
 	}
 
-	/* Add input to output */
 	for (int i = 0; i < 16; i++) {
 		out[i] = x[i] + in[i];
 	}
 }
 
-/* Get entropy from kernel (TODO: implement properly) */
+/* Check if RDRAND is available */
+static int
+has_rdrand(void)
+{
+	uint32_t eax, ebx, ecx, edx;
+	
+	/* CPUID function 1 */
+	__asm__ volatile(
+		"cpuid"
+		: "=a"(eax), "=b"(ebx), "=c"(ecx), "=d"(edx)
+		: "a"(1)
+	);
+	
+	/* RDRAND is bit 30 of ECX */
+	return (ecx & (1 << 30)) != 0;
+}
+
+/* Get entropy from kernel */
 static void
 get_entropy(void *buf, size_t len)
 {
-	/* TEMPORARY: Use RDRAND if available, otherwise use timer */
-#ifdef __x86_64__
-	uint64_t *p = (uint64_t *)buf;
-	size_t i;
+	static int rdrand_available = -1;
 	
-	/* Try RDRAND first */
-	for (i = 0; i + 8 <= len; i += 8) {
-		unsigned long long val;
-		unsigned char ok;
-		
-		__asm__ volatile(
-			"rdrand %0\n\t"
-			"setc %1"
-			: "=r"(val), "=qm"(ok)
-			:
-			: "cc"
-		);
-		
-		if (ok) {
-			*p++ = val;
-		} else {
-			/* Fallback: Use TSC (weak but better than nothing) */
+	/* Check RDRAND availability once */
+	if (rdrand_available == -1) {
+		rdrand_available = has_rdrand();
+	}
+	
+	uint64_t *p = (uint64_t *)buf;
+	size_t i = 0;
+	
+	if (rdrand_available) {
+		/* Use RDRAND if available */
+		for (i = 0; i + 8 <= len; i += 8) {
+			unsigned long long val;
+			unsigned char ok;
+			int retries = 10;
+			
+			do {
+				__asm__ volatile(
+					"rdrand %0\n\t"
+					"setc %1"
+					: "=r"(val), "=qm"(ok)
+					:
+					: "cc"
+				);
+			} while (!ok && --retries > 0);
+			
+			if (ok) {
+				*p++ = val;
+			} else {
+				/* Fallback to TSC */
+				uint64_t tsc;
+				__asm__ volatile("rdtsc; shlq $32, %%rdx; orq %%rdx, %%rax" 
+					: "=a"(tsc) :: "rdx");
+				*p++ = tsc;
+			}
+		}
+	} else {
+		/* Fallback: Use RDTSC (weak but better than nothing) */
+		for (i = 0; i + 8 <= len; i += 8) {
 			uint64_t tsc;
-			__asm__ volatile("rdtsc" : "=A"(tsc));
+			__asm__ volatile("rdtsc; shlq $32, %%rdx; orq %%rdx, %%rax" 
+				: "=a"(tsc) :: "rdx");
 			*p++ = tsc;
 		}
 	}
@@ -84,15 +118,10 @@ get_entropy(void *buf, size_t len)
 	/* Handle remaining bytes */
 	if (i < len) {
 		uint64_t val;
-		__asm__ volatile("rdtsc" : "=A"(val));
+		__asm__ volatile("rdtsc; shlq $32, %%rdx; orq %%rdx, %%rax" 
+			: "=a"(val) :: "rdx");
 		memcpy((char *)buf + i, &val, len - i);
 	}
-#else
-	/* Generic fallback: very weak! */
-	for (size_t i = 0; i < len; i++) {
-		((uint8_t *)buf)[i] = rand() ^ (rand() >> 8);
-	}
-#endif
 }
 
 /* Initialize RNG */
@@ -124,18 +153,15 @@ chacha_getbytes(chacha_ctx *ctx, void *buf, size_t len)
 	uint8_t *out = (uint8_t *)buf;
 
 	while (len > 0) {
-		/* Need more keystream? */
 		if (ctx->available == 0) {
 			chacha_block(ctx->keystream, ctx->state);
 			ctx->available = sizeof(ctx->keystream);
 			
-			/* Increment counter */
 			if (++ctx->state[12] == 0) {
 				++ctx->state[13];
 			}
 		}
 
-		/* Copy from keystream */
 		size_t use = (len < ctx->available) ? len : ctx->available;
 		size_t offset = sizeof(ctx->keystream) - ctx->available;
 		memcpy(out, (uint8_t *)ctx->keystream + offset, use);
@@ -175,7 +201,6 @@ arc4random_uniform(uint32_t upper_bound)
 		return 0;
 	}
 
-	/* Calculate minimum value to avoid modulo bias */
 	uint32_t min = (0xFFFFFFFFU - upper_bound + 1) % upper_bound;
 	uint32_t r;
 
