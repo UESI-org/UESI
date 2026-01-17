@@ -53,9 +53,6 @@ panic_output(const char *str)
 
 	serial_write_string(PANIC_SERIAL_PORT, str);
 	serial_write_string(PANIC_SERIAL_PORT, "\r\n");
-
-	serial_write_direct(PANIC_SERIAL_PORT, str);
-	serial_write_direct(PANIC_SERIAL_PORT, "\r\n");
 }
 
 static void
@@ -147,12 +144,15 @@ panic_printf(const char *fmt, ...)
 static bool
 is_valid_address(uint64_t addr)
 {
-	if (addr == 0 || addr < 0x1000)
+	if (addr < 0x1000)
 		return false;
-	if (addr >= KERNEL_STACK_TOP)
+	
+	if (addr < 0x0000800000000000ULL)
 		return true;
-	if (addr < 0x100000000ULL)
+	
+	if (addr >= 0xFFFF800000000000ULL)
 		return true;
+	
 	return false;
 }
 
