@@ -30,9 +30,12 @@ FEATURE_FLAGS := -D_POSIX_C_SOURCE=202405L \
                  -D_XOPEN_SOURCE=700 \
                  -D_BSD_SOURCE
 
-CFLAGS := $(FEATURE_FLAGS) -Wall -Wextra -std=gnu11 -ffreestanding -nostdlib -nostdinc \
-          -fno-builtin -fno-stack-protector -O2 -ffunction-sections -fdata-sections \
-          -Iinclude -I$(LIBC_INC_DIR) -I$(SYSINCDIR) -I$(SYS1INCDIR) -I$(ARCHINCDIR) \
+CFLAGS := $(FEATURE_FLAGS) -Wall -Wextra -std=gnu11 \
+          -ffreestanding -nostdlib -nostdinc \
+          -fno-builtin -fno-stack-protector -O2 \
+          -ffunction-sections -fdata-sections \
+          -Iinclude -I$(LIBC_INC_DIR) \
+          -I$(SYSINCDIR) -I$(SYS1INCDIR) -I$(ARCHINCDIR) \
           -Wno-builtin-macro-redefined -DNDEBUG
 
 LDFLAGS := -nostdlib -z max-page-size=0x1000
@@ -47,13 +50,15 @@ LIBC_STDLIB  := $(wildcard $(LIBC_SRC_DIR)/stdlib/*.c)
 LIBC_STDIO   := $(wildcard $(LIBC_SRC_DIR)/stdio/*.c)
 LIBC_TIME    := $(wildcard $(LIBC_SRC_DIR)/time/*.c)
 LIBC_MATH    := $(wildcard $(LIBC_SRC_DIR)/math/*.c)
+LIBC_DIRENT  := $(wildcard $(LIBC_SRC_DIR)/dirent/*.c)
 
 LIBC_SOURCES := $(LIBC_STRING) \
                 $(LIBC_GEN) \
                 $(LIBC_STDLIB) \
                 $(LIBC_STDIO) \
                 $(LIBC_TIME) \
-                $(LIBC_MATH)
+                $(LIBC_MATH) \
+                $(LIBC_DIRENT)
 
 LIBC_OBJS := $(patsubst $(LIBC_SRC_DIR)/%.c,$(LIB_DIR)/%.o,$(LIBC_SOURCES))
 
@@ -64,26 +69,25 @@ all: $(LDS_SCRIPT) $(CRT0) $(CRTI) $(CRTN) $(SYSCALL_OBJ) $(LIBUSER) $(PROGRAMS)
 $(OBJ_DIR) $(BIN_DIR) $(LIB_DIR):
 	mkdir -p $@
 
-$(LIB_DIR)/string $(LIB_DIR)/gen $(LIB_DIR)/stdlib $(LIB_DIR)/stdio $(LIB_DIR)/time:
-	mkdir -p $@
-
-$(LIB_DIR)/string $(LIB_DIR)/gen $(LIB_DIR)/stdlib $(LIB_DIR)/stdio $(LIB_DIR)/time $(LIB_DIR)/math:
+$(LIB_DIR)/string $(LIB_DIR)/gen $(LIB_DIR)/stdlib \
+$(LIB_DIR)/stdio $(LIB_DIR)/time $(LIB_DIR)/math \
+$(LIB_DIR)/dirent:
 	mkdir -p $@
 
 $(CRT0): $(CRT0_SRC) | $(LIB_DIR)
-	$(CC) -c $(CRT0_SRC) -o $@
+	$(CC) -c $< -o $@
 	@echo "[+] Built crt0.o"
 
 $(CRTI): $(CRTI_SRC) | $(LIB_DIR)
-	$(CC) -c $(CRTI_SRC) -o $@
+	$(CC) -c $< -o $@
 	@echo "[+] Built crti.o"
 
 $(CRTN): $(CRTN_SRC) | $(LIB_DIR)
-	$(CC) -c $(CRTN_SRC) -o $@
+	$(CC) -c $< -o $@
 	@echo "[+] Built crtn.o"
 
 $(SYSCALL_OBJ): $(SYSCALL_SRC) | $(OBJ_DIR)
-	$(CC) $(CFLAGS) -c $(SYSCALL_SRC) -o $@
+	$(CC) $(CFLAGS) -c $< -o $@
 	@echo "[+] Built syscall.o"
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c | $(OBJ_DIR)
@@ -91,7 +95,9 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c | $(OBJ_DIR)
 
 $(LIB_DIR)/%.o: $(LIBC_SRC_DIR)/%.c | \
 	$(LIB_DIR) $(LIB_DIR)/string $(LIB_DIR)/gen \
-	$(LIB_DIR)/stdlib $(LIB_DIR)/stdio $(LIB_DIR)/time $(LIB_DIR)/math
+	$(LIB_DIR)/stdlib $(LIB_DIR)/stdio \
+	$(LIB_DIR)/time $(LIB_DIR)/math \
+	$(LIB_DIR)/dirent
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(LIBUSER): $(LIBC_OBJS) | $(LIB_DIR)

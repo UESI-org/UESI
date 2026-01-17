@@ -8,6 +8,8 @@
 #include <fcntl.h>
 #include "stdio_internal.h"
 
+extern int rename(const char *oldpath, const char *newpath);
+
 /* Error message table - minimal set for now */
 const char *const sys_errlist[] = {
 	"Success",				/* 0 - ESUCCESS */
@@ -86,19 +88,6 @@ remove(const char *path)
 	if (S_ISDIR(sb.st_mode))
 		return rmdir(path);
 	return unlink(path);
-}
-
-int
-rename(const char *old, const char *new)
-{
-	/* POSIX rename() is not implemented as a syscall in this OS yet.
-	 * We would need to implement sys_rename() in the kernel.
-	 * For now, return ENOSYS.
-	 */
-	(void)old;
-	(void)new;
-	errno = ENOSYS;
-	return -1;
 }
 
 #if __POSIX_VISIBLE >= 200809
