@@ -9,77 +9,25 @@
 #include <math.h>
 #include "stdio_internal.h"
 
-#define ALT		   0x001		/* alternate form */
-#define LADJUST		0x004		/* left adjustment */
-#define LONGDBL		0x008		/* long double */
-#define LONGINT		0x010		/* long integer */
-#define LLONGINT	0x020		/* long long integer */
-#define SHORTINT	0x040		/* short integer */
-#define ZEROPAD		0x080		/* zero (as opposed to blank) pad */
-#define FPT		    0x100		/* floating point type */
-#define SIZEINT		0x200		/* size_t */
-#define PTRINT		0x400		/* ptrdiff_t */
+#define ALT         0x001   /* alternate form */
+#define LADJUST     0x004   /* left adjustment */
+#define LONGDBL     0x008   /* long double */
+#define LONGINT     0x010   /* long integer */
+#define LLONGINT    0x020   /* long long integer */
+#define SHORTINT    0x040   /* short integer */
+#define ZEROPAD     0x080   /* zero (as opposed to blank) pad */
+#define FPT         0x100   /* floating point type */
+#define SIZEINT     0x200   /* size_t */
+#define PTRINT      0x400   /* ptrdiff_t */
 
-static char *__ultoa(char *buf_end, unsigned long val,
-    int base, int uppercase, size_t *len);
-static char *__ulltoa(char *buf_end, unsigned long long val,
-    int base, int uppercase, size_t *len);
+/* External float formatting functions (from dtoa.c) */
+extern int dtoa_f(char *buf, size_t bufsize, double value, int prec, int flags, char *sign);
+extern int dtoa_e(char *buf, size_t bufsize, double value, int prec, int flags, char *sign, int uppercase);
+extern int dtoa_g(char *buf, size_t bufsize, double value, int prec, int flags, char *sign, int uppercase);
 
-static int
-__dtoa_f(char *buf, size_t bufsize, double value, int prec, int flags, char *sign)
-{
-	int i, intlen;
-	unsigned long long intpart, fracpart, scale;
-	char *p = buf;
-	
-	/* Handle special cases */
-	if (__isnan(value)) {
-		return snprintf(buf, bufsize, "nan");
-	}
-	if (__isinf(value)) {
-		if (value < 0) *sign = '-';
-		return snprintf(buf, bufsize, "inf");
-	}
-	
-	/* Handle sign */
-	if (value < 0) {
-		*sign = '-';
-		value = -value;
-	}
-	
-	/* Default precision is 6 */
-	if (prec < 0) prec = 6;
-	
-	/* Round */
-	scale = 1;
-	for (i = 0; i < prec; i++)
-		scale *= 10;
-	value = value * scale + 0.5;
-	
-	/* Split into integer and fractional parts */
-	intpart = (unsigned long long)(value / scale);
-	fracpart = (unsigned long long)value % scale;
-	
-	/* Format integer part */
-	p = __ulltoa(buf + bufsize, intpart, 10, 0, NULL);
-	intlen = (buf + bufsize) - p - 1;
-	memmove(buf, p, intlen);
-	
-	/* Add decimal point and fractional part */
-	if (prec > 0 || (flags & ALT)) {
-		buf[intlen++] = '.';
-		if (prec > 0) {
-			for (i = prec - 1; i >= 0; i--) {
-				buf[intlen + i] = '0' + (fracpart % 10);
-				fracpart /= 10;
-			}
-			intlen += prec;
-		}
-	}
-	
-	buf[intlen] = '\0';
-	return intlen;
-}
+/* Forward declarations */
+static char *__ultoa(char *buf_end, unsigned long val, int base, int uppercase, size_t *len);
+static char *__ulltoa(char *buf_end, unsigned long long val, int base, int uppercase, size_t *len);
 
 int
 vfprintf(FILE *fp, const char *fmt, va_list ap)
@@ -199,32 +147,32 @@ rflag:
 				long long ll = va_arg(ap, long long);
 				if (ll < 0) {
 					sign = '-';
-					ull = -ll;
+					ull = (unsigned long long)(-ll);
 				} else
-					ull = ll;
+					ull = (unsigned long long)ll;
 			} else if (flags & SIZEINT) {
 				ssize_t ss = va_arg(ap, ssize_t);
 				if (ss < 0) {
 					sign = '-';
-					ul = -ss;
+					ul = (unsigned long)(-ss);
 				} else
-					ul = ss;
+					ul = (unsigned long)ss;
 			} else if (flags & PTRINT) {
 				ptrdiff_t pd = va_arg(ap, ptrdiff_t);
 				if (pd < 0) {
 					sign = '-';
-					ul = -pd;
+					ul = (unsigned long)(-pd);
 				} else
-					ul = pd;
+					ul = (unsigned long)pd;
 			} else {
 				long l = (flags & LONGINT) ? va_arg(ap, long) : va_arg(ap, int);
 				if (flags & SHORTINT)
 					l = (short)l;
 				if (l < 0) {
 					sign = '-';
-					ul = -l;
+					ul = (unsigned long)(-l);
 				} else
-					ul = l;
+					ul = (unsigned long)l;
 			}
 			base = 10;
 			goto number;
@@ -244,7 +192,7 @@ unsignednumber:
 			else if (flags & SIZEINT)
 				ul = va_arg(ap, size_t);
 			else if (flags & PTRINT)
-				ul = va_arg(ap, ptrdiff_t);
+				ul = (unsigned long)va_arg(ap, ptrdiff_t);
 			else {
 				ul = (flags & LONGINT) ? va_arg(ap, unsigned long) : va_arg(ap, unsigned int);
 				if (flags & SHORTINT)
@@ -256,8 +204,10 @@ number:
 			else
 				cp = __ultoa(buf + sizeof(buf), ul, base, ch == 'X', &len);
 			
-			if (flags & ALT && base == 8 && *cp != '0')
+			if (flags & ALT && base == 8 && *cp != '0') {
 				*--cp = '0';
+				len++;
+			}
 
 			n = (buf + sizeof(buf)) - cp;
 			
@@ -276,6 +226,18 @@ number:
 
 			/* Padding */
 			padc = (flags & ZEROPAD) ? '0' : ' ';
+			
+			/* For zero padding with sign, output sign first */
+			if ((flags & ZEROPAD) && sign && !(flags & LADJUST)) {
+				if (fputc(sign, fp) == EOF)
+					return -1;
+				ret++;
+				cp++;  /* Skip the sign we already output */
+				n--;
+				width--;
+			}
+			
+			/* Left padding */
 			if (!(flags & LADJUST)) {
 				while (n < width) {
 					if (fputc(padc, fp) == EOF)
@@ -320,6 +282,7 @@ number:
 				n = strlen(str);
 			cp = str;
 strout:
+			/* Left padding */
 			if (!(flags & LADJUST)) {
 				while (n < width) {
 					if (fputc(' ', fp) == EOF)
@@ -328,11 +291,15 @@ strout:
 					width--;
 				}
 			}
+			
+			/* Output string */
 			while (n--) {
 				if (fputc(*cp++, fp) == EOF)
 					return -1;
 				ret++;
 			}
+			
+			/* Right padding */
 			while (width-- > 0) {
 				if (fputc(' ', fp) == EOF)
 					return -1;
@@ -369,25 +336,78 @@ strout:
 		case 'F':
 			{
 				double d = va_arg(ap, double);
-				n = __dtoa_f(buf, sizeof(buf), d, prec, flags, &sign);
+				n = dtoa_f(buf, sizeof(buf), d, prec, flags, &sign);
 				cp = buf;
 				
-				/* Add sign */
+				/* Add sign if needed */
 				if (sign) {
 					memmove(cp + 1, cp, n + 1);
 					*cp = sign;
 					n++;
+				} else if (flags & 0x001) {  /* '+' flag - always show sign */
+					if (buf[0] != '-' && buf[0] != '+') {
+						memmove(cp + 1, cp, n + 1);
+						*cp = '+';
+						n++;
+					}
+				}
+				
+				goto strout;
+			}
+
+		case 'e':
+		case 'E':
+			{
+				double d = va_arg(ap, double);
+				n = dtoa_e(buf, sizeof(buf), d, prec, flags, &sign, ch == 'E');
+				cp = buf;
+				
+				/* Add sign if needed */
+				if (sign) {
+					memmove(cp + 1, cp, n + 1);
+					*cp = sign;
+					n++;
+				} else if (flags & 0x001) {  /* '+' flag */
+					if (buf[0] != '-' && buf[0] != '+') {
+						memmove(cp + 1, cp, n + 1);
+						*cp = '+';
+						n++;
+					}
+				}
+				
+				goto strout;
+			}
+
+		case 'g':
+		case 'G':
+			{
+				double d = va_arg(ap, double);
+				n = dtoa_g(buf, sizeof(buf), d, prec, flags, &sign, ch == 'G');
+				cp = buf;
+				
+				/* Add sign if needed */
+				if (sign) {
+					memmove(cp + 1, cp, n + 1);
+					*cp = sign;
+					n++;
+				} else if (flags & 0x001) {  /* '+' flag */
+					if (buf[0] != '-' && buf[0] != '+') {
+						memmove(cp + 1, cp, n + 1);
+						*cp = '+';
+						n++;
+					}
 				}
 				
 				goto strout;
 			}
 
 		default:
+			/* Unknown format - output '%' and the character */
 			if (fputc('%', fp) == EOF)
 				return -1;
-			if (fputc(ch, fp) == EOF)
+			if (ch && fputc(ch, fp) == EOF)
 				return -1;
-			ret += 2;
+			ret += ch ? 2 : 1;
 			break;
 		}
 	}
@@ -512,11 +532,22 @@ vdprintf(int fd, const char *fmt, va_list ap)
 {
 	FILE *fp;
 	int ret;
+	int saved_flags;
 
 	if ((fp = fdopen(fd, "w")) == NULL)
 		return -1;
+	
+	/* Save original flags */
+	saved_flags = fp->_flags;
+	
 	ret = vfprintf(fp, fmt, ap);
 	fflush(fp);
+	
+	/* Restore flags and don't close the fd */
+	fp->_flags = saved_flags;
+	fp->_file = -1;  /* Prevent fclose from closing fd */
+	fclose(fp);
+	
 	return ret;
 }
 #endif

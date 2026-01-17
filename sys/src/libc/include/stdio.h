@@ -134,7 +134,7 @@ __END_DECLS
 #define _IOLBF	1		/* setvbuf should set line buffered */
 #define _IONBF	2		/* setvbuf should set unbuffered */
 
-#define BUFSIZ	1024		/* size of buffer used by setbuf */
+#define BUFSIZ	4096	/* size of buffer used by setbuf */
 
 #define EOF	(-1)
 

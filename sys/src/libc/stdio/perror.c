@@ -68,13 +68,17 @@ perror(const char *s)
 char *
 strerror(int errnum)
 {
-	static char buf[64];
+	#ifdef __thread
+	__thread char strerror_buf[64];
+	#else
+	static char strerror_buf[64];
+	#endif
 
 	if (errnum >= 0 && errnum < sys_nerr)
 		return (char *)sys_errlist[errnum];
 
-	snprintf(buf, sizeof(buf), "Unknown error: %d", errnum);
-	return buf;
+	snprintf(strerror_buf, sizeof(strerror_buf), "Unknown error: %d", errnum);
+	return strerror_buf;
 }
 
 int
