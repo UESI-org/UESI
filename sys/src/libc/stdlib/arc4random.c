@@ -9,7 +9,8 @@
 uint32_t
 arc4random(void)
 {
-	return (uint32_t)rand() ^ ((uint32_t)rand() << 16);
+    static u_int arc4_seed = 1;
+    return (uint32_t)rand_r(&arc4_seed) ^ ((uint32_t)rand_r(&arc4_seed) << 16);
 }
 
 void
