@@ -1,24 +1,23 @@
+#include <sys/mman.h>
+#include <sys/malloc.h>
+#include <sys/types.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
-#include <sys/mman.h>
-#include <sys/types.h>
 #include <errno.h>
+#ifndef _KERNEL
+#endif
 
 #ifdef _KERNEL
-extern int64_t sys_mmap(
-    void *addr, size_t length, int prot, int flags, int fd, off_t offset);
+extern int64_t sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset);
 extern int64_t sys_munmap(void *addr, size_t length);
 
 static inline void *
 kernel_mmap(void *addr, size_t len, int prot, int flags, int fd, off_t off)
 {
 	int64_t ret = sys_mmap(addr, len, prot, flags, fd, off);
-	if (ret < 0) {
-		return MAP_FAILED;
-	}
-	return (void *)ret;
+	return (ret < 0) ? MAP_FAILED : (void *)ret;
 }
 
 static inline int
@@ -27,13 +26,10 @@ kernel_munmap(void *addr, size_t len)
 	return (int)sys_munmap(addr, len);
 }
 
-#define USER_MMAP(addr, len, prot, flags, fd, off)                             \
-	kernel_mmap(addr, len, prot, flags, fd, off)
-#define USER_MUNMAP(addr, len) kernel_munmap(addr, len)
+#define USER_MMAP kernel_mmap
+#define USER_MUNMAP kernel_munmap
 #else
-
-extern void *mmap(
-    void *addr, size_t length, int prot, int flags, int fd, off_t offset);
+extern void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset);
 extern int munmap(void *addr, size_t length);
 
 #define USER_MMAP mmap
@@ -41,39 +37,62 @@ extern int munmap(void *addr, size_t length);
 #endif
 
 #define PAGE_SIZE 4096
-#define MIN_ALLOC_SIZE 16
 #define ALIGNMENT 16
+#define MIN_BLOCK_SIZE (sizeof(block_t))
 #define LARGE_THRESHOLD (PAGE_SIZE / 2)
+#define ARENA_SIZE (PAGE_SIZE * 64)  /* 256KB arenas */
 
-typedef struct block_header {
-	size_t size;               /* Size of usable data */
-	struct block_header *next; /* Next free block */
-	uint32_t magic;            /* Magic number for validation */
-	uint32_t flags;            /* Flags (allocated/free) */
-} block_header_t;
+#define NUM_SIZE_CLASSES 8
+static const size_t size_classes[NUM_SIZE_CLASSES] = {
+	16, 32, 64, 128, 256, 512, 1024, 2048
+};
 
-#define BLOCK_MAGIC 0xDEADBEEF
-#define BLOCK_FREE 0x00000001
-#define BLOCK_ALLOCATED 0x00000002
-#define BLOCK_LARGE 0x00000004
+typedef struct block {
+	size_t size;           /* Size including header (low bit = allocated) */
+	struct block *next;    /* Next in free list */
+	struct block *prev;    /* Previous in free list */
+	uint32_t magic;        /* Corruption detection */
+	uint32_t pad;          /* Alignment padding */
+} block_t;
+
+typedef struct {
+	size_t size;           /* Same as header size */
+} footer_t;
+
+#define BLOCK_MAGIC 0xDEADC0DE
+#define SIZE_MASK (~(size_t)0x1)
+#define ALLOCATED_BIT 0x1
+
+#define BLOCK_SIZE(b) ((b)->size & SIZE_MASK)
+#define IS_ALLOCATED(b) ((b)->size & ALLOCATED_BIT)
+#define SET_ALLOCATED(b, sz) ((b)->size = ((sz) | ALLOCATED_BIT))
+#define SET_FREE(b, sz) ((b)->size = ((sz) & SIZE_MASK))
+
+#define GET_FOOTER(b) ((footer_t *)((char *)(b) + BLOCK_SIZE(b) - sizeof(footer_t)))
+
+#define NEXT_BLOCK(b) ((block_t *)((char *)(b) + BLOCK_SIZE(b)))
+#define PREV_BLOCK(b) ((block_t *)((char *)(b) - ((footer_t *)((char *)(b) - sizeof(footer_t)))->size))
 
 typedef struct arena {
 	void *base;
 	size_t size;
 	size_t used;
+	size_t free_bytes;
 	struct arena *next;
+	struct arena *prev;
 } arena_t;
 
-static block_header_t *free_list = NULL;
+static block_t *size_class_bins[NUM_SIZE_CLASSES] = {NULL};
+static block_t *general_free_list = NULL;
 static arena_t *arena_list = NULL;
-
 static volatile int malloc_lock = 0;
 
 static inline void
 lock_malloc(void)
 {
 	while (__sync_lock_test_and_set(&malloc_lock, 1)) {
-		/* Spin */
+		/* Pause for hyper-threading efficiency */
+		__asm__ volatile("pause" ::: "memory");
 	}
 }
 
@@ -84,106 +103,232 @@ unlock_malloc(void)
 }
 
 static inline size_t
-align_size(size_t size)
+align_up(size_t size, size_t align)
 {
-	return (size + ALIGNMENT - 1) & ~(ALIGNMENT - 1);
+	return (size + align - 1) & ~(align - 1);
+}
+
+static int
+get_size_class(size_t size)
+{
+	for (int i = 0; i < NUM_SIZE_CLASSES; i++) {
+		if (size <= size_classes[i]) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+static void
+remove_from_free_list(block_t *block)
+{
+	if (block->prev) {
+		block->prev->next = block->next;
+	}
+	if (block->next) {
+		block->next->prev = block->prev;
+	}
+
+	/* Update list head if this was the first block */
+	int sc = get_size_class(BLOCK_SIZE(block));
+	if (sc >= 0 && size_class_bins[sc] == block) {
+		size_class_bins[sc] = block->next;
+	} else if (general_free_list == block) {
+		general_free_list = block->next;
+	}
+
+	block->next = block->prev = NULL;
+}
+
+static void
+add_to_free_list(block_t *block)
+{
+	size_t size = BLOCK_SIZE(block);
+	int sc = get_size_class(size);
+
+	if (sc >= 0) {
+		/* Add to size class bin */
+		block->next = size_class_bins[sc];
+		block->prev = NULL;
+		if (block->next) {
+			block->next->prev = block;
+		}
+		size_class_bins[sc] = block;
+	} else {
+		/* Add to general free list (sorted by size) */
+		block_t **head = &general_free_list;
+		block_t *curr = *head;
+		block_t *prev = NULL;
+
+		/* Insert in size order */
+		while (curr && BLOCK_SIZE(curr) < size) {
+			prev = curr;
+			curr = curr->next;
+		}
+
+		block->next = curr;
+		block->prev = prev;
+
+		if (prev) {
+			prev->next = block;
+		} else {
+			*head = block;
+		}
+
+		if (curr) {
+			curr->prev = block;
+		}
+	}
+}
+
+static block_t *
+coalesce(block_t *block)
+{
+	size_t size = BLOCK_SIZE(block);
+	block_t *next = NEXT_BLOCK(block);
+
+	/* Check if we can coalesce with next block */
+	if ((char *)next < (char *)block + ARENA_SIZE && !IS_ALLOCATED(next)) {
+		remove_from_free_list(next);
+		size += BLOCK_SIZE(next);
+		SET_FREE(block, size);
+		GET_FOOTER(block)->size = size;
+	}
+
+	/* Check if we can coalesce with previous block */
+	if ((char *)block > (char *)block - sizeof(footer_t)) {
+		footer_t *prev_footer = (footer_t *)((char *)block - sizeof(footer_t));
+		if (prev_footer->size && !(prev_footer->size & ALLOCATED_BIT)) {
+			block_t *prev = PREV_BLOCK(block);
+			remove_from_free_list(prev);
+			size = BLOCK_SIZE(prev) + size;
+			SET_FREE(prev, size);
+			GET_FOOTER(prev)->size = size;
+			block = prev;
+		}
+	}
+
+	return block;
+}
+
+static void
+split_block(block_t *block, size_t needed_size)
+{
+	size_t total_size = BLOCK_SIZE(block);
+	size_t remaining = total_size - needed_size;
+
+	if (remaining >= MIN_BLOCK_SIZE + sizeof(footer_t) + ALIGNMENT) {
+		/* Resize current block */
+		SET_ALLOCATED(block, needed_size);
+		GET_FOOTER(block)->size = needed_size;
+
+		/* Create new free block from remainder */
+		block_t *new_block = NEXT_BLOCK(block);
+		SET_FREE(new_block, remaining);
+		new_block->magic = BLOCK_MAGIC;
+		new_block->next = new_block->prev = NULL;
+		GET_FOOTER(new_block)->size = remaining;
+
+		/* Add to free list */
+		add_to_free_list(new_block);
+	}
 }
 
 static arena_t *
 create_arena(size_t min_size)
 {
-	size_t arena_size =
-	    (min_size < PAGE_SIZE * 16) ? (PAGE_SIZE * 16) : min_size;
-	arena_size = (arena_size + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
-
-	void *mem = USER_MMAP(NULL,
-	                      arena_size,
-	                      PROT_READ | PROT_WRITE,
-	                      MAP_PRIVATE | MAP_ANONYMOUS,
-	                      -1,
-	                      0);
-
+	size_t arena_size = (min_size < ARENA_SIZE) ? ARENA_SIZE : align_up(min_size, PAGE_SIZE);
+	
+	void *mem = USER_MMAP(NULL, arena_size, PROT_READ | PROT_WRITE,
+	                      MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 	if (mem == MAP_FAILED || mem == NULL) {
+		errno = ENOMEM;
 		return NULL;
 	}
 
 	arena_t *arena = (arena_t *)mem;
 	arena->base = mem;
 	arena->size = arena_size;
-	arena->used = sizeof(arena_t);
+	arena->used = align_up(sizeof(arena_t), ALIGNMENT);
+	arena->free_bytes = arena_size - arena->used;
+
 	arena->next = arena_list;
+	arena->prev = NULL;
+	if (arena_list) {
+		arena_list->prev = arena;
+	}
 	arena_list = arena;
+
+	block_t *block = (block_t *)((char *)mem + arena->used);
+	size_t block_size = arena_size - arena->used;
+	SET_FREE(block, block_size);
+	block->magic = BLOCK_MAGIC;
+	block->next = block->prev = NULL;
+	GET_FOOTER(block)->size = block_size;
+
+	add_to_free_list(block);
 
 	return arena;
 }
 
 static void *
-arena_alloc(size_t size)
+alloc_from_free_list(size_t size)
 {
-	size = align_size(size + sizeof(block_header_t));
+	size_t needed = align_up(size + sizeof(block_t) + sizeof(footer_t), ALIGNMENT);
+	int sc = get_size_class(size);
 
-	/* Try existing arenas */
-	for (arena_t *arena = arena_list; arena != NULL; arena = arena->next) {
-		if (arena->used + size <= arena->size) {
-			void *ptr = (char *)arena->base + arena->used;
-			block_header_t *header = (block_header_t *)ptr;
-			header->size = size - sizeof(block_header_t);
-			header->next = NULL;
-			header->magic = BLOCK_MAGIC;
-			header->flags = BLOCK_ALLOCATED;
-			arena->used += size;
-			return (void *)(header + 1);
+	block_t *block = NULL;
+
+	/* Try size class bin first */
+	if (sc >= 0) {
+		block = size_class_bins[sc];
+		if (block) {
+			remove_from_free_list(block);
 		}
 	}
 
-	/* Create new arena */
-	arena_t *arena = create_arena(size);
-	if (!arena) {
-		return NULL;
+	/* Try general free list (first fit) */
+	if (!block) {
+		block_t *curr = general_free_list;
+		while (curr) {
+			if (BLOCK_SIZE(curr) >= needed) {
+				block = curr;
+				remove_from_free_list(block);
+				break;
+			}
+			curr = curr->next;
+		}
 	}
 
-	void *ptr = (char *)arena->base + arena->used;
-	block_header_t *header = (block_header_t *)ptr;
-	header->size = size - sizeof(block_header_t);
-	header->next = NULL;
-	header->magic = BLOCK_MAGIC;
-	header->flags = BLOCK_ALLOCATED;
-	arena->used += size;
+	if (block) {
+		split_block(block, needed);
+		SET_ALLOCATED(block, needed);
+		GET_FOOTER(block)->size = needed;
+		return (void *)(block + 1);
+	}
 
-	return (void *)(header + 1);
+	return NULL;
 }
 
 static void *
 large_alloc(size_t size)
 {
-	size_t total_size = size + sizeof(block_header_t);
-	total_size = (total_size + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
-
-	void *mem = USER_MMAP(NULL,
-	                      total_size,
-	                      PROT_READ | PROT_WRITE,
-	                      MAP_PRIVATE | MAP_ANONYMOUS,
-	                      -1,
-	                      0);
-
+	size_t total = align_up(size + sizeof(block_t), PAGE_SIZE);
+	
+	void *mem = USER_MMAP(NULL, total, PROT_READ | PROT_WRITE,
+	                      MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 	if (mem == MAP_FAILED || mem == NULL) {
+		errno = ENOMEM;
 		return NULL;
 	}
 
-	block_header_t *header = (block_header_t *)mem;
-	header->size = total_size - sizeof(block_header_t);
-	header->next = NULL;
-	header->magic = BLOCK_MAGIC;
-	header->flags = BLOCK_ALLOCATED | BLOCK_LARGE;
+	block_t *block = (block_t *)mem;
+	SET_ALLOCATED(block, total);
+	block->magic = BLOCK_MAGIC;
+	block->next = (block_t *)0x1; /* Mark as large allocation */
+	block->prev = NULL;
 
-	return (void *)(header + 1);
-}
-
-static void
-large_free(block_header_t *header)
-{
-	size_t total_size = header->size + sizeof(block_header_t);
-	USER_MUNMAP((void *)header, total_size);
+	return (void *)(block + 1);
 }
 
 void *
@@ -195,28 +340,23 @@ malloc(size_t size)
 
 	lock_malloc();
 
-	void *ptr;
+	void *ptr = NULL;
+
 	if (size >= LARGE_THRESHOLD) {
 		ptr = large_alloc(size);
-	} else {
-		/* Try free list first */
-		block_header_t **prev = &free_list;
-		block_header_t *block = free_list;
+		unlock_malloc();
+		return ptr;
+	}
 
-		while (block != NULL) {
-			if (block->size >= size) {
-				/* Found suitable block */
-				*prev = block->next;
-				block->flags = BLOCK_ALLOCATED;
-				block->next = NULL;
-				unlock_malloc();
-				return (void *)(block + 1);
-			}
-			prev = &block->next;
-			block = block->next;
+	ptr = alloc_from_free_list(size);
+
+	if (!ptr) {
+		if (!create_arena(size + sizeof(block_t) + sizeof(footer_t))) {
+			unlock_malloc();
+			errno = ENOMEM;
+			return NULL;
 		}
-
-		ptr = arena_alloc(size);
+		ptr = alloc_from_free_list(size);
 	}
 
 	unlock_malloc();
@@ -226,7 +366,6 @@ malloc(size_t size)
 void *
 calloc(size_t nmemb, size_t size)
 {
-	/* Check for overflow */
 	if (nmemb != 0 && size > SIZE_MAX / nmemb) {
 		errno = ENOMEM;
 		return NULL;
@@ -234,40 +373,44 @@ calloc(size_t nmemb, size_t size)
 
 	size_t total = nmemb * size;
 	void *ptr = malloc(total);
-
-	if (ptr != NULL) {
+	if (ptr) {
 		memset(ptr, 0, total);
 	}
-
 	return ptr;
 }
 
 void
 free(void *ptr)
 {
-	if (ptr == NULL) {
+	if (!ptr) {
 		return;
 	}
 
-	block_header_t *header = (block_header_t *)ptr - 1;
+	block_t *block = (block_t *)ptr - 1;
 
-	if (header->magic != BLOCK_MAGIC) {
-		return;
+	/* Validate */
+	if (block->magic != BLOCK_MAGIC) {
+		return;  /* Corruption or invalid pointer */
 	}
 
-	if (header->flags & BLOCK_FREE) {
-		return;
+	if (!IS_ALLOCATED(block)) {
+		return;  /* Double free */
 	}
 
 	lock_malloc();
 
-	if (header->flags & BLOCK_LARGE) {
-		large_free(header);
-	} else {
-		header->flags = BLOCK_FREE;
-		header->next = free_list;
-		free_list = header;
+	if (block->next == (block_t *)0x1) {
+		USER_MUNMAP((void *)block, BLOCK_SIZE(block));
+		unlock_malloc();
+		return;
 	}
+
+	size_t size = BLOCK_SIZE(block);
+	SET_FREE(block, size);
+	GET_FOOTER(block)->size = size;
+
+	block = coalesce(block);
+	add_to_free_list(block);
 
 	unlock_malloc();
 }
@@ -275,7 +418,7 @@ free(void *ptr)
 void *
 realloc(void *ptr, size_t size)
 {
-	if (ptr == NULL) {
+	if (!ptr) {
 		return malloc(size);
 	}
 
@@ -284,24 +427,24 @@ realloc(void *ptr, size_t size)
 		return NULL;
 	}
 
-	block_header_t *header = (block_header_t *)ptr - 1;
-
-	if (header->magic != BLOCK_MAGIC) {
+	block_t *block = (block_t *)ptr - 1;
+	if (block->magic != BLOCK_MAGIC) {
+		errno = EINVAL;
 		return NULL;
 	}
 
-	if (header->size >= size) {
+	size_t old_size = BLOCK_SIZE(block) - sizeof(block_t) - sizeof(footer_t);
+	
+	if (old_size >= size) {
 		return ptr;
 	}
 
 	void *new_ptr = malloc(size);
-	if (new_ptr == NULL) {
+	if (!new_ptr) {
 		return NULL;
 	}
 
-	size_t copy_size = (header->size < size) ? header->size : size;
-	memcpy(new_ptr, ptr, copy_size);
-
+	memcpy(new_ptr, ptr, old_size);
 	free(ptr);
 
 	return new_ptr;
@@ -310,12 +453,10 @@ realloc(void *ptr, size_t size)
 void *
 reallocarray(void *ptr, size_t nmemb, size_t size)
 {
-	/* Check for overflow */
 	if (nmemb != 0 && size > SIZE_MAX / nmemb) {
 		errno = ENOMEM;
 		return NULL;
 	}
-
 	return realloc(ptr, nmemb * size);
 }
 
@@ -336,22 +477,18 @@ aligned_alloc(size_t alignment, size_t size)
 		return malloc(size);
 	}
 
-	size_t total_size = size + alignment + sizeof(block_header_t);
-	void *ptr = malloc(total_size);
-
-	if (ptr == NULL) {
+	size_t total = size + alignment;
+	void *ptr = malloc(total);
+	if (!ptr) {
 		return NULL;
 	}
 
 	uintptr_t addr = (uintptr_t)ptr;
 	uintptr_t aligned = (addr + alignment - 1) & ~(alignment - 1);
 
-	if (aligned == addr) {
-		return ptr;
+	if (aligned != addr) {
+		((void **)aligned)[-1] = ptr;
 	}
-
-	size_t offset = aligned - addr;
-	*((size_t *)(aligned - sizeof(size_t))) = offset;
 
 	return (void *)aligned;
 }
@@ -359,7 +496,7 @@ aligned_alloc(size_t alignment, size_t size)
 int
 posix_memalign(void **memptr, size_t alignment, size_t size)
 {
-	if (memptr == NULL) {
+	if (!memptr) {
 		return EINVAL;
 	}
 
@@ -367,11 +504,6 @@ posix_memalign(void **memptr, size_t alignment, size_t size)
 		return EINVAL;
 	}
 
-	void *ptr = aligned_alloc(alignment, size);
-	if (ptr == NULL) {
-		return ENOMEM;
-	}
-
-	*memptr = ptr;
-	return 0;
+	*memptr = aligned_alloc(alignment, size);
+	return (*memptr == NULL) ? ENOMEM : 0;
 }
