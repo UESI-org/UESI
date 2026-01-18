@@ -1,4 +1,4 @@
-/* Syscall Wrapper */
+/* User-space syscall wrapper header */
 
 #ifndef _USER_SYSCALL_H
 #define _USER_SYSCALL_H
@@ -69,17 +69,6 @@
 
 #define MAP_FAILED ((void *)-1)
 
-#ifndef CLOCK_REALTIME
-#define CLOCK_REALTIME 0
-#define CLOCK_MONOTONIC 1
-#define CLOCK_PROCESS_CPUTIME_ID 2
-#define CLOCK_THREAD_CPUTIME_ID 3
-#define CLOCK_MONOTONIC_RAW 4
-#define CLOCK_REALTIME_COARSE 5
-#define CLOCK_MONOTONIC_COARSE 6
-#define CLOCK_BOOTTIME 7
-#endif
-
 struct sysinfo {
 	int64_t uptime;
 	uint64_t loads[3];
@@ -98,52 +87,60 @@ struct sysinfo {
 
 struct stat;
 struct utsname;
+
 extern int errno;
 
 void _exit(int status) __attribute__((noreturn));
 pid_t fork(void);
+pid_t getpid(void);
+pid_t getppid(void);
+
 int64_t read(int fd, void *buf, size_t count);
 int64_t write(int fd, const void *buf, size_t count);
-int64_t open(const char *path, uint32_t flags, mode_t mode);
-int64_t close(int fd);
-int64_t creat(const char *path, mode_t mode);
-int64_t openat(int dirfd, const char *pathname, uint32_t flags, mode_t mode);
+int open(const char *path, int flags, ...);
+int close(int fd);
+int creat(const char *path, mode_t mode);
+int openat(int dirfd, const char *pathname, int flags, ...);
+off_t lseek(int fd, off_t offset, int whence);
+
+int dup(int oldfd);
+int dup2(int oldfd, int newfd);
+int fcntl(int fd, int cmd, ...);
+
 int mkdir(const char *path, mode_t mode);
 int rmdir(const char *path);
-int unlink(const char *path);
 char *getcwd(char *buf, size_t size);
 int chdir(const char *path);
 int fchdir(int fd);
 int getdents(int fd, void *dirp, size_t count);
+
+int unlink(const char *path);
+int link(const char *oldpath, const char *newpath);
 int symlink(const char *target, const char *linkpath);
 ssize_t readlink(const char *path, char *buf, size_t bufsiz);
-int link(const char *oldpath, const char *newpath);
 int rename(const char *oldpath, const char *newpath);
 int truncate(const char *path, off_t length);
 int ftruncate(int fd, off_t length);
-int access(const char *pathname, int mode);
-int chown(const char *pathname, uid_t owner, gid_t group);
 int mknod(const char *path, mode_t mode, dev_t dev);
-int chmod(const char *path, mode_t mode);
-int dup(int oldfd);
-int dup2(int oldfd, int newfd);
-int fcntl(int fd, int cmd, ...);
+
 int stat(const char *path, struct stat *buf);
 int fstat(int fd, struct stat *buf);
 int lstat(const char *path, struct stat *buf);
-off_t lseek(int fd, off_t offset, int whence);
-void *mmap(
-    void *addr, size_t length, int prot, int flags, int fd, off_t offset);
+int access(const char *pathname, int mode);
+int chmod(const char *path, mode_t mode);
+int chown(const char *pathname, uid_t owner, gid_t group);
+
+void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset);
 int munmap(void *addr, size_t length);
+int mprotect(void *addr, size_t len, int prot);
 void *brk(void *addr);
 void *sbrk(intptr_t increment);
-pid_t getpid(void);
-int mprotect(void *addr, size_t len, int prot);
+
 int gethostname(char *name, size_t len);
-pid_t getppid(void);
 int gethostid(void);
 int uname(struct utsname *buf);
 int sysinfo(struct sysinfo *info);
+
 int gettimeofday(struct timeval *tv, struct timezone *tz);
 int clock_gettime(clockid_t clock_id, struct timespec *tp);
 int clock_getres(clockid_t clock_id, struct timespec *res);
@@ -151,4 +148,6 @@ int nanosleep(const struct timespec *req, struct timespec *rem);
 unsigned int sleep(unsigned int seconds);
 int usleep(useconds_t usec);
 
-#endif
+int isatty(int fd);
+
+#endif /* _USER_SYSCALL_H */

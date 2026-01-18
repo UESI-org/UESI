@@ -3,6 +3,7 @@
 #include <fcntl.h>
 #include <syscall.h>
 #include <errno.h>
+#include <string.h>
 
 /* System call with 0 arguments */
 static inline int64_t
@@ -52,19 +53,20 @@ syscall3(uint64_t syscall_num, uint64_t arg1, uint64_t arg2, uint64_t arg3)
 	return ret;
 }
 
+/* System call with 4 arguments */
 static inline int64_t
 syscall4(uint64_t syscall_num, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4)
 {
-    int64_t ret;
-    register uint64_t r10 asm("r10") = arg4;
-    asm volatile("int $0x80"
-                 : "=a"(ret)
-                 : "a"(syscall_num), "D"(arg1), "S"(arg2), "d"(arg3), "r"(r10)
-                 : "memory", "rcx", "r11");
-    return ret;
+	int64_t ret;
+	register uint64_t r10 asm("r10") = arg4;
+	asm volatile("int $0x80"
+	             : "=a"(ret)
+	             : "a"(syscall_num), "D"(arg1), "S"(arg2), "d"(arg3), "r"(r10)
+	             : "memory", "rcx", "r11", "cc");
+	return ret;
 }
 
-/* System call with 6 arguments - needed for mmap */
+/* System call with 6 arguments (for mmap) */
 static inline int64_t
 syscall6(uint64_t syscall_num,
          uint64_t arg1,
@@ -95,7 +97,7 @@ syscall6(uint64_t syscall_num,
 static inline int64_t
 handle_syscall_result(int64_t ret)
 {
-	if (ret < 0) {
+	if (ret < 0 && ret >= -4095) {
 		errno = (int)(-ret);
 		return -1;
 	}
@@ -103,53 +105,167 @@ handle_syscall_result(int64_t ret)
 	return ret;
 }
 
-int64_t
-open(const char *path, uint32_t flags, mode_t mode)
+/* Special handler for pointer returns (like mmap, brk, getcwd) */
+static inline void *
+handle_syscall_ptr(int64_t ret)
 {
-	int64_t ret = syscall3(
-	    SYSCALL_OPEN, (uint64_t)path, (uint64_t)flags, (uint64_t)mode);
-	return handle_syscall_result(ret);
+	if (ret < 0 && ret >= -4095) {
+		errno = (int)(-ret);
+		return (void *)-1;
+	}
+	errno = 0;
+	return (void *)ret;
 }
 
-int64_t
-close(int fd)
+void
+_exit(int status)
 {
-	int64_t ret = syscall1(SYSCALL_CLOSE, (uint64_t)fd);
-	return handle_syscall_result(ret);
+	syscall1(SYSCALL_EXIT, (uint64_t)status);
+	__builtin_unreachable();
+}
+
+pid_t
+fork(void)
+{
+	int64_t ret = syscall0(SYSCALL_FORK);
+	return (pid_t)handle_syscall_result(ret);
+}
+
+pid_t
+getpid(void)
+{
+	return (pid_t)syscall0(SYSCALL_GETPID);
+}
+
+pid_t
+getppid(void)
+{
+	return (pid_t)syscall0(SYSCALL_GETPPID);
 }
 
 int64_t
 read(int fd, void *buf, size_t count)
 {
-	int64_t ret = syscall3(
-	    SYSCALL_READ, (uint64_t)fd, (uint64_t)buf, (uint64_t)count);
+	int64_t ret = syscall3(SYSCALL_READ, (uint64_t)fd, (uint64_t)buf, (uint64_t)count);
 	return handle_syscall_result(ret);
 }
 
 int64_t
 write(int fd, const void *buf, size_t count)
 {
-	int64_t ret = syscall3(
-	    SYSCALL_WRITE, (uint64_t)fd, (uint64_t)buf, (uint64_t)count);
+	int64_t ret = syscall3(SYSCALL_WRITE, (uint64_t)fd, (uint64_t)buf, (uint64_t)count);
 	return handle_syscall_result(ret);
 }
 
-int64_t
+int
+open(const char *path, int flags, ...)
+{
+	mode_t mode = 0;
+
+	/* Extract mode if O_CREAT is specified */
+	if (flags & O_CREAT) {
+		va_list args;
+		va_start(args, flags);
+		mode = va_arg(args, mode_t);
+		va_end(args);
+	}
+
+	int64_t ret = syscall3(SYSCALL_OPEN, (uint64_t)path, (uint64_t)flags, (uint64_t)mode);
+	return (int)handle_syscall_result(ret);
+}
+
+int
+close(int fd)
+{
+	int64_t ret = syscall1(SYSCALL_CLOSE, (uint64_t)fd);
+	return (int)handle_syscall_result(ret);
+}
+
+int
 creat(const char *path, mode_t mode)
 {
 	int64_t ret = syscall2(SYSCALL_CREAT, (uint64_t)path, (uint64_t)mode);
-	return handle_syscall_result(ret);
+	return (int)handle_syscall_result(ret);
 }
 
-int64_t
-openat(int dirfd, const char *pathname, uint32_t flags, mode_t mode)
+int
+openat(int dirfd, const char *pathname, int flags, ...)
 {
+	mode_t mode = 0;
+
+	/* Extract mode if O_CREAT is specified */
+	if (flags & O_CREAT) {
+		va_list args;
+		va_start(args, flags);
+		mode = va_arg(args, mode_t);
+		va_end(args);
+	}
+
 	int64_t ret = syscall4(SYSCALL_OPENAT,
 	                       (uint64_t)dirfd,
 	                       (uint64_t)pathname,
 	                       (uint64_t)flags,
 	                       (uint64_t)mode);
-	return handle_syscall_result(ret);
+	return (int)handle_syscall_result(ret);
+}
+
+off_t
+lseek(int fd, off_t offset, int whence)
+{
+	int64_t ret = syscall3(SYSCALL_LSEEK, (uint64_t)fd, (uint64_t)offset, (uint64_t)whence);
+	
+	if (ret < 0 && ret >= -4095) {
+		errno = (int)(-ret);
+		return (off_t)-1;
+	}
+	
+	errno = 0;
+	return (off_t)ret;
+}
+
+int
+dup(int oldfd)
+{
+	int64_t ret = syscall1(SYSCALL_DUP, (uint64_t)oldfd);
+	return (int)handle_syscall_result(ret);
+}
+
+int
+dup2(int oldfd, int newfd)
+{
+	int64_t ret = syscall2(SYSCALL_DUP2, (uint64_t)oldfd, (uint64_t)newfd);
+	return (int)handle_syscall_result(ret);
+}
+
+int
+fcntl(int fd, int cmd, ...)
+{
+	va_list args;
+	va_start(args, cmd);
+
+	uint64_t arg = 0;
+
+	/* Commands that take an argument */
+	switch (cmd) {
+	case F_DUPFD:
+	case F_DUPFD_CLOEXEC:
+	case F_SETFD:
+	case F_SETFL:
+	case F_SETOWN:
+	case F_SETLK:
+	case F_SETLKW:
+	case F_GETLK:
+		arg = va_arg(args, uint64_t);
+		break;
+	default:
+		arg = 0;
+		break;
+	}
+
+	va_end(args);
+
+	int64_t ret = syscall3(SYSCALL_FCNTL, (uint64_t)fd, (uint64_t)cmd, arg);
+	return (int)handle_syscall_result(ret);
 }
 
 int
@@ -166,22 +282,15 @@ rmdir(const char *path)
 	return (int)handle_syscall_result(ret);
 }
 
-int
-unlink(const char *path)
-{
-	int64_t ret = syscall1(SYSCALL_UNLINK, (uint64_t)path);
-	return (int)handle_syscall_result(ret);
-}
-
 char *
 getcwd(char *buf, size_t size)
 {
 	/* If buf is NULL, allocate buffer */
 	char *allocated = NULL;
 	if (buf == NULL) {
-		if (size == 0) {
+		if (size == 0)
 			size = 4096;
-		}
+		
 		allocated = malloc(size);
 		if (allocated == NULL) {
 			errno = ENOMEM;
@@ -192,11 +301,10 @@ getcwd(char *buf, size_t size)
 
 	int64_t ret = syscall2(SYSCALL_GETCWD, (uint64_t)buf, (uint64_t)size);
 
-	if (ret < 0) {
+	if (ret < 0 && ret >= -4095) {
 		errno = (int)(-ret);
-		if (allocated) {
+		if (allocated)
 			free(allocated);
-		}
 		return NULL;
 	}
 
@@ -226,6 +334,20 @@ getdents(int fd, void *dirp, size_t count)
 }
 
 int
+unlink(const char *path)
+{
+	int64_t ret = syscall1(SYSCALL_UNLINK, (uint64_t)path);
+	return (int)handle_syscall_result(ret);
+}
+
+int
+link(const char *oldpath, const char *newpath)
+{
+	int64_t ret = syscall2(SYSCALL_LINK, (uint64_t)oldpath, (uint64_t)newpath);
+	return (int)handle_syscall_result(ret);
+}
+
+int
 symlink(const char *target, const char *linkpath)
 {
 	int64_t ret = syscall2(SYSCALL_SYMLINK, (uint64_t)target, (uint64_t)linkpath);
@@ -238,20 +360,13 @@ readlink(const char *path, char *buf, size_t bufsiz)
 	int64_t ret = syscall3(SYSCALL_READLINK, (uint64_t)path, (uint64_t)buf, (uint64_t)bufsiz);
 	
 	/* readlink returns number of bytes placed in buf, or -1 on error */
-	if (ret < 0) {
+	if (ret < 0 && ret >= -4095) {
 		errno = (int)(-ret);
 		return -1;
 	}
 	
 	errno = 0;
 	return (ssize_t)ret;
-}
-
-int
-link(const char *oldpath, const char *newpath)
-{
-	int64_t ret = syscall2(SYSCALL_LINK, (uint64_t)oldpath, (uint64_t)newpath);
-	return (int)handle_syscall_result(ret);
 }
 
 int
@@ -276,77 +391,9 @@ ftruncate(int fd, off_t length)
 }
 
 int
-access(const char *pathname, int mode)
-{
-	int64_t ret = syscall2(SYSCALL_ACCESS, (uint64_t)pathname, (uint64_t)mode);
-	return (int)handle_syscall_result(ret);
-}
-
-int
-chown(const char *pathname, uid_t owner, gid_t group)
-{
-	int64_t ret = syscall3(SYSCALL_CHOWN, (uint64_t)pathname, (uint64_t)owner, (uint64_t)group);
-	return (int)handle_syscall_result(ret);
-}
-
-int
-chmod(const char *path, mode_t mode)
-{
-	int64_t ret = syscall2(SYSCALL_CHMOD, (uint64_t)path, (uint64_t)mode);
-	return (int)handle_syscall_result(ret);
-}
-
-int
 mknod(const char *path, mode_t mode, dev_t dev)
 {
-	int64_t ret = syscall3(
-	    SYSCALL_MKNOD, (uint64_t)path, (uint64_t)mode, (uint64_t)dev);
-	return (int)handle_syscall_result(ret);
-}
-
-int
-fcntl(int fd, int cmd, ...)
-{
-	va_list args;
-	va_start(args, cmd);
-
-	/* fcntl can take 0, 1, or more arguments depending on cmd */
-	uint64_t arg = 0;
-
-	/* Commands that take an argument */
-	switch (cmd) {
-	case F_DUPFD:
-	case F_DUPFD_CLOEXEC:
-	case F_SETFD:
-	case F_SETFL:
-	case F_SETOWN:
-	case F_SETLK:
-	case F_SETLKW:
-	case F_GETLK:
-		arg = va_arg(args, uint64_t);
-		break;
-	default:
-		arg = 0;
-		break;
-	}
-
-	va_end(args);
-
-	int64_t ret = syscall3(SYSCALL_FCNTL, (uint64_t)fd, (uint64_t)cmd, arg);
-	return (int)handle_syscall_result(ret);
-}
-
-int
-dup(int oldfd)
-{
-	int64_t ret = syscall1(SYSCALL_DUP, (uint64_t)oldfd);
-	return (int)handle_syscall_result(ret);
-}
-
-int
-dup2(int oldfd, int newfd)
-{
-	int64_t ret = syscall2(SYSCALL_DUP2, (uint64_t)oldfd, (uint64_t)newfd);
+	int64_t ret = syscall3(SYSCALL_MKNOD, (uint64_t)path, (uint64_t)mode, (uint64_t)dev);
 	return (int)handle_syscall_result(ret);
 }
 
@@ -371,32 +418,25 @@ lstat(const char *path, struct stat *buf)
 	return (int)handle_syscall_result(ret);
 }
 
-off_t
-lseek(int fd, off_t offset, int whence)
+int
+access(const char *pathname, int mode)
 {
-	int64_t ret = syscall3(
-	    SYSCALL_LSEEK, (uint64_t)fd, (uint64_t)offset, (uint64_t)whence);
-
-	if (ret < 0) {
-		errno = (int)(-ret);
-		return (off_t)-1;
-	}
-
-	errno = 0;
-	return (off_t)ret;
+	int64_t ret = syscall2(SYSCALL_ACCESS, (uint64_t)pathname, (uint64_t)mode);
+	return (int)handle_syscall_result(ret);
 }
 
-pid_t
-fork(void)
+int
+chmod(const char *path, mode_t mode)
 {
-	int64_t ret = syscall0(SYSCALL_FORK);
+	int64_t ret = syscall2(SYSCALL_CHMOD, (uint64_t)path, (uint64_t)mode);
+	return (int)handle_syscall_result(ret);
+}
 
-	if (ret < 0) {
-		errno = (int)(-ret);
-		return -1;
-	}
-
-	return (pid_t)ret;
+int
+chown(const char *pathname, uid_t owner, gid_t group)
+{
+	int64_t ret = syscall3(SYSCALL_CHOWN, (uint64_t)pathname, (uint64_t)owner, (uint64_t)group);
+	return (int)handle_syscall_result(ret);
 }
 
 void *
@@ -410,20 +450,20 @@ mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 	                       (uint64_t)fd,
 	                       (uint64_t)offset);
 
-	if (ret < 0 && ret >= -4096) {
-		errno = (int)(-ret);
-		return MAP_FAILED;
-	}
-
-	errno = 0;
-	return (void *)ret;
+	return handle_syscall_ptr(ret);
 }
 
 int
 munmap(void *addr, size_t length)
 {
-	int64_t ret =
-	    syscall2(SYSCALL_MUNMAP, (uint64_t)addr, (uint64_t)length);
+	int64_t ret = syscall2(SYSCALL_MUNMAP, (uint64_t)addr, (uint64_t)length);
+	return (int)handle_syscall_result(ret);
+}
+
+int
+mprotect(void *addr, size_t len, int prot)
+{
+	int64_t ret = syscall3(SYSCALL_MPROTECT, (uint64_t)addr, (uint64_t)len, (uint64_t)prot);
 	return (int)handle_syscall_result(ret);
 }
 
@@ -431,70 +471,40 @@ void *
 brk(void *addr)
 {
 	int64_t ret = syscall1(SYSCALL_BRK, (uint64_t)addr);
-
-	if (ret < 0) {
-		errno = (int)(-ret);
-		return (void *)-1;
-	}
-
-	return (void *)ret;
+	return handle_syscall_ptr(ret);
 }
 
 void *
 sbrk(intptr_t increment)
 {
 	void *current = brk(NULL);
-	if (current == (void *)-1) {
+	if (current == (void *)-1)
 		return (void *)-1;
-	}
 
-	if (increment == 0) {
+	if (increment == 0)
 		return current;
-	}
 
 	void *new_brk = (void *)((uint64_t)current + increment);
 
-	if (brk(new_brk) == (void *)-1) {
+	void *result = brk(new_brk);
+	if (result == (void *)-1)
 		return (void *)-1;
-	}
 
 	return current;
 }
 
-pid_t
-getpid(void)
-{
-	return (pid_t)syscall0(SYSCALL_GETPID);
-}
-
 int
-mprotect(void *addr, size_t len, int prot)
+gethostname(char *name, size_t len)
 {
-	int64_t ret = syscall3(
-	    SYSCALL_MPROTECT, (uint64_t)addr, (uint64_t)len, (uint64_t)prot);
+	int64_t ret = syscall2(SYSCALL_GETHOSTNAME, (uint64_t)name, (uint64_t)len);
 	return (int)handle_syscall_result(ret);
 }
 
-void
-_exit(int status)
-{
-	syscall1(SYSCALL_EXIT, (uint64_t)status);
-	__builtin_unreachable();
-}
-
 int
-isatty(int fd)
+gethostid(void)
 {
-    /* For now, consider fd 0, 1, 2 as TTY, others not
-     * TODO: use ioctl or similar */
-    return (fd >= 0 && fd <= 2) ? 1 : 0;
-}
-
-int
-sysinfo(struct sysinfo *info)
-{
-	int64_t ret = syscall1(SYSCALL_SYSINFO, (uint64_t)info);
-	return (int)handle_syscall_result(ret);
+	/* gethostid returns a host ID value, not an error code */
+	return (int)syscall0(SYSCALL_GETHOSTID);
 }
 
 int
@@ -505,24 +515,10 @@ uname(struct utsname *buf)
 }
 
 int
-gethostname(char *name, size_t len)
+sysinfo(struct sysinfo *info)
 {
-	int64_t ret =
-	    syscall2(SYSCALL_GETHOSTNAME, (uint64_t)name, (uint64_t)len);
+	int64_t ret = syscall1(SYSCALL_SYSINFO, (uint64_t)info);
 	return (int)handle_syscall_result(ret);
-}
-
-pid_t
-getppid(void)
-{
-	return (pid_t)syscall0(SYSCALL_GETPPID);
-}
-
-int
-gethostid(void)
-{
-	/* gethostid returns a host ID value, not an error code */
-	return (int)syscall0(SYSCALL_GETHOSTID);
 }
 
 int
@@ -560,9 +556,8 @@ sleep(unsigned int seconds)
 	req.tv_sec = seconds;
 	req.tv_nsec = 0;
 	
-	if (nanosleep(&req, &rem) == 0) {
+	if (nanosleep(&req, &rem) == 0)
 		return 0;
-	}
 	
 	/* If interrupted, return remaining seconds */
 	return (unsigned int)rem.tv_sec;
@@ -576,4 +571,12 @@ usleep(useconds_t usec)
 	req.tv_nsec = (usec % 1000000) * 1000;
 	
 	return nanosleep(&req, NULL);
+}
+
+int
+isatty(int fd)
+{
+	/* For now, consider fd 0, 1, 2 as TTY, others not */
+	/* TODO: Implement proper ioctl-based detection */
+	return (fd >= 0 && fd <= 2) ? 1 : 0;
 }

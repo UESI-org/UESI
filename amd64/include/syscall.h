@@ -1,11 +1,12 @@
 #ifndef SYSCALL_H
 #define SYSCALL_H
 
-#include <stddef.h>
-#include <stdint.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/time.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
 
 #define SYSCALL_EXIT 1
 #define SYSCALL_FORK 2
@@ -70,53 +71,62 @@ struct utsname;
 void syscall_init(void);
 void syscall_handler(syscall_registers_t *regs);
 
+void syscall_enable_trace(bool enable);
+void syscall_print_stats(void);
+
 void sys_exit(int status) __attribute__((noreturn));
 int64_t sys_fork(syscall_registers_t *regs);
+int64_t sys_getpid(void);
+int64_t sys_getppid(void);
+
 int64_t sys_read(int fd, void *buf, size_t count);
 int64_t sys_write(int fd, const void *buf, size_t count);
 int64_t sys_open(const char *path, uint32_t flags, mode_t mode);
 int64_t sys_close(int fd);
 int64_t sys_creat(const char *path, mode_t mode);
-int64_t sys_openat(int dirfd,
-                   const char *pathname,
-                   uint32_t flags,
-                   mode_t mode);
+int64_t sys_openat(int dirfd, const char *pathname, uint32_t flags, mode_t mode);
+off_t sys_lseek(int fd, off_t offset, int whence);
+
+int64_t sys_dup(int oldfd);
+int64_t sys_dup2(int oldfd, int newfd);
+int64_t sys_fcntl(int fd, int cmd, uint64_t arg);
+
 int64_t sys_mkdir(const char *path, mode_t mode);
-int64_t sys_mknod(const char *path, mode_t mode, dev_t dev);
 int64_t sys_rmdir(const char *path);
-int64_t sys_unlink(const char *path);
 int64_t sys_getcwd(char *buf, size_t size);
 int64_t sys_chdir(const char *path);
 int64_t sys_fchdir(int fd);
 int64_t sys_getdents(int fd, void *dirp, size_t count);
+
+int64_t sys_unlink(const char *path);
+int64_t sys_link(const char *oldpath, const char *newpath);
 int64_t sys_symlink(const char *target, const char *linkpath);
 int64_t sys_readlink(const char *path, char *buf, size_t bufsiz);
-int64_t sys_link(const char *oldpath, const char *newpath);
 int64_t sys_rename(const char *oldpath, const char *newpath);
 int64_t sys_truncate(const char *path, off_t length);
 int64_t sys_ftruncate(int fd, off_t length);
-int64_t sys_access(const char *path, int mode);
-int64_t sys_chown(const char *path, uid_t owner, gid_t group);
-int64_t sys_chmod(const char *path, mode_t mode);
-int64_t sys_fcntl(int fd, int cmd, uint64_t arg);
-int64_t sys_dup(int oldfd);
-int64_t sys_dup2(int oldfd, int newfd);
+int64_t sys_mknod(const char *path, mode_t mode, dev_t dev);
+
 int64_t sys_stat(const char *path, struct stat *statbuf);
 int64_t sys_fstat(int fd, struct stat *statbuf);
 int64_t sys_lstat(const char *path, struct stat *statbuf);
-int64_t sys_lseek(int fd, off_t offset, int whence);
-void *sys_mmap(
-    void *addr, size_t length, int prot, int flags, int fd, off_t offset);
+int64_t sys_access(const char *path, int mode);
+int64_t sys_chmod(const char *path, mode_t mode);
+int64_t sys_chown(const char *path, uid_t owner, gid_t group);
+
+void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset);
+int64_t sys_munmap(void *addr, size_t length);
+int64_t sys_mprotect(void *addr, size_t len, int prot);
 int64_t sys_brk(void *addr);
-int64_t sys_getpid(void);
+
 int64_t sys_gethostname(char *name, size_t len);
-int64_t sys_getppid(void);
 int64_t sys_gethostid(void);
 int64_t sys_sysinfo(struct sysinfo *info);
-int uname(struct utsname *buf);
+int64_t sys_uname(struct utsname *buf);
+
 int64_t sys_gettimeofday(struct timeval *tv, struct timezone *tz);
 int64_t sys_clock_gettime(clockid_t clock_id, struct timespec *tp);
 int64_t sys_clock_getres(clockid_t clock_id, struct timespec *res);
 int64_t sys_nanosleep(const struct timespec *req, struct timespec *rem);
 
-#endif
+#endif /* SYSCALL_H */

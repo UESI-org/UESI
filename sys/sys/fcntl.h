@@ -8,9 +8,7 @@
  */
 
 #include <sys/cdefs.h>
-#ifndef _KERNEL
 #include <sys/types.h>
-#endif
 
 /*
  * File status flags: these are used by open(2), fcntl(2).
@@ -185,14 +183,11 @@ struct flock {
 #define AT_REMOVEDIR 0x08
 #endif
 
-extern int64_t open(const char *path, uint32_t flags, mode_t mode);
-extern int64_t creat(const char *path, mode_t mode);
+#ifndef _KERNEL
+extern int open(const char *path, int flags, ...);
+extern int creat(const char *path, mode_t mode);
 extern int fcntl(int fd, int cmd, ...);
-#if __POSIX_VISIBLE >= 200809
-extern int64_t openat(int dirfd,
-                      const char *pathname,
-                      uint32_t flags,
-                      mode_t mode);
+extern int openat(int dirfd, const char *pathname, int flags, ...);
 #endif
 
 #endif /* !_SYS_FCNTL_H_ */
