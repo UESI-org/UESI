@@ -7,6 +7,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <vmm.h>
+#include <vfs.h>
 #include <mmu.h>
 #include <proc.h>
 #include <spinlock.h>
@@ -174,6 +175,51 @@ validate_user_string(const char *str, size_t maxlen)
 	return -ENAMETOOLONG;
 }
 
+static inline vfs_file_t *
+fd_getfile_ref(struct process *ps, int fd)
+{
+	if (!ps || fd < 0 || fd >= MAX_OPEN_FILES)
+		return NULL;
+
+	uint64_t lock_flags;
+	spinlock_acquire_irqsave(&ps->ps_lock, &lock_flags);
+	
+	vfs_file_t *file = ps->ps_fd_table[fd].file;
+	if (file) {
+		uint64_t file_flags;
+		spinlock_acquire_irqsave(&file->f_lock, &file_flags);
+		file->f_refcount++;
+		spinlock_release_irqrestore(&file->f_lock, file_flags);
+	}
+	
+	spinlock_release_irqrestore(&ps->ps_lock, lock_flags);
+	return file;
+}
+
+static inline void
+fd_putfile(vfs_file_t *file)
+{
+	if (!file)
+		return;
+		
+	extern int vfs_close(vfs_file_t *file);
+	
+	uint64_t lock_flags;
+	spinlock_acquire_irqsave(&file->f_lock, &lock_flags);
+	
+	if (file->f_refcount == 0) {
+		/* This should never happen */
+		spinlock_release_irqrestore(&file->f_lock, lock_flags);
+		return;
+	}
+	
+	file->f_refcount--;
+	bool should_close = (file->f_refcount == 0);
+	spinlock_release_irqrestore(&file->f_lock, lock_flags);
+	
+	/* Note: Don't actually close here - VFS manages file lifecycle */
+}
+
 static inline int
 fd_alloc(struct process *ps, int minfd, void *file, int flags)
 {
@@ -283,12 +329,10 @@ vfs_errno(int vfs_ret)
 	if (vfs_ret == 0)
 		return 0;
 
-	/* VFS returns negative errno values */
 	if (vfs_ret < 0)
 		return -vfs_ret;
 
-	/* Positive values are also errors in VFS */
 	return vfs_ret;
 }
 
-#endif /* _SYSCALL_UTILS_H_ */
+#endif

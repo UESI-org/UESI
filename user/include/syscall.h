@@ -64,7 +64,7 @@
 #define MAP_SHARED 0x0001
 #define MAP_PRIVATE 0x0002
 #define MAP_FIXED 0x0010
-#define MAP_ANONYMOUS 0x0020
+#define MAP_ANONYMOUS 0x1000
 #define MAP_ANON MAP_ANONYMOUS
 
 #define MAP_FAILED ((void *)-1)

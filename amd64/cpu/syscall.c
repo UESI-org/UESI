@@ -140,14 +140,58 @@ sys_fork(syscall_registers_t *regs)
 		return -ENOMEM;
 	}
 
-	/* Set up process relationships with locking */
+	/* CRITICAL: Hold parent lock for entire duplication */
 	uint64_t lock_flags;
 	spinlock_acquire_irqsave(&parent_ps->ps_lock, &lock_flags);
+
+	/* Set up process relationships */
 	child_ps->ps_pptr = parent_ps;
 	LIST_INSERT_HEAD(&parent_ps->ps_children, child_ps, ps_sibling);
+
+	/* Copy brk and flags */
+	child_ps->ps_brk = parent_ps->ps_brk;
+	child_ps->ps_flags = parent_ps->ps_flags & ~PS_EMBRYO;
+
+	/* Duplicate file descriptors with atomic refcount increment */
+	for (int i = 0; i < MAX_OPEN_FILES; i++) {
+		vfs_file_t *file = (vfs_file_t *)parent_ps->ps_fd_table[i].file;
+		if (file) {
+			uint64_t file_flags;
+			spinlock_acquire_irqsave(&file->f_lock, &file_flags);
+			file->f_refcount++;
+			spinlock_release_irqrestore(&file->f_lock, file_flags);
+			
+			child_ps->ps_fd_table[i].file = file;
+			child_ps->ps_fd_table[i].flags = parent_ps->ps_fd_table[i].flags;
+		}
+	}
+
+	/* Duplicate VFS context */
+	if (parent_ps->ps_vfs_ctx) {
+		child_ps->ps_vfs_ctx = vfs_context_dup(parent_ps->ps_vfs_ctx);
+		if (!child_ps->ps_vfs_ctx) {
+			/* Cleanup on failure */
+			for (int i = 0; i < MAX_OPEN_FILES; i++) {
+				if (child_ps->ps_fd_table[i].file) {
+					vfs_file_t *f = (vfs_file_t *)child_ps->ps_fd_table[i].file;
+					uint64_t ff;
+					spinlock_acquire_irqsave(&f->f_lock, &ff);
+					if (f->f_refcount > 0)
+						f->f_refcount--;
+					spinlock_release_irqrestore(&f->f_lock, ff);
+					child_ps->ps_fd_table[i].file = NULL;
+				}
+			}
+			spinlock_release_irqrestore(&parent_ps->ps_lock, lock_flags);
+			proc_free(child_proc);
+			process_free(child_ps);
+			return -ENOMEM;
+		}
+	}
+
 	spinlock_release_irqrestore(&parent_ps->ps_lock, lock_flags);
 
-	/* Copy address space */
+	/* Copy address space (can be done without parent lock) */
 	struct limine_hhdm_response *hhdm = boot_get_hhdm();
 	uint64_t hhdm_offset = hhdm ? hhdm->offset : 0;
 	pml4e_t *parent_pml4 = parent_ps->ps_vmspace->pml4;
@@ -183,6 +227,7 @@ sys_fork(syscall_registers_t *regs)
 
 					void *new_page = pmm_alloc();
 					if (!new_page) {
+						/* Cleanup all allocated pages */
 						proc_free(child_proc);
 						process_free(child_ps);
 						return -ENOMEM;
@@ -209,36 +254,6 @@ sys_fork(syscall_registers_t *regs)
 			}
 		}
 	}
-
-	/* Copy brk and flags */
-	spinlock_acquire_irqsave(&parent_ps->ps_lock, &lock_flags);
-	child_ps->ps_brk = parent_ps->ps_brk;
-	child_ps->ps_flags = parent_ps->ps_flags & ~PS_EMBRYO;
-
-	/* Duplicate file descriptors */
-	for (int i = 0; i < MAX_OPEN_FILES; i++) {
-		child_ps->ps_fd_table[i] = parent_ps->ps_fd_table[i];
-		if (child_ps->ps_fd_table[i].file) {
-			vfs_file_t *file = (vfs_file_t *)child_ps->ps_fd_table[i].file;
-			uint64_t file_flags;
-			spinlock_acquire_irqsave(&file->f_lock, &file_flags);
-			file->f_refcount++;
-			spinlock_release_irqrestore(&file->f_lock, file_flags);
-		}
-	}
-
-	/* Duplicate VFS context */
-	if (parent_ps->ps_vfs_ctx) {
-		child_ps->ps_vfs_ctx = vfs_context_dup(parent_ps->ps_vfs_ctx);
-		if (!child_ps->ps_vfs_ctx) {
-			spinlock_release_irqrestore(&parent_ps->ps_lock, lock_flags);
-			proc_free(child_proc);
-			process_free(child_ps);
-			return -ENOMEM;
-		}
-	}
-
-	spinlock_release_irqrestore(&parent_ps->ps_lock, lock_flags);
 
 	/* Create trapframe for child */
 	struct trapframe *child_tf = (struct trapframe *)pmm_alloc();
@@ -393,16 +408,20 @@ sys_read(int fd, void *buf, size_t count)
 		return bytes_read;
 	}
 
-	/* Get file with proper locking */
-	vfs_file_t *file = fd_getfile(p->p_p, fd);
+	/* Get file with reference */
+	vfs_file_t *file = fd_getfile_ref(p->p_p, fd);
 	if (!file)
 		return -EBADF;
 
 	/* Check file is readable */
-	if ((file->f_flags & VFS_O_WRONLY) == VFS_O_WRONLY)
+	if ((file->f_flags & VFS_O_WRONLY) == VFS_O_WRONLY) {
+		fd_putfile(file);
 		return -EBADF;
+	}
 
 	ssize_t result = vfs_read(file, buf, count);
+	fd_putfile(file);
+	
 	if (result < 0)
 		return -vfs_errno((int)result);
 
@@ -430,16 +449,20 @@ sys_write(int fd, const void *buf, size_t count)
 		return count;
 	}
 
-	/* Get file with proper locking */
-	vfs_file_t *file = fd_getfile(p->p_p, fd);
+	/* Get file with reference */
+	vfs_file_t *file = fd_getfile_ref(p->p_p, fd);
 	if (!file)
 		return -EBADF;
 
 	/* Check file is writable */
-	if ((file->f_flags & VFS_O_RDONLY) == VFS_O_RDONLY)
+	if ((file->f_flags & VFS_O_RDONLY) == VFS_O_RDONLY) {
+		fd_putfile(file);
 		return -EBADF;
+	}
 
 	ssize_t result = vfs_write(file, buf, count);
+	fd_putfile(file);
+	
 	if (result < 0)
 		return -vfs_errno((int)result);
 
@@ -490,6 +513,10 @@ sys_close(int fd)
 	if (!p || !p->p_p)
 		return -ESRCH;
 
+	/* Don't allow closing stdin/stdout/stderr this way */
+	if (fd >= 0 && fd <= 2)
+		return -EBADF;
+
 	return fd_close(p->p_p, fd);
 }
 
@@ -536,13 +563,17 @@ sys_openat(int dirfd, const char *pathname, uint32_t flags, mode_t mode)
 	}
 
 	/* Validate dirfd */
-	vfs_file_t *dir_file = fd_getfile(p->p_p, dirfd);
+	vfs_file_t *dir_file = fd_getfile_ref(p->p_p, dirfd);
 	if (!dir_file)
 		return -EBADF;
 
 	vnode_t *dir_vnode = dir_file->f_vnode;
-	if ((dir_vnode->v_mode & VFS_IFMT) != VFS_IFDIR)
+	if ((dir_vnode->v_mode & VFS_IFMT) != VFS_IFDIR) {
+		fd_putfile(dir_file);
 		return -ENOTDIR;
+	}
+
+	fd_putfile(dir_file);
 
 	/* TODO: Implement proper relative path resolution */
 	return -ENOTSUP;
@@ -555,14 +586,18 @@ sys_lseek(int fd, off_t offset, int whence)
 	if (!p || !p->p_p)
 		return -ESRCH;
 
-	vfs_file_t *file = fd_getfile(p->p_p, fd);
+	vfs_file_t *file = fd_getfile_ref(p->p_p, fd);
 	if (!file)
 		return -EBADF;
 
-	if (whence != VFS_SEEK_SET && whence != VFS_SEEK_CUR && whence != VFS_SEEK_END)
+	if (whence != VFS_SEEK_SET && whence != VFS_SEEK_CUR && whence != VFS_SEEK_END) {
+		fd_putfile(file);
 		return -EINVAL;
+	}
 
 	off_t result = vfs_seek(file, offset, whence);
+	fd_putfile(file);
+	
 	if (result < 0)
 		return -vfs_errno((int)result);
 
@@ -576,11 +611,13 @@ sys_dup(int oldfd)
 	if (!p || !p->p_p)
 		return -ESRCH;
 
-	vfs_file_t *file = fd_getfile(p->p_p, oldfd);
+	vfs_file_t *file = fd_getfile_ref(p->p_p, oldfd);
 	if (!file)
 		return -EBADF;
 
 	vfs_file_t *dup_file = vfs_file_dup(file);
+	fd_putfile(file);
+	
 	if (!dup_file)
 		return -ENOMEM;
 
@@ -612,11 +649,13 @@ sys_dup2(int oldfd, int newfd)
 		return file ? newfd : -EBADF;
 	}
 
-	vfs_file_t *oldfile = fd_getfile(ps, oldfd);
+	vfs_file_t *oldfile = fd_getfile_ref(ps, oldfd);
 	if (!oldfile)
 		return -EBADF;
 
 	vfs_file_t *newfile = vfs_file_dup(oldfile);
+	fd_putfile(oldfile);
+	
 	if (!newfile)
 		return -ENOMEM;
 
@@ -654,11 +693,13 @@ sys_fcntl(int fd, int cmd, uint64_t arg)
 		if (minfd < 0 || minfd >= MAX_OPEN_FILES)
 			return -EINVAL;
 
-		vfs_file_t *file = fd_getfile(ps, fd);
+		vfs_file_t *file = fd_getfile_ref(ps, fd);
 		if (!file)
 			return -EBADF;
 
 		vfs_file_t *newfile = vfs_file_dup(file);
+		fd_putfile(file);
+		
 		if (!newfile)
 			return -ENOMEM;
 
@@ -679,7 +720,7 @@ sys_fcntl(int fd, int cmd, uint64_t arg)
 		return fd_setflags(ps, fd, (int)arg & FD_CLOEXEC);
 
 	case F_GETFL: {
-		vfs_file_t *file = fd_getfile(ps, fd);
+		vfs_file_t *file = fd_getfile_ref(ps, fd);
 		if (!file)
 			return -EBADF;
 
@@ -696,11 +737,12 @@ sys_fcntl(int fd, int cmd, uint64_t arg)
 		if (file->f_flags & VFS_O_TRUNC) flags |= O_TRUNC;
 		if (file->f_flags & VFS_O_EXCL) flags |= O_EXCL;
 
+		fd_putfile(file);
 		return flags;
 	}
 
 	case F_SETFL: {
-		vfs_file_t *file = fd_getfile(ps, fd);
+		vfs_file_t *file = fd_getfile_ref(ps, fd);
 		if (!file)
 			return -EBADF;
 
@@ -711,6 +753,7 @@ sys_fcntl(int fd, int cmd, uint64_t arg)
 			file->f_flags |= VFS_O_APPEND;
 		spinlock_release_irqrestore(&file->f_lock, lock_flags);
 
+		fd_putfile(file);
 		return 0;
 	}
 
@@ -725,6 +768,8 @@ sys_fcntl(int fd, int cmd, uint64_t arg)
 		return -EINVAL;
 	}
 }
+
+/* Directory operations - these don't need fd references since they use paths */
 
 int64_t
 sys_mkdir(const char *path, mode_t mode)
@@ -858,13 +903,17 @@ sys_fchdir(int fd)
 	if (!p || !p->p_p)
 		return -ESRCH;
 
-	vfs_file_t *file = fd_getfile(p->p_p, fd);
+	vfs_file_t *file = fd_getfile_ref(p->p_p, fd);
 	if (!file)
 		return -EBADF;
 
 	vnode_t *vnode = file->f_vnode;
-	if ((vnode->v_mode & VFS_IFMT) != VFS_IFDIR)
+	if ((vnode->v_mode & VFS_IFMT) != VFS_IFDIR) {
+		fd_putfile(file);
 		return -ENOTDIR;
+	}
+
+	fd_putfile(file);
 
 	/* TODO: Implement reverse path lookup */
 	return -ENOTSUP;
@@ -883,13 +932,15 @@ sys_getdents(int fd, void *dirp, size_t count)
 	if (!p || !p->p_p)
 		return -ESRCH;
 
-	vfs_file_t *file = fd_getfile(p->p_p, fd);
+	vfs_file_t *file = fd_getfile_ref(p->p_p, fd);
 	if (!file)
 		return -EBADF;
 
 	vnode_t *vnode = file->f_vnode;
-	if ((vnode->v_mode & VFS_IFMT) != VFS_IFDIR)
+	if ((vnode->v_mode & VFS_IFMT) != VFS_IFDIR) {
+		fd_putfile(file);
 		return -ENOTDIR;
+	}
 
 	struct linux_dirent {
 		unsigned long d_ino;
@@ -906,6 +957,7 @@ sys_getdents(int fd, void *dirp, size_t count)
 		int ret = vfs_readdir(file, &vfs_dirent);
 
 		if (ret != 0) {
+			fd_putfile(file);
 			if (bytes_written > 0)
 				return bytes_written;
 			return (ret == -ENOENT) ? 0 : -vfs_errno(ret);
@@ -930,8 +982,11 @@ sys_getdents(int fd, void *dirp, size_t count)
 		bytes_written += reclen;
 	}
 
+	fd_putfile(file);
 	return bytes_written;
 }
+
+/* File manipulation syscalls */
 
 int64_t
 sys_unlink(const char *path)
@@ -1125,18 +1180,24 @@ sys_ftruncate(int fd, off_t length)
 	if (!p || !p->p_p)
 		return -ESRCH;
 
-	vfs_file_t *file = fd_getfile(p->p_p, fd);
+	vfs_file_t *file = fd_getfile_ref(p->p_p, fd);
 	if (!file)
 		return -EBADF;
 
-	if (!(file->f_flags & (VFS_O_WRONLY | VFS_O_RDWR)))
+	if (!(file->f_flags & (VFS_O_WRONLY | VFS_O_RDWR))) {
+		fd_putfile(file);
 		return -EINVAL;
+	}
 
 	vnode_t *vnode = file->f_vnode;
-	if (!vnode->v_ops || !vnode->v_ops->truncate)
+	if (!vnode->v_ops || !vnode->v_ops->truncate) {
+		fd_putfile(file);
 		return -EINVAL;
+	}
 
 	int ret = vnode->v_ops->truncate(vnode, length);
+	fd_putfile(file);
+	
 	if (ret != 0)
 		return -vfs_errno(ret);
 
@@ -1165,6 +1226,8 @@ sys_mknod(const char *path, mode_t mode, dev_t dev)
 	return 0;
 }
 
+/* Stat syscalls */
+
 int64_t
 sys_stat(const char *path, struct stat *statbuf)
 {
@@ -1191,6 +1254,7 @@ sys_stat(const char *path, struct stat *statbuf)
 		return -vfs_errno(ret);
 
 	struct stat ustat;
+	memset(&ustat, 0, sizeof(struct stat));
 	ustat.st_dev = kstat.st_dev;
 	ustat.st_ino = kstat.st_ino;
 	ustat.st_mode = kstat.st_mode;
@@ -1218,7 +1282,7 @@ sys_fstat(int fd, struct stat *statbuf)
 	if (!p || !p->p_p)
 		return -ESRCH;
 
-	vfs_file_t *file = fd_getfile(p->p_p, fd);
+	vfs_file_t *file = fd_getfile_ref(p->p_p, fd);
 	if (!file)
 		return -EBADF;
 
@@ -1226,10 +1290,13 @@ sys_fstat(int fd, struct stat *statbuf)
 	memset(&kstat, 0, sizeof(vfs_stat_t));
 
 	int ret = vfs_fstat(file, &kstat);
+	fd_putfile(file);
+	
 	if (ret != VFS_SUCCESS)
 		return -vfs_errno(ret);
 
 	struct stat ustat;
+	memset(&ustat, 0, sizeof(struct stat));
 	ustat.st_dev = kstat.st_dev;
 	ustat.st_ino = kstat.st_ino;
 	ustat.st_mode = kstat.st_mode;
@@ -1273,6 +1340,7 @@ sys_lstat(const char *path, struct stat *statbuf)
 		return -vfs_errno(ret);
 
 	struct stat ustat;
+	memset(&ustat, 0, sizeof(struct stat));
 	ustat.st_dev = kstat.st_dev;
 	ustat.st_ino = kstat.st_ino;
 	ustat.st_mode = kstat.st_mode;
@@ -1360,33 +1428,50 @@ void *
 sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 {
 	struct proc *p = proc_get_current();
-	if (!p || !p->p_p || !p->p_p->ps_vmspace)
+	if (!p || !p->p_p || !p->p_p->ps_vmspace) {
+		tty_printf("[MMAP] ERROR: No process/vmspace\n");
 		return (void *)(intptr_t)-EINVAL;
+	}
 
 	struct process *ps = p->p_p;
 
-	if (length == 0)
-		return (void *)(intptr_t)-EINVAL;
+	tty_printf("[MMAP] addr=%p, length=%lu, prot=%d, flags=%d, fd=%d, offset=%ld\n",
+	           addr, length, prot, flags, fd, offset);
 
-	if (!(flags & MAP_ANONYMOUS))
+	if (length == 0) {
+		tty_printf("[MMAP] ERROR: length is 0\n");
 		return (void *)(intptr_t)-EINVAL;
+	}
 
-	if (!(flags & MAP_SHARED) && !(flags & MAP_PRIVATE))
+	if (!(flags & MAP_ANONYMOUS)) {
+		tty_printf("[MMAP] ERROR: Not MAP_ANONYMOUS (flags=0x%x, MAP_ANONYMOUS=0x%x)\n",
+		           flags, MAP_ANONYMOUS);
 		return (void *)(intptr_t)-EINVAL;
+	}
+
+	if (!(flags & MAP_SHARED) && !(flags & MAP_PRIVATE)) {
+		tty_printf("[MMAP] ERROR: Neither MAP_SHARED nor MAP_PRIVATE (flags=0x%x)\n", flags);
+		return (void *)(intptr_t)-EINVAL;
+	}
 
 	size_t aligned_length = (length + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
 	size_t num_pages = aligned_length / PAGE_SIZE;
 	uint64_t virt_addr;
 
+	tty_printf("[MMAP] aligned_length=%lu, num_pages=%lu\n", aligned_length, num_pages);
+
+	uint64_t lock_flags;
+	spinlock_acquire_irqsave(&ps->ps_lock, &lock_flags);
+
 	if (flags & MAP_FIXED) {
-		if (!is_user_address(addr))
+		if (!is_user_address(addr)) {
+			spinlock_release_irqrestore(&ps->ps_lock, lock_flags);
+			tty_printf("[MMAP] ERROR: MAP_FIXED but invalid user address\n");
 			return (void *)(intptr_t)-EINVAL;
+		}
 		virt_addr = (uint64_t)addr & ~(PAGE_SIZE - 1);
 	} else {
-		uint64_t lock_flags;
-		spinlock_acquire_irqsave(&ps->ps_lock, &lock_flags);
 		virt_addr = (ps->ps_brk + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
-		spinlock_release_irqrestore(&ps->ps_lock, lock_flags);
 
 		if (addr != NULL && is_user_address(addr)) {
 			uint64_t hint = (uint64_t)addr & ~(PAGE_SIZE - 1);
@@ -1395,11 +1480,17 @@ sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 		}
 	}
 
+	tty_printf("[MMAP] Selected virt_addr=0x%llx, ps_brk=0x%llx\n", virt_addr, ps->ps_brk);
+
+	spinlock_release_irqrestore(&ps->ps_lock, lock_flags);
+
 	uint64_t page_flags = PAGE_PRESENT | PAGE_USER;
 	if (prot & PROT_WRITE)
 		page_flags |= PAGE_WRITE;
 	if (!(prot & PROT_EXEC))
 		page_flags |= PAGE_NX;
+
+	tty_printf("[MMAP] page_flags=0x%llx\n", page_flags);
 
 	struct limine_hhdm_response *hhdm = boot_get_hhdm();
 	uint64_t hhdm_offset = hhdm ? hhdm->offset : 0;
@@ -1409,6 +1500,7 @@ sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 
 		void *page_virt = pmm_alloc();
 		if (!page_virt) {
+			tty_printf("[MMAP] ERROR: pmm_alloc failed at page %lu/%lu\n", i, num_pages);
 			/* Cleanup */
 			for (size_t j = 0; j < i; j++) {
 				uint64_t cleanup_virt = virt_addr + (j * PAGE_SIZE);
@@ -1424,7 +1516,11 @@ sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 		memset(page_virt, 0, PAGE_SIZE);
 		uint64_t phys_page = (uint64_t)page_virt - hhdm_offset;
 
+		tty_printf("[MMAP] Mapping page %lu: virt=0x%llx -> phys=0x%llx\n",
+		           i, virt_page, phys_page);
+
 		if (!paging_map_range(ps->ps_vmspace, virt_page, phys_page, 1, page_flags)) {
+			tty_printf("[MMAP] ERROR: paging_map_range failed at page %lu\n", i);
 			pmm_free(page_virt);
 			/* Cleanup */
 			for (size_t j = 0; j < i; j++) {
@@ -1439,11 +1535,14 @@ sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 		}
 	}
 
-	uint64_t lock_flags;
 	spinlock_acquire_irqsave(&ps->ps_lock, &lock_flags);
+	uint64_t old_brk = ps->ps_brk;
 	if (virt_addr + aligned_length > ps->ps_brk)
 		ps->ps_brk = virt_addr + aligned_length;
 	spinlock_release_irqrestore(&ps->ps_lock, lock_flags);
+
+	tty_printf("[MMAP] SUCCESS: mapped at 0x%llx, brk: 0x%llx -> 0x%llx\n",
+	           virt_addr, old_brk, ps->ps_brk);
 
 	return (void *)virt_addr;
 }
@@ -1515,18 +1614,26 @@ sys_brk(void *addr)
 		return -ESRCH;
 
 	struct process *ps = p->p_p;
+	struct limine_hhdm_response *hhdm = boot_get_hhdm();
+	uint64_t hhdm_offset = hhdm ? hhdm->offset : 0;
 
 	uint64_t lock_flags;
 	spinlock_acquire_irqsave(&ps->ps_lock, &lock_flags);
 
+	/* Query current brk */
 	if (addr == NULL || addr == 0) {
 		uint64_t brk = ps->ps_brk;
+		if (brk == 0) {
+			brk = (USER_CODE_BASE + 0x100000) & ~(PAGE_SIZE - 1);
+			ps->ps_brk = brk;
+		}
 		spinlock_release_irqrestore(&ps->ps_lock, lock_flags);
 		return (int64_t)brk;
 	}
 
 	uint64_t new_brk = (uint64_t)addr;
 
+	/* Validate new brk */
 	if (!is_user_address(addr) || new_brk < USER_CODE_BASE ||
 	    new_brk >= (USER_STACK_TOP - PROCESS_USER_STACK_SIZE)) {
 		spinlock_release_irqrestore(&ps->ps_lock, lock_flags);
@@ -1544,24 +1651,33 @@ sys_brk(void *addr)
 		return (int64_t)old_brk;
 	}
 
-	spinlock_release_irqrestore(&ps->ps_lock, lock_flags);
-
-	struct limine_hhdm_response *hhdm = boot_get_hhdm();
-	uint64_t hhdm_offset = hhdm ? hhdm->offset : 0;
+	uint64_t old_page = (old_brk + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
+	uint64_t new_page = (new_brk + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
 
 	if (new_brk > old_brk) {
-		/* Expand */
-		uint64_t old_page = (old_brk + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
-		uint64_t new_page = (new_brk + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
-
+		/* Expand - allocate pages */
 		uint64_t current_page = old_page;
 		while (current_page < new_page) {
 			uint64_t phys_addr = mmu_get_physical_address(ps->ps_vmspace, current_page);
 
 			if (phys_addr == 0) {
+				/* Release lock during allocation */
+				spinlock_release_irqrestore(&ps->ps_lock, lock_flags);
 				void *page_virt = pmm_alloc();
-				if (!page_virt)
+				spinlock_acquire_irqsave(&ps->ps_lock, &lock_flags);
+
+				/* Check if brk changed while we were allocating */
+				if (ps->ps_brk != old_brk) {
+					if (page_virt)
+						pmm_free(page_virt);
+					spinlock_release_irqrestore(&ps->ps_lock, lock_flags);
+					return -EAGAIN;
+				}
+
+				if (!page_virt) {
+					spinlock_release_irqrestore(&ps->ps_lock, lock_flags);
 					return -ENOMEM;
+				}
 
 				memset(page_virt, 0, PAGE_SIZE);
 				uint64_t phys_page = (uint64_t)page_virt - hhdm_offset;
@@ -1569,17 +1685,20 @@ sys_brk(void *addr)
 				if (!paging_map_range(ps->ps_vmspace, current_page, phys_page, 1,
 				                      PAGE_PRESENT | PAGE_WRITE | PAGE_USER)) {
 					pmm_free(page_virt);
+					spinlock_release_irqrestore(&ps->ps_lock, lock_flags);
 					return -ENOMEM;
 				}
 			}
 
 			current_page += PAGE_SIZE;
 		}
-	} else {
-		/* Shrink */
-		uint64_t new_page = (new_brk + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
-		uint64_t old_page = (old_brk + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
 
+		ps->ps_brk = new_brk;
+		spinlock_release_irqrestore(&ps->ps_lock, lock_flags);
+		return (int64_t)new_brk;
+
+	} else {
+		/* Shrink - free pages */
 		uint64_t current_page = new_page;
 		while (current_page < old_page) {
 			uint64_t phys_addr = mmu_get_physical_address(ps->ps_vmspace, current_page);
@@ -1592,14 +1711,14 @@ sys_brk(void *addr)
 
 			current_page += PAGE_SIZE;
 		}
+
+		ps->ps_brk = new_brk;
+		spinlock_release_irqrestore(&ps->ps_lock, lock_flags);
+		return (int64_t)new_brk;
 	}
-
-	spinlock_acquire_irqsave(&ps->ps_lock, &lock_flags);
-	ps->ps_brk = new_brk;
-	spinlock_release_irqrestore(&ps->ps_lock, lock_flags);
-
-	return (int64_t)new_brk;
 }
+
+/* System information syscalls */
 
 int64_t
 sys_gethostname(char *name, size_t len)
@@ -1656,6 +1775,8 @@ sys_uname(struct utsname *buf)
 
 	return copyout(&kbuf, buf, sizeof(struct utsname));
 }
+
+/* Time syscalls */
 
 int64_t
 sys_gettimeofday(struct timeval *tv, struct timezone *tz)
@@ -1773,6 +1894,8 @@ sys_nanosleep(const struct timespec *req, struct timespec *rem)
 
 	return 0;
 }
+
+/* Syscall handler dispatcher */
 
 void
 syscall_handler(syscall_registers_t *regs)
