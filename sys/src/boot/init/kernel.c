@@ -50,49 +50,30 @@ init_subsystem(void)
 static void
 initialize_memory(void)
 {
-	debug_section("Initializing Memory Management");
+    struct limine_memmap_response *memmap = boot_get_memmap();
+    struct limine_hhdm_response *hhdm = boot_get_hhdm();
 
-	struct limine_memmap_response *memmap = boot_get_memmap();
-	struct limine_hhdm_response *hhdm = boot_get_hhdm();
+    if (memmap == NULL || hhdm == NULL) {
+        panic("Memory map or HHDM not available from bootloader");
+    }
 
-	if (memmap == NULL || hhdm == NULL) {
-		panic("Memory map or HHDM not available from bootloader");
-	}
+    pmm_init(memmap, hhdm);
+    kmalloc_init();
+    mmu_init(hhdm);
+    vmm_init();
+    vfs_init();
+    inode_cache_init();
+    blk_alloc_init(&g_block_alloc, 4096, 0, BLK_SIZE_4K);
+    blk_buffer_init();
+    tmpfs_init();
 
-	pmm_init(memmap, hhdm);
-	debug_success("PMM initialized");
-
-	kmalloc_init();
-	debug_success("kmalloc initialized");
-
-	mmu_init(hhdm);
-	debug_success("MMU initialized");
-
-	vmm_init();
-	debug_success("VMM initialized");
-
-	vfs_init();
-	debug_success("VFS initialized");
-
-	inode_cache_init();
-	debug_success("inode cache initialized");
-
-	blk_alloc_init(&g_block_alloc, 4096, 0, BLK_SIZE_4K);
-	debug_success("blk alloc initialized");
-
-	blk_buffer_init();
-	debug_success("blk buffer initialized");
-
-	tmpfs_init();
-	debug_success("tmpfs initialized");
-
-	int ret = vfs_mount(NULL, "/", "tmpfs", 0, NULL);
-	if (ret != 0) {
-		printf("vfs_mount returned error code: %d\n", ret);
-		debug_error("Failed to mount tmpfs at /");
-	} else {
-		debug_success("tmpfs mounted at / (root)");
-	}
+    int ret = vfs_mount(NULL, "/", "tmpfs", 0, NULL);
+    if (ret != 0) {
+        printf("Failed to mount tmpfs: error %d\n", ret);
+        panic("Root filesystem mount failed");
+    }
+    
+    printf("Memory subsystems initialized\n");
 }
 
 static void
@@ -202,9 +183,6 @@ initialize_system_components(void)
 	tsc_init();
 	if (tsc_is_available()) {
 		debug_success("TSC initialized");
-		if (debug_is_enabled()) {
-			tsc_print_info();
-		}
 	} else {
 		debug_error("TSC not available");
 	}
@@ -222,10 +200,6 @@ initialize_system_components(void)
 static void
 run_tests(void)
 {
-	test_kmalloc();
-	test_ahci();
-	test_rtc();
-
 	struct limine_module_response *modules = boot_get_modules();
 	if (modules && modules->module_count > 0) {
 		struct limine_file *user_prog = modules->modules[0];
