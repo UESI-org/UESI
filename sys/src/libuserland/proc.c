@@ -152,8 +152,6 @@ process_alloc(const char *name)
 	LIST_INSERT_HEAD(PIDHASH(ps->ps_pid), ps, ps_hash);
 	spinlock_release(&pidhash_lock);
 
-	printf_("Allocated process %d (%s)\n", ps->ps_pid, ps->ps_comm);
-
 	return ps;
 }
 
@@ -162,8 +160,6 @@ process_free(struct process *ps)
 {
 	if (!ps)
 		return;
-
-	printf_("Freeing process %d (%s)\n", ps->ps_pid, ps->ps_comm);
 
 	/* Verify no threads remain */
 	spinlock_acquire(&ps->ps_lock);
@@ -264,9 +260,6 @@ proc_alloc(struct process *ps, const char *name)
 	LIST_INSERT_HEAD(TIDHASH(p->p_tid), p, p_hash);
 	spinlock_release(&tidhash_lock);
 
-	printf_("Allocated thread %d in process %d (%s)\n",
-	        p->p_tid, ps->ps_pid, p->p_name);
-
 	return p;
 }
 
@@ -281,8 +274,6 @@ proc_free(struct proc *p)
 	ps = p->p_p;
 	if (!ps)
 		return;
-
-	printf_("Freeing thread %d (%s)\n", p->p_tid, p->p_name);
 
 	/* Remove from process thread list */
 	spinlock_acquire(&ps->ps_lock);
@@ -310,7 +301,6 @@ proc_free(struct proc *p)
 		LIST_INSERT_HEAD(&zombprocess, ps, ps_list);
 		spinlock_release(&allprocess_lock);
 		
-		printf_("Process %d is now a zombie (last thread exited)\n", ps->ps_pid);
 	}
 
 	/* Remove from global thread list and hash */
@@ -393,10 +383,6 @@ proc_enter_usermode(struct proc *p, uint64_t entry_point, uint64_t stack_top)
 		printf_("WARNING: Unaligned stack 0x%lx, aligning\n", stack_top);
 		stack_top &= ~0xFULL;
 	}
-
-	printf_("Process: %d (%s), Thread: %d (%s)\n",
-	        ps->ps_pid, ps->ps_comm, p->p_tid, p->p_name);
-	printf_("Entry: 0x%016lx, Stack: 0x%016lx\n", entry_point, stack_top);
 
 	/* Set as current thread */
 	proc_set_current(p);

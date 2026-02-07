@@ -377,12 +377,6 @@ allocate_user_stack(struct process *ps,
 
 	uint64_t stack_base = USER_STACK_TOP - (stack_pages * NBPG);
 
-	printf_("ELF: Allocating user stack: 0x%lx - 0x%lx (%lu pages, %lu KB)\n",
-	        stack_base,
-	        USER_STACK_TOP,
-	        stack_pages,
-	        (stack_pages * NBPG) / 1024);
-
 	/* Allocate and map stack pages */
 	uint64_t page_flags =
 	    PAGING_FLAG_PRESENT | PAGING_FLAG_WRITE | PAGING_FLAG_USER;
@@ -440,7 +434,6 @@ elf_load(struct process *ps,
 	}
 
 	if (!hhdm_initialized) {
-		printf_("ELF: HHDM offset not initialized, initializing now\n");
 		init_hhdm_offset();
 		if (!hhdm_initialized) {
 			printf_("ELF: Failed to initialize HHDM offset\n");
@@ -461,10 +454,6 @@ elf_load(struct process *ps,
 
 	/* Initialize load state for cleanup tracking */
 	struct elf_load_state state = { 0 };
-
-	printf_("ELF: Loading executable...\n");
-	printf_("  Entry point: 0x%lx\n", ehdr->e_entry);
-	printf_("  Program headers: %d\n", ehdr->e_phnum);
 
 	/* Validate entry point is in an executable segment */
 	bool entry_valid = false;
@@ -492,13 +481,6 @@ elf_load(struct process *ps,
 		if (phdr->p_type != PT_LOAD) {
 			continue;
 		}
-
-		printf_("  Segment %d: vaddr=0x%lx filesz=0x%lx memsz=0x%lx flags=0x%x\n",
-		        i,
-		        phdr->p_vaddr,
-		        phdr->p_filesz,
-		        phdr->p_memsz,
-		        phdr->p_flags);
 
 		/* Calculate page-aligned range */
 		uint64_t virt_start = phdr->p_vaddr & PAGE_MASK;
@@ -626,11 +608,6 @@ elf_load(struct process *ps,
 	}
 
 	*entry_point = ehdr->e_entry;
-
-	printf_("ELF: Loaded successfully\n");
-	printf_("  Entry: 0x%lx\n", *entry_point);
-	printf_("  Heap start (brk): 0x%lx\n", ps->ps_brk);
-	printf_("  Stack: 0x%lx - 0x%lx\n", state.stack_base, USER_STACK_TOP);
 
 	return true;
 }

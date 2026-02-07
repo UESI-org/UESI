@@ -166,8 +166,6 @@ userland_load_and_run(const void *elf_data, size_t elf_size, const char *name)
 	struct limine_hhdm_response *hhdm = boot_get_hhdm();
 	uint64_t hhdm_offset = hhdm ? hhdm->offset : 0;
 
-	printf_("\n=== Loading User Program: %s ===\n", name);
-
 	struct process *ps = process_alloc(name);
 	if (!ps) {
 		printf_("Failed to create process\n");
@@ -225,11 +223,6 @@ userland_load_and_run(const void *elf_data, size_t elf_size, const char *name)
 			return false;
 		}
 	}
-
-	printf_("User stack: 0x%lx - 0x%lx (%lu KB)\n",
-	        stack_bottom,
-	        stack_top,
-	        (unsigned long)(PROCESS_USER_STACK_SIZE / 1024));
 
 	p->p_stat = SRUN;
 
